@@ -97,6 +97,7 @@ python Chat.py --latest
 ```
 ├── Chat.py                 # メイン会話システム
 ├── ai_assistants_config.csv # AIモデル設定
+├── system_message.txt      # システムメッセージ設定
 └── README.md              # このドキュメント
 ```
 

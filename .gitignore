@@ -1,0 +1,169 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# API Keys & 機密情報
+**/API_key.txt
+**/api_keys.txt
+**/*secret*
+**/*token*
+
+# 一時ファイル
+*.tmp
+*.cache
+temp.txt
+
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 実験フォルダ (著作権のある質問データ含む)
+llm_*/
+llm[0-9]*/
+llm[0-9][0-9]*/
+
+# 大容量結果ファイル
+*.png
+*.jpg
+*.jpeg
+*.gif
+**/*.log
+**/AI_Assistant_Log*.csv
+**/LLM*_Log*.csv
+
+# バックアップファイル
+*_backup_*.csv
+ai_assistants_config_backup_*.csv
+
+# 一時ファイル・キャッシュ
+temp.txt
+*.tmp
+*.cache
+output_*.txt
+
+# OS・エディタ
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# 🔒 API Keys & 機密情報 (最重要)
+**/API_key.txt
+**/API_KEY.txt
+**/api_keys.txt
+LLMs.bat
+**/*_api_key*
+**/*secret*
+**/*token*
+ai_assistants_config.csv
+
+# � 著作権のある質問データ (除外必須)
+question.csv
+question_*.csv
+**/question*.csv
+Question/
+MK_QA/
+
+# �📁 プロバイダーフォルダ (APIキー含む)
+ChatGPT/
+Groq/
+Together/
+Gemini/
+Claude/
+Anthropic/
+Mistral/
+Grok/
+Amazon/
+Copilot/
+huggingface/
+LangChain/
+Links/
+
+# 🧪 実験フォルダ (著作権のある質問データ含む)
+llm_*/
+llm[0-9]*/
+llm[0-9][0-9]*/
+llm[0-9]*問*/
+llm[0-9]*_*/
+**/オーバーヘッド確認*/
+**/翻訳/
+translation/
+programming/v1/
+programming/v2/
+MK_QA/
+Question/
+GKentei/
+gptme/
+
+# 📊 大容量データファイル  
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.ods
+**/*.log
+**/AI_Assistant_Log*.csv
+**/LLM*_Log*.csv
+**/20*_*.txt
+**/20*_*.csv
+
+# 📝 ログディレクトリ
+logs/
+**/logs/
+
+# 📄 自動生成サマリー
+summaries/
+**/summaries/
+
+# 💾 バックアップ・一時ファイル
+*_backup_*.csv
+ai_assistants_config_backup_*.csv
+temp.txt
+*.tmp
+*.cache
+output_*.txt
+memo*.txt
+
+# 📜 重複履歴ファイル（統合済みhistory.mdがあるため除外）
+history_*.md
+Python_Scripts_History.md
+Chat_py_history.md
+
+# ✅ Chat系開発履歴は全て含める
+# Chat.py, Chat1.py, Chat2.py, Chat3.py, Chat4.py, Chat4_2.py
+# Chat5.py, Chat5_2.py, Chat5_3.py, ..., Chat5_10.py
+# Chat6.py, Chat7.py
+# → 開発プロセスの完全な記録として重要
+
+# ✅ GitHubに含める重要ファイル (除外しない)
+# AI_model*.csv - 評価設定ファイル (技術的価値あり、APIキー含まず)
+# Chat7.py, llm6.py, graph*.py - 核となるコード
+# requirements.txt - 依存関係
+# README.md, history.md - ドキュメント
+# LLMs.bat.example - 安全なテンプレート
+# llm_framework_template.py - 評価フレームワーク
+
+# ❌ 除外するもの
+# question*.csv - 著作権のある質問データ
+# llm_* フォルダ - 実験データ（著作権問題）
+# プロバイダーフォルダ - APIキー含む
+# 大容量ファイル - PNG, ログ等
