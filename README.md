@@ -7,6 +7,8 @@
 ### 🔧 主要コンポーネント
 - **Chat.py**: 複数モデル対応の高度なAI会話システム
 - **ai_assistants_config.csv**: AIモデル設定ファイル
+- **update_ai_config.py**: AI設定更新用Pythonスクリプト
+- **update_ai_models.bat**: AI設定更新用バッチファイル（Windows）
 
 ### 🛠️ 主な機能
 - 複数プロバイダーのAIモデル対応（ChatGPT、Claude、Gemini、Groqなど）
@@ -92,12 +94,31 @@ python Chat.py --latest
 - `--latest`: 最新の会話ログを自動読み込み
 - `-l, --load`: 指定した会話ログファイルを読み込み
 
+### AI設定の更新
+
+**AI設定ファイル（ai_assistants_config.csv）の更新:**
+
+```bash
+# Pythonスクリプトで設定を更新
+python update_ai_config.py
+
+# Windowsバッチファイルで設定を更新（GitHubから最新版を取得）
+update_ai_models.bat
+```
+
+**📝 設定更新の詳細:**
+- `update_ai_config.py`: 対話式でAI設定を追加・編集・削除
+- `update_ai_models.bat`: GitHubリポジトリから最新のAI設定を自動取得
+- 設定更新後は新しいモデルが即座に利用可能
+
 ## 📁 プロジェクト構成
 
 ```
 ├── Chat.py                 # メイン会話システム
 ├── ai_assistants_config.csv # AIモデル設定
 ├── system_message.txt      # システムメッセージ設定
+├── update_ai_config.py     # AI設定更新スクリプト
+├── update_ai_models.bat    # AI設定更新バッチファイル
 └── README.md              # このドキュメント
 ```
 
