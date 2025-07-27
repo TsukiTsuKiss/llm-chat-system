@@ -130,9 +130,10 @@ gptme/
 logs/
 **/logs/
 
-# 📄 自動生成サマリー
-summaries/
-**/summaries/
+# 📄 サマリーファイル
+summaries/personal/     # 個人的なサマリーは除外
+summaries/private/      # プライベートサマリーは除外
+# ※ サンプルサマリーはリポジトリに含める
 
 # 💾 バックアップ・一時ファイル
 *_backup_*.csv
