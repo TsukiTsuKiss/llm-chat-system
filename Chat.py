@@ -113,6 +113,7 @@ def parse_arguments(ai_assistants):
 使用例:
   python Chat.py                           # デフォルト設定で開始
   python Chat.py -a ChatGPT --fast         # ChatGPTの高速版を使用
+  python Chat.py -s custom_system.txt      # カスタムシステムメッセージファイルを指定
   python Chat.py --latest                  # 最新のログファイルを自動読み込み
   python Chat.py -l 20250726_130500        # logs/フォルダからファイル名で読み込み
   python Chat.py -l logs/conversation.csv  # フルパスで読み込み
@@ -121,6 +122,7 @@ def parse_arguments(ai_assistants):
 ファイル管理:
   ログファイル: logs/ フォルダに自動保存
   まとめファイル: summaries/ フォルダに自動保存
+  システムメッセージ: デフォルトは system_message.txt
   --latest: 最新ログファイルを自動選択
 
 モデル継続オプション:
@@ -133,6 +135,9 @@ def parse_arguments(ai_assistants):
   'もとい' / 'ちゃいちゃい' : 複数行モードで直前の行を削除
         """
     )
+    # システムメッセージファイルの引数（新規追加）
+    parser.add_argument("-s", "--system-message", type=str, default="system_message.txt",
+                        help="Path to the system message file. Default: system_message.txt")
     # AIアシスタント名の引数 (デフォルト: Groq)
     parser.add_argument("-a", "--assistant", type=str, default="Groq", choices=ai_assistants.keys(),
                         help=f"Specify the AI assistant to use. Choices: {list(ai_assistants.keys())}")
@@ -296,19 +301,20 @@ def load_assistant(ai_assistants, ai_assistant, model_name):
     else:
         return AssistantClass(model=model_name)
 
-def create_prompt(ai_assistant):
-    # system_message.txt が存在しない場合のエラーハンドリングを追加（任意）
+def create_prompt(ai_assistant, system_message_file="system_message.txt"):
+    # システムメッセージファイルが存在しない場合のエラーハンドリング
     prompt_messages = []
     # AnthropicのClaudeモデルやxAIのGrokモデルはシステムメッセージをサポート
     if ai_assistant not in ['Gemini']:
         try:
-            with open("system_message.txt", "r", encoding="utf-8") as file:
+            with open(system_message_file, "r", encoding="utf-8") as file:
                 system_content = file.read()
             prompt_messages.append(SystemMessagePromptTemplate.from_template(system_content))
+            print(f"[INFO] システムメッセージを '{system_message_file}' から読み込みました。")
         except FileNotFoundError:
-             print("[WARNING] system_message.txt が見つかりません。システムメッセージなしで続行します。")
+             print(f"[WARNING] システムメッセージファイル '{system_message_file}' が見つかりません。システムメッセージなしで続行します。")
         except Exception as e:
-             print(f"[ERROR] system_message.txt の読み込みエラー: {e}")
+             print(f"[ERROR] システムメッセージファイル '{system_message_file}' の読み込みエラー: {e}")
 
     prompt_messages.extend([
         MessagesPlaceholder(variable_name="history"),
@@ -531,6 +537,7 @@ def main():
         print("--- 初期設定 ---")
         print("AI Assistant:", ai_assistant)
         print("Model name:", model_name)
+        print("System message file:", args.system_message)
         print("----------------")
 
         initial_messages = []
@@ -586,6 +593,7 @@ def main():
                 print("--- 最終設定 ---")
                 print("AI Assistant:", ai_assistant)
                 print("Model name:", model_name)
+                print("System message file:", args.system_message)
                 print("----------------")
 
             else:
@@ -633,7 +641,7 @@ def main():
              return # ログファイルがないと動作できないので終了
 
         llm = load_assistant(ai_assistants, ai_assistant, model_name)
-        prompt = create_prompt(ai_assistant)
+        prompt = create_prompt(ai_assistant, args.system_message)
 
         # 会話履歴を初期化
         conversation_history = ConversationHistory(max_length=MAX_HISTORY_LENGTH)

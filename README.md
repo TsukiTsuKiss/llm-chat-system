@@ -36,6 +36,7 @@
 
 ### 🛠️ 主な機能
 - 複数プロバイダーのAIモデル対応（ChatGPT、Claude、Gemini、Groqなど）
+- **カスタムシステムメッセージ**: ファイル指定によるAIの振る舞い設定
 - 自動要約機能付き会話履歴管理
 - 会話保存のためのファイル出力機能
 - 動的モデル切り替え
@@ -100,6 +101,9 @@ python Chat.py
 # 特定のAIアシスタントとのチャット
 python Chat.py -a ChatGPT
 
+# カスタムシステムメッセージファイルを指定
+python Chat.py -s custom_system.txt
+
 # 特定のモデルとのチャット
 python Chat.py -a Claude -m claude-3-haiku-20240307
 
@@ -114,6 +118,7 @@ python Chat.py --latest
 - `--help`: 使用方法とオプションの詳細表示
 - `-a, --assistant`: 使用するAIアシスタント名
 - `-m, --model`: 使用するモデル名
+- `-s, --system-message`: システムメッセージファイルのパス指定（デフォルト: system_message.txt）
 - `--fast`: 高速モード（簡易設定）
 - `--latest`: 最新の会話ログを自動読み込み
 - `-l, --load`: 指定した会話ログファイルを読み込み
@@ -133,14 +138,42 @@ update_ai_models.bat
 **📝 設定更新の詳細:**
 - `update_ai_config.py`: 対話式でAI設定を追加・編集・削除
 - `update_ai_models.bat`: GitHubリポジトリから最新のAI設定を自動取得
-- 設定更新後は新しいモデルが即座に利用可能
+- - **設定更新後は新しいモデルが即座に利用可能
+
+### システムメッセージのカスタマイズ
+
+**システムメッセージファイルの指定:**
+
+デフォルトでは`system_message.txt`が使用されますが、`-s`オプションで任意のファイルを指定できます：
+
+```bash
+# カスタムシステムメッセージを使用
+python Chat.py -s my_custom_system.txt
+
+# 相対パスまたは絶対パスも指定可能
+python Chat.py --system-message "configs/expert_system.txt"
+
+# 他のオプションと組み合わせ
+python Chat.py -s teacher_mode.txt -a ChatGPT --fast
+```
+
+**システムメッセージファイルの作成例:**
+
+```plaintext
+あなたは経験豊富なプログラミング講師です。
+常に敬語を使い、初心者にも分かりやすく説明してください。
+具体的なコード例を示し、なぜそうなるのかも説明してください。
+```
+
+これにより、用途に応じて異なる専門性や口調を持つAIアシスタントを作成できます。
 
 ## 📁 プロジェクト構成
 
 ```
 ├── Chat.py                 # メイン会話システム
 ├── ai_assistants_config.csv # AIモデル設定
-├── system_message.txt      # システムメッセージ設定
+├── system_message.txt      # デフォルトシステムメッセージ
+├── test_system.txt         # カスタムシステムメッセージの例
 ├── update_ai_config.py     # AI設定更新スクリプト
 ├── update_ai_models.bat    # AI設定更新バッチファイル
 └── README.md              # このドキュメント
