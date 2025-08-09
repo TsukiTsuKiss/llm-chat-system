@@ -129,6 +129,7 @@ gptme/
 # 📝 ログディレクトリ
 logs/
 **/logs/
+multi_logs/
 
 # 📄 サマリーファイル
 summaries/personal/     # 個人的なサマリーは除外

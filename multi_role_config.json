@@ -1,0 +1,157 @@
+{
+  "demo_roles": [
+    {
+      "name": "プログラマー",
+      "assistant": "ChatGPT",
+      "model": "gpt-5",
+      "system_prompt_file": "role/programmer.txt"
+    },
+    {
+      "name": "デザイナー",
+      "assistant": "Gemini",
+      "model": "gemini-2.5-pro",
+      "system_prompt_file": "role/designer.txt"
+    },
+    {
+      "name": "マーケター",
+      "assistant": "Groq",
+      "model": "llama-3.3-70b-versatile",
+      "system_prompt_file": "role/marketer.txt"
+    }
+  ],
+  "organization_roles": [
+    {
+      "name": "秘書",
+      "assistant": "Anthropic",
+      "model": "claude-4-opus-20250301",
+      "system_prompt_file": "role/secretary.txt"
+    },
+    {
+      "name": "企画",
+      "assistant": "ChatGPT",
+      "model": "gpt-5",
+      "system_prompt_file": "role/planner.txt"
+    },
+    {
+      "name": "分析官",
+      "assistant": "Gemini",
+      "model": "gemini-2.5-pro",
+      "system_prompt_file": "role/analyst.txt"
+    },
+    {
+      "name": "実行担当",
+      "assistant": "Groq",
+      "model": "llama-3.3-70b-versatile",
+      "system_prompt_file": "role/programmer.txt"
+    },
+    {
+      "name": "マーケター",
+      "assistant": "Anthropic",
+      "model": "claude-4-opus-20250301",
+      "system_prompt_file": "role/marketer.txt"
+    },
+    {
+      "name": "デザイナー",
+      "assistant": "ChatGPT",
+      "model": "gpt-5",
+      "system_prompt_file": "role/designer.txt"
+    }
+  ],
+  "workflows": {
+    "project_planning": {
+      "name": "プロジェクト企画",
+      "steps": [
+        {"role": "企画", "action": "アイデア創出と企画立案"},
+        {"role": "分析官", "action": "実現可能性と技術的検討"},
+        {"role": "デザイナー", "action": "UI/UX設計とユーザー体験検討"},
+        {"role": "マーケター", "action": "市場性とビジネスモデル評価"},
+        {"role": "秘書", "action": "全体のまとめと次のアクションプラン作成"}
+      ]
+    },
+    "startup_launch": {
+      "name": "スタートアップ立ち上げ",
+      "steps": [
+        {"role": "企画", "action": "事業コンセプトとビジョンの明確化"},
+        {"role": "分析官", "action": "市場調査と競合分析、リスク評価"},
+        {"role": "秘書", "action": "法人設立手続きと必要書類の整理"},
+        {"role": "実行担当", "action": "技術基盤とシステム要件の検討"},
+        {"role": "企画", "action": "資金調達計画と事業計画書作成"},
+        {"role": "秘書", "action": "設立スケジュールと次ステップのまとめ"}
+      ]
+    },
+    "product_development": {
+      "name": "製品開発",
+      "steps": [
+        {"role": "企画", "action": "要求仕様の整理と優先順位付け"},
+        {"role": "実行担当", "action": "技術アーキテクチャと実装計画"},
+        {"role": "企画", "action": "ユーザーインターフェース設計"},
+        {"role": "分析官", "action": "品質評価とリスク分析"},
+        {"role": "秘書", "action": "開発スケジュールと成果物整理"}
+      ]
+    },
+    "market_research": {
+      "name": "市場調査",
+      "steps": [
+        {"role": "マーケター", "action": "市場動向と競合分析"},
+        {"role": "分析官", "action": "データ分析と統計的検証"},
+        {"role": "企画", "action": "機会発見と戦略提案"},
+        {"role": "秘書", "action": "調査結果のまとめと報告書作成"}
+      ]
+    },
+    "new_product_meeting": {
+      "name": "新商品開発会議",
+      "steps": [
+        {"role": "マーケター", "action": "ターゲット顧客とニーズの分析"},
+        {"role": "デザイナー", "action": "商品コンセプトとデザイン方向性"},
+        {"role": "実行担当", "action": "技術実現性と開発工数の検討"},
+        {"role": "分析官", "action": "コスト分析と収益性予測"},
+        {"role": "企画", "action": "商品戦略と販売計画の立案"},
+        {"role": "秘書", "action": "開発ロードマップと次回会議の準備"}
+      ]
+    }
+  },
+  "scenarios": {
+    "debate": [
+      {
+        "name": "賛成派",
+        "assistant": "ChatGPT",
+        "model": "gpt-5",
+        "system_prompt_file": "role/debate_pro.txt"
+      },
+      {
+        "name": "反対派",
+        "assistant": "Gemini",
+        "model": "gemini-2.5-pro",
+        "system_prompt_file": "role/debate_con.txt"
+      }
+    ],
+    "brainstorm": [
+      {
+        "name": "創造性重視",
+        "assistant": "ChatGPT",
+        "model": "gpt-5",
+        "system_prompt_file": "role/creative.txt"
+      },
+      {
+        "name": "実現性重視",
+        "assistant": "Groq",
+        "model": "llama-3.3-70b-versatile",
+        "system_prompt_file": "role/realistic.txt"
+      }
+    ],
+    "interview": [
+      {
+        "name": "面接官",
+        "assistant": "Gemini",
+        "model": "gemini-2.5-pro",
+        "system_prompt_file": "role/interviewer.txt"
+      },
+      {
+        "name": "候補者",
+        "assistant": "ChatGPT",
+        "model": "gpt-5",
+        "system_prompt_file": "role/candidate.txt"
+      }
+    ]
+  }
+}
