@@ -50,6 +50,24 @@
       "assistant": "Anthropic",
       "model": "claude-opus-4-20250514",
       "system_prompt_file": "roles/ai_implementer.txt"
+    },
+    {
+      "name": "軽量実装エンジニア",
+      "assistant": "Groq",
+      "model": "llama-3.1-8b-instant",
+      "system_prompt_file": "roles/ai_implementer.txt"
+    },
+    {
+      "name": "軽量レビューア",
+      "assistant": "Groq",
+      "model": "llama-3.1-8b-instant",
+      "system_prompt_file": "roles/programmer.txt"
+    },
+    {
+      "name": "軽量プランナー",
+      "assistant": "Groq",
+      "model": "llama-3.1-8b-instant",
+      "system_prompt_file": "roles/planner.txt"
     }
   ],
   "workflows": {
@@ -100,6 +118,23 @@
         {"role": "リードエンジニア", "action": "Python コードレビューと品質チェック"},
         {"role": "AI実装エンジニア", "action": "Python テスト作成と実行確認"},
         {"role": "CTO", "action": "最終確認とドキュメント作成"}
+      ]
+    },
+    "simple_coding": {
+      "name": "シンプルコーディング",
+      "description": "軽量で単純なプログラムの迅速な実装",
+      "steps": [
+        {"role": "軽量プランナー", "action": "複雑度評価と要件整理（簡易実装判定）"},
+        {"role": "軽量実装エンジニア", "action": "シンプル実装とコメント付きコード作成"},
+        {"role": "軽量レビューア", "action": "コードレビューと実行確認"}
+      ]
+    },
+    "code_and_run": {
+      "name": "コード生成・実行",
+      "description": "コード生成と即座のサンドボックス実行",
+      "steps": [
+        {"role": "軽量実装エンジニア", "action": "実行可能なコード生成"},
+        {"role": "コードテスター", "action": "サンドボックスでの安全な実行・検証"}
       ]
     }
   },

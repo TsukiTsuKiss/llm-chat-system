@@ -12,8 +12,8 @@ MultiRoleChatの組織別管理システムは、**異なる企業文化や業�
 | **特徴** | 包括的なビジネス機能を<br>カバーする汎用性の高い組織 | 創造性と革新性を<br>最優先にした特別な体制 | 戦略コンサルティング業務に<br>特化した専門チーム | スピード重視の迅速な意思決定と<br>高速な実行力 |
 | **ロール数** | **7つ** | **5つ** | **6つ** | **8つ** |
 | **ロール** | • プログラマー<br>• デザイナー<br>• マーケター<br>• 企画<br>• 分析官<br>• 実行担当<br>• 秘書 | • ワイルドアイデア<br>• 悪魔の代弁者<br>• 創造性重視<br>• ビジョナリー<br>• モデレーター | • 戦略コンサルタント<br>• データアナリスト<br>• 業界専門家<br>• プロジェクトマネージャー<br>• リサーチャー<br>• 戦略企画 | • フルスタックエンジニア<br>• UI/UXデザイナー<br>• プロダクトオーナー<br>• CTO<br>• リードエンジニア<br>• プロダクトマネージャー<br>• AIアーキテクト<br>• AI実装エンジニア |
-| **ワークフロー数** | **5つ** | **4つ** | **2つ** | **5つ** |
-| **ワークフロー** | • プロジェクト企画<br>• スタートアップ立ち上げ<br>• 製品開発<br>• 市場調査<br>• 新商品開発会議 | • 創造的ブレインストーミング<br>• イノベーション・チャレンジ<br>• ワイルドアイデア会議<br>• 未来シナリオ創造 | • クライアント分析<br>• 戦略策定 | • Hello World プログラム作成 (Python)<br>• AI自動プログラミング開発<br>• MVP開発<br>• 高速反復開発<br>• 技術スプリント |
+| **ワークフロー数** | **5つ** | **4つ** | **2つ** | **7つ** |
+| **ワークフロー** | • プロジェクト企画<br>• スタートアップ立ち上げ<br>• 製品開発<br>• 市場調査<br>• 新商品開発会議 | • 創造的ブレインストーミング<br>• イノベーション・チャレンジ<br>• ワイルドアイデア会議<br>• 未来シナリオ創造 | • クライアント分析<br>• 戦略策定 | • MVP開発<br>• 高速反復開発<br>• 技術スプリント<br>• AI自動プログラミング開発<br>• Hello World プログラム作成<br>• シンプルコーディング<br>• コード生成・実行 |
 | **シナリオ数** | **3つ** | **0つ** | **1つ** | **2つ** |
 | **シナリオ** | • 討論（賛成派・反対派）<br>• ブレインストーミング（創造性・実現性）<br>• 面接（面接官・候補者） | なし | • クライアント・ミーティング<br>（コンサルタント・クライアント） | • ブレインストーミング<br>（未来志向派・エンジニア視点）<br>• AI自動プログラミング<br>（AIアーキテクト・AI実装エンジニア） |
 | **特殊機能** | 豊富なシナリオ機能 | **組織専用AI設定**<br>(厳選5つのAI) | 専門的クライアント対応 | 未来志向と技術革新文化 |
@@ -158,8 +158,37 @@ python MultiRoleChat.py --org creative_org --workflow creative_brainstorm --topi
 python MultiRoleChat.py --org tech_startup --workflow hello_world_development --topic "PythonでHello Worldプログラム"
 python MultiRoleChat.py --org tech_startup --workflow ai_auto_programming --topic "AIAutoProgramming.py開発"
 python MultiRoleChat.py --org tech_startup --workflow mvp_development --topic "新しいSNSアプリ"
+python MultiRoleChat.py --org tech_startup --workflow simple_coding --topic "フィボナッチ関数"
+python MultiRoleChat.py --org tech_startup --workflow code_and_run --topic "Hello World実行"
 python MultiRoleChat.py --org consulting_firm --workflow client_analysis --topic "製造業DX戦略"
+
+# 🚀 NEW: 軽量ワークフロー（tech_startup限定）
+python MultiRoleChat.py --org tech_startup --workflow simple_coding --topic "Hello Worldプログラム"
+python MultiRoleChat.py --org tech_startup --workflow quick_prototype --topic "概念実証"
 ```
+
+### **🎯 ワークフロー軽量化機能**
+
+**tech_startup** 組織では、プロジェクトの複雑度に応じて最適なワークフローを自動選択できます：
+
+| ワークフロー | ロール数 | 適用場面 | 実行時間 |
+|-------------|---------|----------|----------|
+| `code_and_run` | **2ロール** | コード生成＋即座実行 | **最速** |
+| `simple_coding` | **3ロール** | Hello World、基本プログラム | **高速** |
+| `mvp_development` | 4ロール | 製品開発 | バランス |
+| `rapid_iteration` | 4ロール | 反復開発 | バランス |
+| `tech_sprint` | 4ロール | 技術課題解決 | バランス |
+| `hello_world_development` | 6ロール | 学習用途、詳細プロセス | 教育的 |
+| `ai_auto_programming` | 6ロール | 複雑なAIシステム | 高品質 |
+
+**💡 使い分けのコツ**:
+
+- **コード生成してすぐ実行** → `code_and_run`
+- **Hello World**等の単純なプログラム → `simple_coding`
+- **反復開発**や**スプリント開発** → `rapid_iteration` / `tech_sprint`
+- **本格的な製品開発** → `mvp_development` 以上
+
+```bash
 
 ### シナリオ実行
 

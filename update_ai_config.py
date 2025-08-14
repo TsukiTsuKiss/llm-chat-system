@@ -476,20 +476,23 @@ def crawl_groq_costs():
     """Groq APIからモデルコスト情報を取得"""
     print("📡 Groq API情報を取得中...")
     
-    # Groq公式価格情報（手動更新が必要）
+    # Groq価格情報（Free tierとPaid tierの混合）
+    # 注意: GroqはLPUデモンストレーション目的で多くのモデルを無料提供
+    #       レート制限内での評価・開発用途は無料
     groq_models = {
-        "llama-3.3-70b-versatile": {"input": 0.59, "output": 0.79},
-        "llama-3.1-70b-versatile": {"input": 0.59, "output": 0.79},
-        "llama-3.1-8b-instant": {"input": 0.05, "output": 0.08},
-        "mixtral-8x7b-32768": {"input": 0.24, "output": 0.24},
-        "gemma-7b-it": {"input": 0.07, "output": 0.07}
+        # 無料枠対象モデル（評価・開発用途）
+        "llama-3.3-70b-versatile": {"input": 0.0, "output": 0.0, "note": "Free tier for evaluation and development"},
+        "llama-3.1-70b-versatile": {"input": 0.0, "output": 0.0, "note": "Free tier for evaluation and development"},
+        "llama-3.1-8b-instant": {"input": 0.0, "output": 0.0, "note": "Free tier for evaluation and development"},
+        "mixtral-8x7b-32768": {"input": 0.0, "output": 0.0, "note": "Free tier for evaluation and development"},
+        "gemma-7b-it": {"input": 0.0, "output": 0.0, "note": "Free tier for evaluation and development"}
     }
     
     for model, costs in groq_models.items():
-        update_or_add_model_cost(model, "Groq", costs["input"], costs["output"], 
-                           f"Updated via API crawl on {datetime.now().strftime('%Y-%m-%d')}")
+        note = costs.get("note", f"Updated via API crawl on {datetime.now().strftime('%Y-%m-%d')}")
+        update_or_add_model_cost(model, "Groq", costs["input"], costs["output"], note)
     
-    print(f"✅ Groq {len(groq_models)} モデルの価格を更新しました。")
+    print(f"✅ Groq {len(groq_models)} モデルの価格を更新しました（無料枠適用）。")
 
 def crawl_costs(source):
     """外部APIからコスト情報をクロールして更新する"""

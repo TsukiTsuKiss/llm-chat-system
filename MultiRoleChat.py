@@ -13,6 +13,14 @@ import time
 import json
 import importlib
 from datetime import datetime
+
+# Optional code saving functionality
+try:
+    from code_saver import CodeSaver
+    CODE_SAVING_ENABLED = True
+except ImportError:
+    CODE_SAVING_ENABLED = False
+    print("[INFO] code_saver.py not found. Code saving disabled.")
 from langchain.prompts import (
     ChatPromptTemplate,
     SystemMessagePromptTemplate,
@@ -375,6 +383,19 @@ class MultiRoleManager:
                     content = ' '.join(str(item) for item in content)
                 
                 response_text = str(content) if content else "応答が空でした"
+                
+                # オプション: コード保存機能
+                if CODE_SAVING_ENABLED:
+                    try:
+                        code_saver = CodeSaver()
+                        session_info = code_saver.save_ai_response_complete(
+                            response_text, role_name, "role_response"
+                        )
+                        if session_info and session_info.get('saved_files'):
+                            print(f"\n💾 {len(session_info['saved_files'])} ファイル保存: sandbox/session_{session_info['session_id']}/")
+                    except Exception as save_error:
+                        # エラーがあってもメインフローは継続
+                        pass
                 
                 # トークン使用量を記録
                 model_name = role_info.get('model', 'unknown')
@@ -902,7 +923,7 @@ class MultiRoleManager:
         
         # セッションの使用量サマリーを取得
         session_summary = self.token_tracker.get_session_summary()
-        cost_info = f"${session_summary['total_cost']:.4f} (入力: {session_summary['total_input_tokens']}tokens, 出力: {session_summary['total_output_tokens']}tokens)"
+        cost_info = f"**入力**: {session_summary['total_input_tokens']}tokens\n**出力**: {session_summary['total_output_tokens']}tokens\n**推定コスト**: ${session_summary['total_cost']:.4f}"
         
         # 組織情報を取得
         organization = self.organization_info.get('organization', '不明')
@@ -1250,16 +1271,33 @@ def execute_workflow(role_manager, org_config, workflow_name, topic):
     try:
         # 最終的なコスト情報を更新
         session_summary = role_manager.token_tracker.get_session_summary()
-        cost_info = f"${session_summary['total_cost']:.4f} (入力: {session_summary['total_input_tokens']}tokens, 出力: {session_summary['total_output_tokens']}tokens)"
-        conversation_log[cost_placeholder_index] = f"**推定コスト**: {cost_info}"
+        cost_info = f"**入力**: {session_summary['total_input_tokens']}tokens\n**出力**: {session_summary['total_output_tokens']}tokens\n**推定コスト**: ${session_summary['total_cost']:.4f}"
+        conversation_log[cost_placeholder_index] = cost_info
         
         os.makedirs(os.path.dirname(log_filename), exist_ok=True)
         with open(log_filename, 'w', encoding='utf-8') as f:
             f.write('\n'.join(conversation_log))
         print(f"\n💾 ワークフローログを保存しました: {log_filename}")
-        print(f"💰 このセッションのコスト: {cost_info}")
+        print(f"💰 このセッションのコスト: ${session_summary['total_cost']:.4f}")
     except Exception as e:
         print(f"❌ ログの保存に失敗しました: {e}")
+    
+    # オプション: コード保存統計
+    if CODE_SAVING_ENABLED:
+        try:
+            # sandbox ディレクトリの統計
+            sandbox_dir = "sandbox"
+            if os.path.exists(sandbox_dir):
+                sessions = [d for d in os.listdir(sandbox_dir) if d.startswith("session_")]
+                if sessions:
+                    latest_session = max(sessions)
+                    session_path = os.path.join(sandbox_dir, latest_session)
+                    files = [f for f in os.listdir(session_path) if not f.endswith('.meta.json')]
+                    if files:
+                        print(f"📁 実行可能ファイル: {len(files)} ファイル保存済み (sandbox/{latest_session}/)")
+        except Exception as e:
+            # デバッグ用: エラーを無視するが、必要に応じてログ出力
+            pass
     
     print(f"\n🎉 ワークフロー '{workflow_title}' が完了しました！")
 
@@ -1361,8 +1399,8 @@ def execute_scenario(role_manager, org_config, scenario_name, topic, max_rounds=
     try:
         # 最終的なコスト情報を更新
         session_summary = role_manager.token_tracker.get_session_summary()
-        cost_info = f"${session_summary['total_cost']:.4f} (入力: {session_summary['total_input_tokens']}tokens, 出力: {session_summary['total_output_tokens']}tokens)"
-        conversation_log[cost_placeholder_index] = f"**推定コスト**: {cost_info}"
+        cost_info = f"**入力**: {session_summary['total_input_tokens']}tokens\n**出力**: {session_summary['total_output_tokens']}tokens\n**推定コスト**: ${session_summary['total_cost']:.4f}"
+        conversation_log[cost_placeholder_index] = cost_info
         
         os.makedirs(os.path.dirname(log_filename), exist_ok=True)
         with open(log_filename, 'w', encoding='utf-8') as f:
