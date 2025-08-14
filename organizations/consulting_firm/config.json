@@ -1,0 +1,79 @@
+{
+  "organization": "consulting_firm",
+  "demo_roles": [
+    {
+      "name": "戦略コンサルタント",
+      "assistant": "ChatGPT",
+      "model": "gpt-5",
+      "system_prompt_file": "roles/planner.txt"
+    },
+    {
+      "name": "データアナリスト",
+      "assistant": "Gemini",
+      "model": "gemini-2.5-pro",
+      "system_prompt_file": "roles/analyst.txt"
+    },
+    {
+      "name": "業界専門家",
+      "assistant": "Anthropic",
+      "model": "claude-4-opus-20250301",
+      "system_prompt_file": "roles/marketer.txt"
+    }
+  ],
+  "organization_roles": [
+    {
+      "name": "プロジェクトマネージャー",
+      "assistant": "ChatGPT",
+      "model": "gpt-5",
+      "system_prompt_file": "roles/secretary.txt"
+    },
+    {
+      "name": "戦略企画",
+      "assistant": "Anthropic",
+      "model": "claude-4-opus-20250301",
+      "system_prompt_file": "roles/planner.txt"
+    },
+    {
+      "name": "リサーチャー",
+      "assistant": "Gemini",
+      "model": "gemini-2.5-pro",
+      "system_prompt_file": "roles/analyst.txt"
+    }
+  ],
+  "workflows": {
+    "client_analysis": {
+      "name": "クライアント分析",
+      "steps": [
+        {"role": "リサーチャー", "action": "業界分析と競合調査"},
+        {"role": "戦略企画", "action": "課題特定と解決方向性の策定"},
+        {"role": "業界専門家", "action": "専門知識に基づく提案"},
+        {"role": "プロジェクトマネージャー", "action": "提案書作成と次ステップ整理"}
+      ]
+    },
+    "strategy_development": {
+      "name": "戦略策定",
+      "steps": [
+        {"role": "戦略コンサルタント", "action": "戦略フレームワークの構築"},
+        {"role": "データアナリスト", "action": "データに基づく検証"},
+        {"role": "戦略企画", "action": "実行可能な戦略の策定"},
+        {"role": "プロジェクトマネージャー", "action": "戦略実行計画の作成"}
+      ]
+    }
+  },
+  "scenarios": {
+    "client_meeting": [
+      {
+        "name": "コンサルタント",
+        "assistant": "ChatGPT",
+        "model": "gpt-5",
+        "system_prompt_file": "roles/planner.txt"
+      },
+      {
+        "name": "クライアント",
+        "assistant": "Gemini",
+        "model": "gemini-2.5-pro",
+        "system_prompt_file": "roles/candidate.txt"
+      }
+    ]
+  }
+}

@@ -1,0 +1,87 @@
+{
+  "name": "creative_org",
+  "description": "常識を打ち破る革新的なアイデアで世界を変える創造的組織",
+  "ai_assistants_config": "ai_assistants_config.csv",
+  "roles": [
+    {
+      "name": "ワイルドアイデア",
+      "assistant": "ChatGPT",
+      "model": "gpt-4o",
+      "system_prompt_file": "roles/wild_innovator.txt"
+    },
+    {
+      "name": "悪魔の代弁者",
+      "assistant": "Gemini", 
+      "model": "gemini-2.0-flash-exp",
+      "system_prompt_file": "roles/devil_advocate.txt"
+    },
+    {
+      "name": "創造性重視",
+      "assistant": "Groq",
+      "model": "llama-3.3-70b-versatile", 
+      "system_prompt_file": "roles/creative.txt"
+    },
+    {
+      "name": "ビジョナリー",
+      "assistant": "Anthropic",
+      "model": "claude-3-5-sonnet-20241022",
+      "system_prompt_file": "roles/visionary.txt"
+    },
+    {
+      "name": "モデレーター",
+      "assistant": "Mistral",
+      "model": "mistral-large-2411",
+      "system_prompt_file": "roles/moderator.txt"
+    }
+  ],
+  "workflows": {
+    "creative_brainstorm": {
+      "name": "創造的ブレインストーミング",
+      "description": "制約のない自由な発想から革新的なアイデアを生み出す",
+      "steps": [
+        {"role": "ワイルドアイデア", "action": "制約のない自由な発想でアイデアを大量生成"},
+        {"role": "ビジョナリー", "action": "未来志向で革新的な視点からアイデアを拡張"},
+        {"role": "悪魔の代弁者", "action": "批判的思考でアイデアの問題点や落とし穴を指摘"},
+        {"role": "創造性重視", "action": "実現可能性を考慮しながら創造的解決策を提案"},
+        {"role": "ワイルドアイデア", "action": "批判を踏まえてアイデアをより良く改良"},
+        {"role": "モデレーター", "action": "議論を整理し、最も有望なアイデアを特定"}
+      ]
+    },
+    "innovation_challenge": {
+      "name": "イノベーション・チャレンジ",
+      "description": "業界の常識を覆す革新的ソリューションの創造",
+      "steps": [
+        {"role": "ビジョナリー", "action": "業界の常識を覆す大胆なビジョンを提示"},
+        {"role": "悪魔の代弁者", "action": "既存の解決策の限界と問題点を徹底分析"},
+        {"role": "ワイルドアイデア", "action": "異業種からの発想転換で新しいアプローチを提案"},
+        {"role": "創造性重視", "action": "技術的イノベーションによる解決策を検討"},
+        {"role": "ビジョナリー", "action": "全体を統合した革新的なソリューションを構想"},
+        {"role": "モデレーター", "action": "イノベーションの実行計画をまとめ"}
+      ]
+    },
+    "wild_ideas": {
+      "name": "ワイルドアイデア会議",
+      "description": "常識破りの奇抜なアイデアから天才的発想を発見",
+      "steps": [
+        {"role": "ワイルドアイデア", "action": "常識破りの奇抜なアイデアを連発"},
+        {"role": "ビジョナリー", "action": "そのアイデアが実現した未来を描写"},
+        {"role": "悪魔の代弁者", "action": "なぜそれが不可能かを厳しく指摘"},
+        {"role": "ワイルドアイデア", "action": "不可能を可能にする創造的な方法を考案"},
+        {"role": "創造性重視", "action": "段階的実現のための現実的なステップを提案"},
+        {"role": "モデレーター", "action": "狂気と天才の境界線にあるアイデアを評価"}
+      ]
+    },
+    "future_scenario": {
+      "name": "未来シナリオ創造",
+      "description": "理想的な未来像から逆算した革新的戦略の構築",
+      "steps": [
+        {"role": "ビジョナリー", "action": "10年後の理想的な未来像を詳細に描く"},
+        {"role": "悪魔の代弁者", "action": "その未来に至る道筋の困難と障害を列挙"},
+        {"role": "ワイルドアイデア", "action": "困難を乗り越える創造的な解決策を提案"},
+        {"role": "創造性重視", "action": "技術進歩による実現可能性を検証"},
+        {"role": "ビジョナリー", "action": "更に大胆で魅力的な未来を再構想"},
+        {"role": "モデレーター", "action": "実現に向けた具体的なロードマップを作成"}
+      ]
+    }
+  }
+}

@@ -7,6 +7,8 @@ MultiRoleChatは、複数のAIアシスタントが異なる役割（ロール�
 ## ⭐ 主要機能
 
 - **仮想AI組織**: 複数の専門ロールによる協調的問題解決
+- **組織別設定システム (NEW)**: 独立した組織とワークフローの管理
+- **ワークフロー直接実行 (NEW)**: コマンドラインから直接ワークフロー起動
 - **ワークフロー自動化**: 定義済みプロセスの自動実行
 - **Fast Modelモード**: 高速応答優先の軽量モード
 - **クイズモード**: 複数AIによる一斉質問・回答比較
@@ -18,7 +20,10 @@ MultiRoleChatは、複数のAIアシスタントが異なる役割（ロール�
 
 1. [システム要件](#システム要件)
 2. [基本的な使い方](#基本的な使い方)
-3. [モード別詳細](#モード別詳細)
+3. [設定ガイド](configuration-guide.md) - **組織設定・プロバイダー分散・エラー診断**
+4. [設定管理ガイド](configuration-management.md) - **設定ファイル管理・バージョン管理**
+5. [トラブルシューティング](troubleshooting.md) - **エラー解決・診断ツール**
+6. [モード別詳細](#モード別詳細)
 4. [Fast Modelモード](#fast-modelモード)
 5. [クイズモード](#クイズモード)
 6. [ワークフロー機能](#ワークフロー機能)
@@ -58,6 +63,12 @@ python MultiRoleChat.py --demo
 
 # 組織モード（企業経営向けロール）
 python MultiRoleChat.py --organization
+
+# 組織指定とワークフロー直接実行（新機能）
+python MultiRoleChat.py --org creative_org --workflow creative_brainstorm --topic "革新的なAIサービス"
+
+# 利用可能な組織とワークフロー一覧の確認（新機能）
+python MultiRoleChat.py --org creative_org
 
 # Fast Modelモード（高速応答）
 python MultiRoleChat.py --organization --fast
@@ -134,6 +145,34 @@ exit
 #### interview（面接）
 
 - 面接官 vs 候補者による面接シミュレーション
+
+### 組織別設定システム（新機能）
+
+`--org` オプションを使用することで、独立した組織設定を利用できます。
+
+#### 利用可能な組織
+
+**creative_org（創造性特化組織）**
+- 5つの専門ロール：ワイルドアイデア、ビジョナリー、悪魔の代弁者、創造性重視、モデレーター
+- 4つのワークフロー：creative_brainstorm、idea_refinement、innovation_session、vision_planning
+
+```bash
+# 組織のワークフロー一覧を確認
+python MultiRoleChat.py --org creative_org
+
+# 特定ワークフローの直接実行
+python MultiRoleChat.py --org creative_org --workflow creative_brainstorm --topic "革新的なAIサービス"
+```
+
+#### ワークフロー例
+
+**creative_brainstorm**: 制約のない自由な発想から革新的なアイデアを生み出すワークフロー
+1. ワイルドアイデア：制約のない自由な発想でアイデアを大量生成
+2. ビジョナリー：未来志向で革新的な視点からアイデアを拡張
+3. 悪魔の代弁者：批判的思考でアイデアの問題点や落とし穴を指摘
+4. 創造性重視：実現可能性を考慮しながら創造的解決策を提案
+5. ワイルドアイデア：批判を踏まえてアイデアをより良く改良
+6. モデレーター：議論を整理し、最も有望なアイデアを特定
 
 ---
 

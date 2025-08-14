@@ -1,157 +1,276 @@
-# LLM チャットシステム 🤖
+# LLM Chat System - 高度なAI協働システム
 
-複数のLLMを活用した包括的なAI対話システム集です。
+このシステムは、複数のAIが協力して問題解決を行う革新的なチャットシステムです。
 
-## 💡 プロジェクト概要
+## 🎯 主要コンポーネント
 
-このプロジェクトは、**対話を通じて思考を整理し、知識として構造化する**ことを目的とした、2つの専門的なチャットシステムを提供します。
+### 1. MultiRoleChat - マルチロールAI協働システム
 
-### なぜ作ったのか
+複数のAIアシスタントが異なる専門役割を担当し、チームとして協働するシステム
 
-- 複数のLLMモデルを気軽に試し比べたい
-- 会話の中から重要なアイデアや知見を効率的に抽出したい  
-- マークダウン形式でナレッジベースを構築したい
-- 各モデルの特性や癖を実際の使用を通じて理解したい
+**主要機能:**
+- 🎭 **複数ロール管理** - 企画、分析、実装、デザインなど専門ロール
+- 🔄 **ワークフロー自動化** - 定義済みプロセスの自動実行
+- 🏢 **組織シミュレーション** - 企業やチームの会議・議論をシミュレート
+- ⚡ **プロバイダー分散** - API制限回避とパフォーマンス最適化
+- 🔍 **強化診断機能** - エラー発生時の詳細分析とトラブルシューティング
+- 💰 **統合コスト管理システム** - リアルタイムコスト追跡と価格管理
 
-### なぜCLIなのか
+**新機能 (v1.2.0):**
+- 🔧 **統合管理ユーティリティ** - AI設定とコスト管理の一元化 (`update_ai_config.py`)
+- 🔍 **プロバイダーマッピング** - AI設定からコスト情報への自動マッピング
+- ⚖️ **整合性チェック機能** - AI設定とコスト情報の不整合を自動検出
 
-- **μConsoleでの通勤中利用**: 移動時間を思考整理時間に変換
-- **軽量性**: 場所を選ばず、どこでもAI協働環境を実現
-- **継続性**: ブラウザやアプリに依存しない安定した対話環境
-- **効率性**: キーボード主体の高速操作
+**機能改良 (v1.1.0):**
+- 🏢 **組織別設定システム** - 独立した組織とワークフローの管理
+- ⚡ **ワークフロー直接実行** - コマンドラインから直接ワークフロー起動
+- 🎨 **創造性特化組織** - ブレインストーミングと革新的思考に特化
+- 🤖 **スタンドアロンモード** - 組織設定からの単独実行機能
 
-## 🎯 システム構成
+**機能改良 (v1.0.0):**
+- 📊 組織情報とプロバイダー情報を含む詳細エラー診断
+- 🛠️ 設定ファイル検証ツール (`test_config.py`)
+- 📋 リアルタイム設定確認コマンド (`config`, `debug`)
+- 🔧 ロール名統一とプロバイダー分散による安定性向上
 
-### 1. Chat.py - シングルチャットシステム
+### 2. Single Chat - シンプルAIチャット
 
-1対1の高度なAI会話システム
+基本的な1対1のAIチャット機能
 
-- **用途**: 個人的な思考整理、アイデア出し、学習支援
-- **特徴**: まとめ機能、複数行編集、履歴管理
-- **対象**: 日常的なAI対話を効率化したいユーザー
+## 📚 ドキュメント
 
-📖 **詳細**: [docs/single-chat/README.md](docs/single-chat/README.md)
+### MultiRoleChat
+- 📖 **[メインガイド](docs/multi-role-chat/README.md)** - 基本機能と使用方法
+- ⚙️ **[設定ガイド](docs/multi-role-chat/configuration-guide.md)** - 組織設定・プロバイダー分散・エラー診断
+- 🔧 **[設定管理ガイド](docs/multi-role-chat/configuration-management.md)** - 設定ファイル管理・バージョン管理  
+- 🚨 **[トラブルシューティング](docs/multi-role-chat/troubleshooting.md)** - エラー解決・診断ツール
+- 🚀 **[クイックスタート](docs/multi-role-chat/quickstart.md)** - 迅速な導入手順
+- 💡 **[実例集](docs/multi-role-chat/examples.md)** - 実際の使用例とベストプラクティス
+- 💰 **[コスト管理](docs/cost-management.md)** - 統合コスト管理とプロバイダーマッピング
 
-### 2. MultiRoleChat.py - マルチロールチャットシステム
+### Single Chat
+- 🚀 **[クイックスタート](docs/single-chat/quickstart.md)** - シンプルチャットの使用方法
+- 📖 **[メインガイド](docs/single-chat/README.md)** - 基本機能と設定
 
-複数AIロール間での協調的会話システム（v1.0.0 with Fast Model Support）
+## 🔧 統合管理ユーティリティ
 
-- **用途**: チーム会議、ブレインストーミング、専門家会議、ワークフロー実行
-- **特徴**: 
-  - 仮想AI組織による専門ロール分担（最大20ロール）
-  - ワークフロー自動化、ロール管理、AI進行役
-  - **Fast Modelモード**（約2-3倍高速応答）
-  - **自動ログ保存**（会話、会議、ワークフローのMarkdown形式記録）
-  - **堅牢なエラーハンドリング**（APIレート制限、クレジット不足対応）
-- **対象**: 複数の視点から問題を検討したいユーザー
+### AI設定とコスト管理
 
-📖 **詳細**: [docs/multi-role-chat/README.md](docs/multi-role-chat/README.md)
+`update_ai_config.py`はAI設定とコスト管理を一元的に行うツールです：
 
-## 🔧 共通基盤
+```bash
+# AI設定の更新（最新モデル情報を取得）
+python update_ai_config.py
 
-### サポートAIモデル
+# コスト一覧の表示
+python update_ai_config.py costs list
 
-**標準モデル**: ChatGPT, Claude, Gemini, Groq, Together AI, Mistral, Grok
-**Fast Modelサポート**: 高速応答用軽量モデル自動切替（約2-3倍高速）
+# AI設定とコスト情報の整合性確認
+python update_ai_config.py costs verify
 
-### 主な機能
+# モデルコスト情報の追加
+python update_ai_config.py costs add gpt-5 OpenAI 0.005 0.015 "Latest GPT-5 pricing"
 
-- **動的AI設定管理**: CSVベースの統一設定システム
-- **カスタムシステムメッセージ**: 専用ファイルによる動作制御
-- **自動要約機能**: 会話内容の構造化まとめ
-- **Foam/Obsidian連携**: Markdownベースのナレッジ構築
-- **Fast Model自動切替**: `--fast`オプションで高速応答モード
+# 最新価格情報の自動取得
+python update_ai_config.py costs crawl all
+```
 
-📖 **詳細**: [設定ガイド](docs/shared/configuration.md)
+詳細は [コスト管理ドキュメント](docs/cost-management.md) を参照してください。
 
 ## 🚀 クイックスタート
 
+### MultiRoleChat
+
 ```bash
-# 1. ライブラリインストール
-pip install langchain-openai langchain-anthropic langchain-google-genai langchain-groq
+# 1. 組織指定とワークフロー直接実行（推奨）
+python MultiRoleChat.py --org creative_org --workflow creative_brainstorm --topic "革新的なAIサービス"
 
-# 2. APIキー設定（最低1つ）
-export GROQ_API_KEY="your-api-key"      # Linux/Mac
-$env:GROQ_API_KEY="your-api-key"        # Windows PowerShell
+# 2. 利用可能な組織とワークフローの確認
+python MultiRoleChat.py --org creative_org
 
-# 3. システム選択
-python Chat.py                          # シングルチャット（個人向け）
-python Chat.py --fast                   # 高速モード
-python MultiRoleChat.py --demo          # マルチロールチャット（チーム向け）
-python MultiRoleChat.py --fast          # マルチロール高速モード
+# 3. 組織を指定して対話モードで起動
+python MultiRoleChat.py --org tech_startup
+
+# 4. デモモードでの起動
+python MultiRoleChat.py --demo
+
+# 5. ワークフロー実行（対話モード内）
+🎭 MultiRoleChat> workflow product_development "LLM仮想会社会議チャットボット"
 ```
 
-📖 **詳細な手順**: [セットアップガイド](docs/shared/setup.md)
+### Single Chat
 
-## 📁 プロジェクト構成
+```bash
+python Chat.py
+```
 
-```text
+## 🔧 設定ファイル構造
+
+```
 llm-chat-system/
-├── Chat.py                      # シングルチャットシステム
-├── MultiRoleChat.py             # マルチロールチャットシステム
-├── ai_assistants_config.csv     # AI設定（共通）
-├── system_message.txt           # デフォルトシステムメッセージ
-├── multi_role_config.json       # マルチロール設定
-├── update_ai_config.py          # AI設定更新スクリプト
-├── update_ai_models.bat         # AI設定更新バッチファイル
-├── role/                        # ロール定義ファイル群（12種類）
-├── logs/                        # Chat.py ログ
-├── summaries/                   # 自動要約ファイル
-├── docs/                        # 体系化されたドキュメント
-│   ├── single-chat/             # Chat.py 専用ドキュメント
-│   ├── multi-role-chat/         # MultiRoleChat.py 専用ドキュメント
-│   └── shared/                  # 共通ドキュメント
-└── README.md                    # このファイル
+├── ai_assistants_config.csv          # AIプロバイダー定義（共通）
+├── model_costs.csv                    # モデルコスト情報データベース
+├── update_ai_config.py               # 統合管理ユーティリティ（AI設定+コスト管理）
+├── organizations/                     # 組織別詳細設定
+│   ├── creative_org/                  # 創造性特化組織
+│   │   ├── config.json               # 組織設定とワークフロー
+│   │   └── roles/                    # 組織専用ロール
+│   │       ├── wild_innovator.txt    # ワイルドアイデア・ジェネレーター
+│   │       ├── devil_advocate.txt    # 悪魔の代弁者
+│   │       ├── visionary.txt         # ビジョナリー
+│   │       ├── creative.txt          # 創造性重視
+│   │       └── moderator.txt         # モデレーター
+│   ├── tech_startup/config.json      # テックスタートアップ組織
+│   ├── consulting_firm/config.json   # コンサルティング組織
+│   └── default_company/config.json   # デフォルト組織
+└── docs/                             # ドキュメント
+    ├── multi-role-chat/              # MultiRoleChatドキュメント
+    ├── single-chat/                  # SingleChatドキュメント
+    └── cost-management.md            # コスト管理システムガイド
 ```
 
-## 📖 ドキュメント
+## 🎭 MultiRoleChat の特徴
 
-### 🚀 はじめる
+### 組織とロールの管理
 
-- **[セットアップガイド](docs/shared/setup.md)** - 環境構築の詳細手順
-- **[設定ガイド](docs/shared/configuration.md)** - AI設定のカスタマイズ
-- **[トラブルシューティング](docs/shared/troubleshooting.md)** - よくある問題の解決
+**テックスタートアップ組織例:**
+- 📋 **企画** - 戦略立案とアイデア創出
+- 🔬 **分析専門** - データ分析と市場調査  
+- 💻 **実装専門** - 技術実装と開発
+- 🎨 **デザイナー** - UI/UXデザイン
+- 📢 **マーケター** - 市場戦略と販促
+- 📝 **秘書** - 会議管理と総括
 
-### 📘 システム別ガイド
+### プロバイダー分散戦略
 
-- **[Chat.py 完全ガイド](docs/single-chat/README.md)** - シングルチャットの詳細
-- **[Chat.py クイックスタート](docs/single-chat/quickstart.md)** - すぐに始める
-- **[MultiRoleChat.py 完全ガイド](docs/multi-role-chat/README.md)** - マルチロールの詳細  
-- **[MultiRoleChat.py クイックスタート](docs/multi-role-chat/quickstart.md)** - すぐに始める
-- **[実践チュートリアル](docs/multi-role-chat/examples.md)** - 活用事例とコツ
+API制限を回避し、安定した運用を実現するため、各ロールを異なるAIプロバイダーに分散配置：
 
-## 🔧 技術仕様
+| ロール | プロバイダー | モデル | 特徴 |
+|--------|-------------|--------|------|
+| 企画 | Gemini | gemini-2.5-flash | 創造性・高速 |
+| 分析専門 | ChatGPT | gpt-5-chat-latest | 論理思考・高品質 |
+| 実装専門 | Groq | llama-4-scout | 高速処理 |
+| デザイナー | Grok | grok-3-mini-fast | 創造性・独自性 |
+| マーケター | Mistral | devstral-small | 効率性・軽量 |
+| 秘書 | Anthropic | claude-3-5-haiku | 安全性・丁寧 |
 
-**開発環境**: Python 3.8+, LangChain  
-**設定管理**: CSV, JSON  
-**ファイル管理**: 分離型（デフォルト）/ 統合型（オプション）
+### 強化された診断機能
 
-📖 **詳細**: 各システムのREADMEを参照
+エラー発生時に詳細な診断情報を提供：
 
-## 🤝 開発履歴
+```
+🚨 詳細診断情報:
+[企画] 🚨 エラー詳細
+  Organization: tech_startup
+  Config: multi_role_config_tech_startup.json
+  Source: role/default_org/planner.txt
+  Provider: langchain_google_genai.ChatGoogleGenerativeAI
+  Assistant: Gemini
+  Model: gemini-2.5-flash
+  Error: ⚠️ API制限に達しました
+```
 
-このプロジェクトは反復的なLLM開発の集大成です：
+## 🔍 診断とトラブルシューティング
 
-**Phase 1**: Chat.py - 基本的な1対1会話システム（18回の反復開発）  
-**Phase 2**: MultiRoleChat.py - 複数ロール協調システム  
-**Phase 3**: 統合プラットフォーム - 両システムの統合運用
+### 設定診断ツール
 
-## 🎯 使い分けガイド
+```bash
+# 組織設定の事前検証
+python test_organizations.py
 
-| 用途 | おすすめシステム | 理由 |
-|------|------------------|------|
-| 日常的な質問・相談 | Chat.py | シンプルで高速 |
-| 学習・調査 | Chat.py | まとめ機能が有効 |
-| アイデア発想 | MultiRoleChat.py | 多角的視点 |
-| プロジェクト企画 | MultiRoleChat.py | ワークフロー活用 |
-| 技術検討 | MultiRoleChat.py | 専門家ロール活用 |
+# 特定組織の詳細確認
+python MultiRoleChat.py --org creative_org
+
+# 出力例
+✨ 組織: creative_org (創造性特化組織)
+� 説明: 制約のない発想と革新的思考に特化した創造的組織
+
+🎭 利用可能なロール (5個):
+  ✅ ワイルドアイデア: 常識を破る革新的発想を生み出す
+  ✅ ビジョナリー: 未来志向の戦略的視点を提供
+
+🔄 利用可能なワークフロー (4個):
+  ✅ creative_brainstorm: 制約のない自由な発想から革新的なアイデアを生み出す
+```
+
+### リアルタイム診断
+
+```bash
+🎭 MultiRoleChat> config      # 全体設定状況
+🎭 MultiRoleChat> list        # ロール一覧と詳細
+🎭 MultiRoleChat> debug ワイルドアイデア  # 特定ロールの詳細診断
+```
+
+## 📊 ワークフローの例
+
+### 製品開発ワークフロー
+
+```bash
+workflow product_development "LLM仮想会社会議チャットボット"
+```
+
+**実行ステップ:**
+1. **企画** - 要求仕様の整理と優先順位付け
+2. **実装専門** - 技術アーキテクチャと実装計画
+3. **企画** - ユーザーインターフェース設計
+4. **分析専門** - 品質評価とリスク分析
+5. **秘書** - 開発スケジュールと成果物整理
+
+## 🚨 よくある問題と解決策
+
+### API制限エラー
+**症状:** `⚠️ API制限に達しました`
+**解決策:** プロバイダー分散設定の適用、Fast Modelの使用
+
+### ロール名不一致
+**症状:** `⚠️ ロール 'XXX' が見つかりません`
+**解決策:** 設定診断ツールでワークフローとロール定義の名前統一
+
+### クレジット不足
+**症状:** `⚠️ APIクレジットが不足しています`
+**解決策:** 他のプロバイダーへの切り替え、軽量モデルの使用
+
+## 🔄 更新履歴
+
+## 📈 バージョン履歴
+
+### v1.2.0 (2025-08-14)
+- 🔧 **統合管理ユーティリティ** - AI設定とコスト管理の一元化 (`update_ai_config.py`)
+- 🔍 **プロバイダーマッピング** - AI設定からコスト情報への自動マッピング
+- ⚖️ **整合性チェック機能** - AI設定とコスト情報の不整合を自動検出
+- 📊 **強化ログヘッダー** - 組織名とロール詳細情報を含む包括的なログ
+- 💰 **CSV基盤コスト管理** - ハードコードから動的データベースへの移行
+- 🗑️ **重複ツール削除** - `manage_model_costs.py`を統合により廃止
+
+### v1.1.0 (2025-08-14)
+- 🆕 **組織別設定システム** - 独立した組織とワークフローの管理
+- 🆕 **ワークフロー直接実行** - コマンドラインから直接ワークフロー起動
+- 🆕 **創造性特化組織（creative_org）** - ブレインストーミングと革新的思考に特化
+- 🆕 **スタンドアロンモード** - 組織設定からの単独実行機能
+- 🗑️ **Legacy削除** - 古い設定システムを完全に削除、新システムに一本化
+- 🆕 **包括的ドキュメント拡充** - 組織別設定ガイドの追加
+
+### v1.0.0 (2025-08-13)
+- 🆕 強化された診断機能とエラー報告
+- 🆕 組織情報とプロバイダー情報を含む詳細ログ
+- 🆕 設定診断ツール (`test_config.py`)
+- 🆕 プロバイダー分散戦略による安定性向上
+- 🆕 ロール名統一とワークフロー最適化
+- 🆕 包括的なドキュメント整備
+
+## 🤝 コントリビューション
+
+プロジェクトへの貢献を歓迎します：
+
+1. **問題報告** - エラーログと設定情報を含めて報告
+2. **機能提案** - 新しいロールやワークフローのアイデア
+3. **設定共有** - 業界特化の設定ファイル例
+4. **ドキュメント改善** - 使いやすさの向上
 
 ## 📄 ライセンス
 
-MIT License
+MIT License - 詳細は [LICENSE](LICENSE) ファイルを参照してください。
 
 ---
 
-**開発期間**: 2024-2025年  
-**最新版**: Chat.py v7.0.0, MultiRoleChat.py v1.0.0  
-**ステータス**: 本番環境対応済み
+**LLM Chat System v1.0.0** - AI協働の新しい可能性を探求

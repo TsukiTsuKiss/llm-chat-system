@@ -1,0 +1,136 @@
+{
+  "organization": "tech_startup",
+  "demo_roles": [
+    {
+      "name": "フルスタックエンジニア",
+      "assistant": "ChatGPT",
+      "model": "gpt-5",
+      "system_prompt_file": "roles/programmer.txt"
+    },
+    {
+      "name": "UI/UXデザイナー",
+      "assistant": "Gemini",
+      "model": "gemini-2.5-pro",
+      "system_prompt_file": "roles/designer.txt"
+    },
+    {
+      "name": "プロダクトオーナー",
+      "assistant": "Groq",
+      "model": "llama-3.3-70b-versatile",
+      "system_prompt_file": "roles/planner.txt"
+    }
+  ],
+  "organization_roles": [
+    {
+      "name": "CTO",
+      "assistant": "ChatGPT",
+      "model": "gpt-5",
+      "system_prompt_file": "roles/programmer.txt"
+    },
+    {
+      "name": "リードエンジニア",
+      "assistant": "Groq",
+      "model": "llama-3.3-70b-versatile",
+      "system_prompt_file": "roles/programmer.txt"
+    },
+    {
+      "name": "プロダクトマネージャー",
+      "assistant": "Anthropic",
+      "model": "claude-opus-4-20250514",
+      "system_prompt_file": "roles/planner.txt"
+    },
+    {
+      "name": "AIアーキテクト",
+      "assistant": "ChatGPT",
+      "model": "gpt-5",
+      "system_prompt_file": "roles/ai_architect.txt"
+    },
+    {
+      "name": "AI実装エンジニア",
+      "assistant": "Anthropic",
+      "model": "claude-opus-4-20250514",
+      "system_prompt_file": "roles/ai_implementer.txt"
+    }
+  ],
+  "workflows": {
+    "mvp_development": {
+      "name": "MVP開発",
+      "steps": [
+        {"role": "プロダクトオーナー", "action": "最小機能要件の定義とユーザーストーリー作成"},
+        {"role": "UI/UXデザイナー", "action": "シンプルなプロトタイプとワイヤーフレーム作成"},
+        {"role": "フルスタックエンジニア", "action": "迅速な実装とテスト環境構築"},
+        {"role": "CTO", "action": "技術選定とアーキテクチャ判断"}
+      ]
+    },
+    "rapid_iteration": {
+      "name": "高速反復開発",
+      "steps": [
+        {"role": "フルスタックエンジニア", "action": "機能実装とデプロイ"},
+        {"role": "プロダクトオーナー", "action": "ユーザーフィードバック収集と次の優先度決定"},
+        {"role": "UI/UXデザイナー", "action": "ユーザビリティ改善とデザイン調整"},
+        {"role": "リードエンジニア", "action": "コード品質チェックとリファクタリング"}
+      ]
+    },
+    "tech_sprint": {
+      "name": "技術スプリント",
+      "steps": [
+        {"role": "CTO", "action": "技術課題の特定と解決方針策定"},
+        {"role": "リードエンジニア", "action": "実装計画と技術選定"},
+        {"role": "フルスタックエンジニア", "action": "集中的な実装作業"},
+        {"role": "プロダクトマネージャー", "action": "進捗管理とリリース計画"}
+      ]
+    },
+    "ai_auto_programming": {
+      "name": "AI自動プログラミング開発",
+      "steps": [
+        {"role": "AIアーキテクト", "action": "システム全体のアーキテクチャ設計と技術選定"},
+        {"role": "AI実装エンジニア", "action": "コア機能の実装とモジュール構造の作成"},
+        {"role": "AIアーキテクト", "action": "実装の品質確認とセキュリティレビュー"},
+        {"role": "AI実装エンジニア", "action": "テストコードの実装とエラーハンドリング"},
+        {"role": "AIアーキテクト", "action": "デプロイ戦略と運用方針の策定"},
+        {"role": "AI実装エンジニア", "action": "ドキュメントとサンプルコードの作成"}
+      ]
+    },
+    "hello_world_development": {
+      "name": "Hello World プログラム作成 (Python)",
+      "steps": [
+        {"role": "プロダクトマネージャー", "action": "要件定義：Python で 'Hello, World\\n' を出力するプログラムの仕様確認"},
+        {"role": "AIアーキテクト", "action": "技術選定：Python の最適な実装方法とコード構造の決定"},
+        {"role": "AI実装エンジニア", "action": "実装：Python で Hello World プログラムのコード作成"},
+        {"role": "リードエンジニア", "action": "Python コードレビューと品質チェック"},
+        {"role": "AI実装エンジニア", "action": "Python テスト作成と実行確認"},
+        {"role": "CTO", "action": "最終確認とドキュメント作成"}
+      ]
+    }
+  },
+  "scenarios": {
+    "brainstorm": [
+      {
+        "name": "未来志向派",
+        "assistant": "ChatGPT",
+        "model": "gpt-5",
+        "system_prompt_file": "roles/creative.txt"
+      },
+      {
+        "name": "エンジニア視点",
+        "assistant": "Groq",
+        "model": "llama-3.3-70b-versatile",
+        "system_prompt_file": "roles/realistic.txt"
+      }
+    ],
+    "auto_programming": [
+      {
+        "name": "AIアーキテクト",
+        "assistant": "ChatGPT",
+        "model": "gpt-5",
+        "system_prompt_file": "roles/ai_architect.txt"
+      },
+      {
+        "name": "AI実装エンジニア",
+        "assistant": "Anthropic",
+        "model": "claude-opus-4-20250514",
+        "system_prompt_file": "roles/ai_implementer.txt"
+      }
+    ]
+  }
+}

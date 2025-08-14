@@ -13,6 +13,12 @@ python MultiRoleChat.py --demo
 # 企業経営向け（秘書、企画、分析官、実行担当、マーケター、デザイナー）
 python MultiRoleChat.py --organization
 
+# 創造性特化組織での直接ワークフロー実行（新機能）
+python MultiRoleChat.py --org creative_org --workflow creative_brainstorm --topic "革新的なAIサービス"
+
+# 組織の利用可能ワークフロー確認（新機能）
+python MultiRoleChat.py --org creative_org
+
 # 討論・面接などの特定シナリオ
 python MultiRoleChat.py --scenario debate
 ```
@@ -63,13 +69,28 @@ python MultiRoleChat.py --organization
 workflow market_research "競合他社分析"
 ```
 
+### 創造的ブレインストーミング（新機能）
+```bash
+# 創造性特化組織での革新的アイデア生成
+python MultiRoleChat.py --org creative_org --workflow creative_brainstorm --topic "革新的なAIペットサービス"
+
+# 結果: multi_logs/creative_brainstorm_YYYYMMDD_HHMMSS.md に保存
+```
+
 ## 🔧 利用可能なワークフロー
 
+### 標準組織
 - `startup_launch` - スタートアップ立ち上げ
 - `project_planning` - プロジェクト企画
 - `product_development` - 製品開発  
 - `market_research` - 市場調査
 - `new_product_meeting` - 新商品開発会議
+
+### 創造性特化組織（creative_org）
+- `creative_brainstorm` - 制約のない自由な発想から革新的なアイデアを生み出す
+- `idea_refinement` - アイデアの詳細化と実現可能性の検討
+- `innovation_session` - 新技術や新市場への挑戦的なアプローチ
+- `vision_planning` - 長期的ビジョンと戦略的方向性の策定
 
 ## ❓ トラブル解決
 

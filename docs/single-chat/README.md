@@ -173,7 +173,6 @@ python Chat.py -s teacher_mode.txt -a ChatGPT --fast
 ├── Chat.py                 # メイン会話システム
 ├── ai_assistants_config.csv # AIモデル設定
 ├── system_message.txt      # デフォルトシステムメッセージ
-├── test_system.txt         # カスタムシステムメッセージの例
 ├── update_ai_config.py     # AI設定更新スクリプト
 ├── update_ai_models.bat    # AI設定更新バッチファイル
 └── README.md              # このドキュメント
