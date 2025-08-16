@@ -17,6 +17,12 @@
 - 💰 **統合コスト管理システム** - リアルタイムコスト追跡と価格管理
 - 💾 **自動コード保存機能** - AIが生成したコードを`sandbox/`に自動保存
 
+**新機能 (v1.4.0):**
+- 🎯 **クイズ評価システム** - 複数AIプロバイダーの性能比較・ベンチマーク機能
+- ⚡ **応答時間測定** - クイズモードでの詳細パフォーマンス分析
+- 📊 **性能統計レポート** - 正解率・応答速度・早押しクイズ分析
+- 🏆 **8プロバイダー対応** - OpenAI/Google/Anthropic/Groq/Mistral/Together/Grok参加制限解除
+
 **新機能 (v1.3.0):**
 - 💾 **自動コード保存システム** - AI生成コードの`sandbox/`自動保存機能
 - 🔧 **コード保存管理** - セッション別ファイル管理と実行スクリプト生成
@@ -92,16 +98,20 @@ python update_ai_config.py costs crawl all
 # 1. 組織指定とワークフロー直接実行（推奨）
 python MultiRoleChat.py --org creative_org --workflow creative_brainstorm --topic "革新的なAIサービス"
 
-# 2. 利用可能な組織とワークフローの確認
+# 2. クイズ評価システム（NEW）- AIモデル性能比較
+python MultiRoleChat.py --org quiz_evaluation --demo
+🎭 MultiRoleChat> quiz multiline continuous
+
+# 3. 利用可能な組織とワークフローの確認
 python MultiRoleChat.py --org creative_org
 
-# 3. 組織を指定して対話モードで起動
+# 4. 組織を指定して対話モードで起動
 python MultiRoleChat.py --org tech_startup
 
-# 4. デモモードでの起動
+# 5. デモモードでの起動
 python MultiRoleChat.py --demo
 
-# 5. ワークフロー実行（対話モード内）
+# 6. ワークフロー実行（対話モード内）
 🎭 MultiRoleChat> workflow product_development "LLM仮想会社会議チャットボット"
 ```
 
@@ -127,6 +137,11 @@ llm-chat-system/
 │   │       ├── visionary.txt         # ビジョナリー
 │   │       ├── creative.txt          # 創造性重視
 │   │       └── moderator.txt         # モデレーター
+│   ├── quiz_evaluation/              # クイズ評価組織（NEW）
+│   │   ├── config.json               # 8つのAIプロバイダー設定
+│   │   ├── README.md                 # 性能評価結果・使用方法
+│   │   └── roles/
+│   │       └── quiz_king.txt         # 自称クイズ王キャラクター
 │   ├── tech_startup/config.json      # テックスタートアップ組織
 │   ├── consulting_firm/config.json   # コンサルティング組織
 │   └── default_company/config.json   # デフォルト組織
@@ -257,6 +272,13 @@ sandbox/session_20250814_141337/
 ## 🔄 更新履歴
 
 ## 📈 バージョン履歴
+
+### v1.4.0 (2025-08-16)
+- 🎯 **クイズ評価システム** - quiz_evaluation組織による複数AIプロバイダー性能比較機能
+- ⚡ **応答時間測定** - クイズモードでの詳細パフォーマンス分析と統計
+- 📊 **性能統計レポート** - 正解率・応答速度・早押しクイズ王決定戦分析
+- 🏆 **8プロバイダー対応** - OpenAI/Google/Anthropic/Groq/Mistral/Together/Grok参加制限解除
+- 🔧 **API問題解決** - Together APIのモデル変更とG検定ベース評価システム確立
 
 ### v1.3.0 (2025-08-14)
 - 💾 **自動コード保存システム** - AI生成コードの`sandbox/`自動保存機能
