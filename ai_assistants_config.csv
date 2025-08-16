@@ -3,6 +3,6 @@ ChatGPT,langchain_openai,ChatOpenAI,gpt-5,gpt-5-chat-latest
 Gemini,langchain_google_genai,ChatGoogleGenerativeAI,gemini-2.5-pro,gemini-2.5-flash
 Groq,langchain_groq,ChatGroq,meta-llama/llama-4-maverick-17b-128e-instruct,meta-llama/llama-4-scout-17b-16e-instruct
 Mistral,langchain_mistralai,ChatMistralAI,mistral-large-latest,devstral-small-latest
-Together,langchain_together,ChatTogether,togethercomputer/RedPajama-INCITE-7B-Chat\,
+Together,langchain_together,ChatTogether,meta-llama/Llama-Guard-4-12B,
 Anthropic,langchain_anthropic,ChatAnthropic,claude-opus-4-20250514,claude-3-5-haiku-20241022
 Grok,langchain_xai,ChatXAI,grok-4-0709,grok-3-mini-fast

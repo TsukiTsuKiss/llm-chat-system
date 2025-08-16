@@ -95,7 +95,9 @@ class TokenUsageTracker:
             'total_input_tokens': 0,
             'total_output_tokens': 0,
             'total_cost': 0.0,
-            'model_breakdown': {}
+            'model_breakdown': {},
+            'response_times': {},  # 応答時間の記録
+            'request_count': 0     # リクエスト総数
         }
     
     def estimate_tokens(self, text):
@@ -112,8 +114,8 @@ class TokenUsageTracker:
         estimated_tokens = (japanese_chars / 2) + (english_chars / 4)
         return max(1, int(estimated_tokens))
     
-    def add_usage(self, model_name, input_text, output_text):
-        """使用量を記録"""
+    def add_usage(self, model_name, input_text, output_text, response_time=None):
+        """使用量とレスポンス時間を記録"""
         input_tokens = self.estimate_tokens(input_text)
         output_tokens = self.estimate_tokens(output_text)
         
@@ -127,22 +129,38 @@ class TokenUsageTracker:
         self.session_usage['total_input_tokens'] += input_tokens
         self.session_usage['total_output_tokens'] += output_tokens
         self.session_usage['total_cost'] += total_cost
+        self.session_usage['request_count'] += 1
         
         # モデル別内訳
         if model_name not in self.session_usage['model_breakdown']:
             self.session_usage['model_breakdown'][model_name] = {
-                'input_tokens': 0, 'output_tokens': 0, 'cost': 0.0
+                'input_tokens': 0, 
+                'output_tokens': 0, 
+                'cost': 0.0,
+                'requests': 0,
+                'total_response_time': 0.0,
+                'avg_response_time': 0.0
             }
         
         self.session_usage['model_breakdown'][model_name]['input_tokens'] += input_tokens
         self.session_usage['model_breakdown'][model_name]['output_tokens'] += output_tokens
         self.session_usage['model_breakdown'][model_name]['cost'] += total_cost
+        self.session_usage['model_breakdown'][model_name]['requests'] += 1
+        
+        # 応答時間の記録
+        if response_time is not None:
+            self.session_usage['model_breakdown'][model_name]['total_response_time'] += response_time
+            self.session_usage['model_breakdown'][model_name]['avg_response_time'] = (
+                self.session_usage['model_breakdown'][model_name]['total_response_time'] / 
+                self.session_usage['model_breakdown'][model_name]['requests']
+            )
         
         return {
             'input_tokens': input_tokens,
             'output_tokens': output_tokens,
             'cost': total_cost,
-            'model': model_name
+            'model': model_name,
+            'response_time': response_time
         }
     
     def get_session_summary(self):
@@ -174,6 +192,57 @@ class TokenUsageTracker:
                 'output_cost_per_1k': output_cost_per_1k
             }
         return None
+    
+    def get_performance_stats(self):
+        """プロバイダとモデル別のパフォーマンス統計を取得"""
+        stats = {
+            'total_requests': self.session_usage['request_count'],
+            'models': {}
+        }
+        
+        for model_name, data in self.session_usage['model_breakdown'].items():
+            stats['models'][model_name] = {
+                'requests': data['requests'],
+                'avg_response_time': data['avg_response_time'],
+                'total_tokens': data['input_tokens'] + data['output_tokens'],
+                'total_cost': data['cost'],
+                'tokens_per_second': (data['input_tokens'] + data['output_tokens']) / data['total_response_time'] if data['total_response_time'] > 0 else 0
+            }
+        
+        return stats
+    
+    def print_performance_report(self):
+        """パフォーマンスレポートを出力"""
+        stats = self.get_performance_stats()
+        
+        print("\n📊 パフォーマンス統計")
+        print("=" * 60)
+        print(f"総リクエスト数: {stats['total_requests']}")
+        
+        if not stats['models']:
+            print("統計データがありません")
+            return
+        
+        print("\n🏁 モデル別パフォーマンス:")
+        print("-" * 60)
+        
+        # ソート（平均応答時間順）
+        sorted_models = sorted(
+            stats['models'].items(), 
+            key=lambda x: x[1]['avg_response_time'] if x[1]['avg_response_time'] > 0 else float('inf')
+        )
+        
+        for model_name, data in sorted_models:
+            print(f"🤖 {model_name}")
+            print(f"   📊 リクエスト数: {data['requests']}")
+            if data['avg_response_time'] > 0:
+                print(f"   ⏱️ 平均応答時間: {data['avg_response_time']:.2f}秒")
+                print(f"   🚀 処理速度: {data['tokens_per_second']:.1f} tokens/秒")
+            print(f"   💰 総コスト: ${data['total_cost']:.4f}")
+            print(f"   📝 総トークン: {data['total_tokens']}")
+            print()
+        
+        print("=" * 60)
 
 def print_version_info():
     """バージョン情報を表示"""
@@ -369,7 +438,13 @@ class MultiRoleManager:
         
         try:
             role_info = self.active_roles[role_name]
+            
+            # 応答時間の測定開始
+            start_time = time.time()
             response = role_info['conversation'].invoke({"input": user_input})
+            end_time = time.time()
+            
+            response_time = end_time - start_time
             
             if isinstance(response, AIMessage):
                 # 応答を履歴に追加（ロール情報付き）
@@ -397,9 +472,9 @@ class MultiRoleManager:
                         # エラーがあってもメインフローは継続
                         pass
                 
-                # トークン使用量を記録
+                # トークン使用量と応答時間を記録
                 model_name = role_info.get('model', 'unknown')
-                usage_info = self.token_tracker.add_usage(model_name, user_input, response_text)
+                usage_info = self.token_tracker.add_usage(model_name, user_input, response_text, response_time)
                 
                 return response_text
             else:
@@ -643,6 +718,8 @@ class MultiRoleManager:
         print("=" * 60)
         
         quiz_responses = []
+        response_times = {}  # 各ロールの応答時間を記録
+        
         # クイズ専用の汎用プロンプト（複数行質問に対応）
         quiz_prompt = f"""あなたは知識豊富なAIアシスタントです。以下の質問に正確で簡潔に答えてください。
 
@@ -658,8 +735,14 @@ class MultiRoleManager:
         
         for i, role_name in enumerate(roles_to_use, 1):
             try:
-                # クイズモード専用の独立したレスポンス取得
+                # 応答時間の測定開始
+                start_time = time.time()
                 response = self.get_quiz_response(role_name, quiz_prompt)
+                end_time = time.time()
+                
+                response_time = end_time - start_time
+                response_times[role_name] = response_time
+                
                 # より厳格な文字数制限（100文字まで）
                 if len(response) > 100:
                     response = response[:100] + "..."
@@ -668,20 +751,34 @@ class MultiRoleManager:
                     formatted_response = response.replace('\\n', '\n')
                 else:
                     formatted_response = str(response) if response else ""
-                print(f"🎭 [{i}] {role_name}: {formatted_response}")
+                
+                # 応答時間を表示に含める
+                print(f"🎭 [{i}] {role_name} ({response_time:.2f}秒): {formatted_response}")
                 
                 quiz_responses.append(f"[{role_name}] {response}")
                 
             except Exception as e:
                 print(f"🎭 [{i}] {role_name}: ❌ エラー - {e}")
                 quiz_responses.append(f"[{role_name}] エラー: {e}")
+                response_times[role_name] = 0  # エラー時は0秒
         
         print("=" * 60)
         
-        # クイズログを保存
-        self.save_meeting_log(f"クイズ: {question}", roles_to_use, quiz_responses, "", "quiz")
+        # 応答時間のサマリーを表示
+        if response_times:
+            print("\n⏱️ 応答時間サマリー:")
+            sorted_times = sorted(response_times.items(), key=lambda x: x[1])
+            for role_name, resp_time in sorted_times:
+                if resp_time > 0:
+                    print(f"  🏃 {role_name}: {resp_time:.2f}秒")
+                else:
+                    print(f"  ❌ {role_name}: エラー")
+            print("=" * 60)
         
-        return quiz_responses
+        # クイズログを保存（応答時間情報も含める）
+        self.save_meeting_log(f"クイズ: {question}", roles_to_use, quiz_responses, "", "quiz", response_times)
+        
+        return quiz_responses, response_times
 
     def continuous_quiz_mode(self, max_roles=None):
         """連続クイズモード - 複数の質問を連続して処理"""
@@ -750,12 +847,21 @@ class MultiRoleManager:
                 quiz_count += 1
                 
                 # 個別のクイズを実行
-                responses = self.quiz_mode(question, max_roles)
+                quiz_result = self.quiz_mode(question, max_roles)
+                
+                # quiz_modeの戻り値を処理（応答時間情報を含む）
+                if isinstance(quiz_result, tuple) and len(quiz_result) == 2:
+                    responses, response_times = quiz_result
+                else:
+                    # 旧バージョンとの互換性のため
+                    responses = quiz_result if quiz_result else []
+                    response_times = {}
                 
                 # 全体ログに追加
                 all_quiz_logs.append({
                     'question': question,
                     'responses': responses,
+                    'response_times': response_times,
                     'quiz_number': quiz_count
                 })
                 
@@ -770,6 +876,10 @@ class MultiRoleManager:
             self.save_continuous_quiz_log(all_quiz_logs)
         
         print(f"✅ 連続クイズモード終了（合計 {quiz_count} 問）")
+        
+        # パフォーマンス統計を表示
+        if quiz_count > 0:
+            self.token_tracker.print_performance_report()
 
     def get_quiz_response(self, role_name, quiz_prompt):
         """クイズ専用のレスポンス取得（履歴に影響しない）"""
@@ -791,7 +901,12 @@ class MultiRoleManager:
                 role_info['instance']
             )
             
+            # 応答時間の測定開始
+            start_time = time.time()
             response = quiz_chain.invoke({"input": quiz_prompt})
+            end_time = time.time()
+            
+            response_time = end_time - start_time
             
             if isinstance(response, AIMessage):
                 # クイズモードでは履歴に追加しない
@@ -799,7 +914,14 @@ class MultiRoleManager:
                 if isinstance(content, list):
                     # リストの場合は文字列に変換
                     content = ' '.join(str(item) for item in content)
-                return str(content) if content else "応答が空でした"
+                
+                response_text = str(content) if content else "応答が空でした"
+                
+                # トークン使用量と応答時間を記録
+                model_name = role_info.get('model', 'unknown')
+                usage_info = self.token_tracker.add_usage(model_name, quiz_prompt, response_text, response_time)
+                
+                return response_text
             else:
                 return "応答の取得に失敗しました"
                 
@@ -872,7 +994,94 @@ class MultiRoleManager:
                     content = response[role_end + 2:]
                     md_content += f"### {i}. {role_name}\n\n{content}\n\n"
             
+            # 応答時間情報を追加（利用可能な場合）
+            if 'response_times' in quiz_data and quiz_data['response_times']:
+                md_content += "**応答時間**:\n\n"
+                md_content += "| ロール | 応答時間 |\n"
+                md_content += "|--------|--------|\n"
+                
+                # 応答時間順にソート
+                sorted_times = sorted(quiz_data['response_times'].items(), key=lambda x: x[1])
+                for role_name, resp_time in sorted_times:
+                    if resp_time > 0:
+                        md_content += f"| {role_name} | {resp_time:.2f}秒 |\n"
+                    else:
+                        md_content += f"| {role_name} | エラー |\n"
+                md_content += "\n"
+            
             md_content += "---\n\n"
+        
+        # パフォーマンス統計を追加
+        performance_stats = self.token_tracker.get_performance_stats()
+        if performance_stats['models']:
+            md_content += "## パフォーマンス統計\n\n"
+            md_content += f"**総リクエスト数**: {performance_stats['total_requests']}\n\n"
+            md_content += "| モデル | リクエスト数 | 平均応答時間 | 処理速度 (tokens/秒) | 総コスト |\n"
+            md_content += "|--------|------------|------------|-------------------|--------|\n"
+            
+            # ソート（平均応答時間順）
+            sorted_models = sorted(
+                performance_stats['models'].items(), 
+                key=lambda x: x[1]['avg_response_time'] if x[1]['avg_response_time'] > 0 else float('inf')
+            )
+            
+            for model_name, data in sorted_models:
+                avg_time = f"{data['avg_response_time']:.2f}秒" if data['avg_response_time'] > 0 else "N/A"
+                tokens_per_sec = f"{data['tokens_per_second']:.1f}" if data['tokens_per_second'] > 0 else "N/A"
+                md_content += f"| {model_name} | {data['requests']} | {avg_time} | {tokens_per_sec} | ${data['total_cost']:.4f} |\n"
+            
+            md_content += "\n---\n\n"
+        
+        # 問題別応答時間サマリーを追加
+        quiz_response_times = []
+        for quiz_data in all_quiz_logs:
+            if 'response_times' in quiz_data and quiz_data['response_times']:
+                quiz_response_times.append({
+                    'quiz_number': quiz_data['quiz_number'],
+                    'times': quiz_data['response_times']
+                })
+        
+        if quiz_response_times:
+            md_content += "## 📊 問題別応答時間サマリー\n\n"
+            
+            # 全ロールの名前を取得
+            all_roles = set()
+            for quiz_time in quiz_response_times:
+                all_roles.update(quiz_time['times'].keys())
+            all_roles = sorted(list(all_roles))
+            
+            # テーブルヘッダー
+            md_content += "| 問題 | " + " | ".join(all_roles) + " |\n"
+            md_content += "|" + "---|" * (len(all_roles) + 1) + "\n"
+            
+            # 各問題の応答時間を表示
+            for quiz_time in quiz_response_times:
+                row = f"| Q{quiz_time['quiz_number']} |"
+                for role in all_roles:
+                    time_val = quiz_time['times'].get(role, 0)
+                    if time_val > 0:
+                        row += f" {time_val:.2f}秒 |"
+                    else:
+                        row += " エラー |"
+                md_content += row + "\n"
+            
+            # 平均応答時間
+            avg_times = {}
+            for role in all_roles:
+                times = [qt['times'].get(role, 0) for qt in quiz_response_times if qt['times'].get(role, 0) > 0]
+                if times:
+                    avg_times[role] = sum(times) / len(times)
+                else:
+                    avg_times[role] = 0
+            
+            # 平均行を追加
+            avg_row = "| **平均** |"
+            for role in all_roles:
+                if avg_times[role] > 0:
+                    avg_row += f" **{avg_times[role]:.2f}秒** |"
+                else:
+                    avg_row += " **N/A** |"
+            md_content += avg_row + "\n\n---\n\n"
         
         md_content += f"""
 *この連続クイズログは MultiRoleChat v{VERSION} により自動生成されました*
@@ -886,7 +1095,7 @@ class MultiRoleManager:
         except Exception as e:
             print(f"⚠️ ログ保存エラー: {e}")
 
-    def save_meeting_log(self, topic, participants, meeting_log, summary="", log_type="meeting"):
+    def save_meeting_log(self, topic, participants, meeting_log, summary="", log_type="meeting", response_times=None):
         """会議ログをMarkdownファイルとして保存"""
         if not os.path.exists(MULTI_LOGS_DIR):
             os.makedirs(MULTI_LOGS_DIR)
@@ -954,6 +1163,22 @@ class MultiRoleManager:
 ## 📋 {"議事録" if log_type == "meeting" else "記録"}
 
 """
+        
+        # クイズの場合は応答時間情報を追加
+        if log_type == "quiz" and response_times:
+            md_content += "### ⏱️ 応答時間\n\n"
+            md_content += "| ロール | 応答時間 |\n"
+            md_content += "|--------|--------|\n"
+            
+            # 応答時間順にソート
+            sorted_times = sorted(response_times.items(), key=lambda x: x[1])
+            for role_name, resp_time in sorted_times:
+                if resp_time > 0:
+                    md_content += f"| {role_name} | {resp_time:.2f}秒 |\n"
+                else:
+                    md_content += f"| {role_name} | エラー |\n"
+            
+            md_content += "\n---\n\n"
         
         # 各発言をMarkdown形式で整理
         for i, log_entry in enumerate(meeting_log, 1):
@@ -1747,6 +1972,7 @@ def main():
     print("  scenario <scenario_name> <topic>         - シナリオを実行")
     print("  meeting <role1> <role2> ... <topic>      - チーム会議を開催")
     print("  cost                                     - 現在のセッションコストを表示")
+    print("  performance または perf                  - パフォーマンス統計を表示")
     print("  quit                                     - 終了")
     print("-" * 50)
     
@@ -1886,12 +2112,12 @@ def main():
                 
                 # 連続クイズモードの処理
                 if cmd_args[0].lower() == 'continuous':
-                    role_manager.continuous_quiz_mode(max_roles=5)
+                    role_manager.continuous_quiz_mode(max_roles=None)
                     continue
                 
                 # 複数行連続クイズモードの処理
                 if len(cmd_args) >= 2 and cmd_args[0].lower() == 'multiline' and cmd_args[1].lower() == 'continuous':
-                    role_manager.continuous_quiz_mode(max_roles=5)
+                    role_manager.continuous_quiz_mode(max_roles=None)
                     continue
                 
                 # 複数行質問モードの処理
@@ -1920,7 +2146,7 @@ def main():
                     # 単一行質問
                     question = ' '.join(cmd_args)
                 
-                role_manager.quiz_mode(question, max_roles=5)  # 最大5ロールまで
+                role_manager.quiz_mode(question, max_roles=None)  # 制限なし（全ロール参加）
             
             elif cmd == 'workflow':
                 if len(cmd_args) < 2:
@@ -1977,6 +2203,9 @@ def main():
                         print(f"    コスト: ${usage['cost']:.4f}")
                         print(f"    入力: {usage['input_tokens']:,}tokens")
                         print(f"    出力: {usage['output_tokens']:,}tokens")
+            
+            elif cmd in ['performance', 'perf']:
+                role_manager.token_tracker.print_performance_report()
             
             else:
                 print(f"不明なコマンド: {cmd}")
