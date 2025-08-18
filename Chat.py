@@ -1,10 +1,11 @@
-# Chat - 最新版チャットボット（まとめ機能・複数行編集・Rate Limit対応）
-# Version: 7.0.0
+# Chat - 最新版チャットボット（まとめ機能・複数行編集・包括的エラー対応）
+# Version: 8.0.0
 # Features: 
 # - まとめ機能: AIによる会話履歴の要約とファイル保存
 # - 複数行入力: 継続的な複数行モードと高度な編集機能
 # - 高速モデル対応: --fastスイッチで高速版モデルに切り替え
-# - Rate Limit対応: 指数バックオフによる自動リトライ
+# - 包括的エラー対応: API制限エラーの自動検出・対応・リトライ
+# - トークン節約機能: まとめの履歴除外による長時間会話対応
 # - 最新AIモデル: 全プロバイダーの最新モデルに対応
 
 import sys
@@ -28,8 +29,8 @@ from langchain.schema import AIMessage, HumanMessage
 import argparse # argparseをインポート
 
 # Version information
-VERSION = "7.0.0"
-VERSION_DATE = "2025-07-26"
+VERSION = "8.0.0"
+VERSION_DATE = "2025-08-18"
 
 # AI Assistants configuration file
 AI_ASSISTANTS_CONFIG_FILE = "ai_assistants_config.csv"
@@ -44,6 +45,122 @@ FILE_ORGANIZATION_MODE = "separated"  # "separated" or "unified"
 
 MAX_HISTORY_LENGTH = 10
 
+# API制限エラー対応の設定
+API_ERROR_CODES = {
+    '413': 'Request too large',
+    '429': 'Rate limit exceeded',
+    '503': 'Service unavailable',
+    '504': 'Gateway timeout'
+}
+
+def detect_api_error(error_str):
+    """APIエラーの種類を検出する"""
+    error_str_lower = error_str.lower()
+    
+    # エラーコードを検出
+    detected_code = None
+    for code in API_ERROR_CODES.keys():
+        if code in error_str:
+            detected_code = code
+            break
+    
+    # キーワードベースでの検出
+    if not detected_code:
+        if any(keyword in error_str_lower for keyword in ['rate limit', 'rate_limit', 'too many requests']):
+            detected_code = '429'
+        elif any(keyword in error_str_lower for keyword in ['request too large', 'payload too large', 'content too long']):
+            detected_code = '413'
+        elif any(keyword in error_str_lower for keyword in ['service unavailable', 'temporarily unavailable']):
+            detected_code = '503'
+        elif any(keyword in error_str_lower for keyword in ['timeout', 'gateway timeout']):
+            detected_code = '504'
+    
+    return detected_code
+
+def handle_api_error(error_code, error_str, attempt, max_retries, retry_delay, conversation_history=None):
+    """APIエラーに応じた適切な対応を実行する"""
+    
+    if error_code == '413':  # Request too large
+        print(f"🔴 リクエストサイズエラー: {API_ERROR_CODES[error_code]}")
+        
+        # 会話履歴を自動削減して再試行
+        if conversation_history and attempt < max_retries - 1:
+            history_size = conversation_history.get_history_size_estimate()
+            print(f"� 現在の履歴サイズ: 約{history_size:,}文字")
+            
+            if conversation_history.reduce_history():
+                new_size = conversation_history.get_history_size_estimate()
+                print(f"🔧 履歴を自動削減しました: {history_size:,} → {new_size:,}文字")
+                print("🔄 削減された履歴で再試行します...")
+                return True  # リトライする
+        
+        print("�💡 対応策:")
+        print("   - 入力テキストを短くしてください")
+        print("   - 会話履歴をリセットしてください")
+        print("   - より大きなコンテキストウィンドウを持つモデルに変更してください")
+        return False  # これ以上リトライしない
+    
+    elif error_code == '429':  # Rate limit exceeded
+        if attempt < max_retries - 1:
+            wait_time = retry_delay * (2 ** attempt)
+            print(f"🟡 レート制限エラー: {API_ERROR_CODES[error_code]}")
+            print(f"⏰ {wait_time}秒待機してから再試行します...")
+            time.sleep(wait_time)
+            return True  # リトライする
+        else:
+            print(f"🔴 レート制限エラー: 最大リトライ回数に達しました")
+            print("💡 対応策:")
+            print("   - しばらく時間を置いてから再試行してください")
+            print("   - 有料プランにアップグレードを検討してください")
+            return False
+    
+    elif error_code == '503':  # Service unavailable
+        if attempt < max_retries - 1:
+            wait_time = retry_delay
+            print(f"🟡 サービス一時停止: {API_ERROR_CODES[error_code]}")
+            print(f"⏰ {wait_time}秒待機してから再試行します...")
+            time.sleep(wait_time)
+            return True  # リトライする
+        else:
+            print(f"🔴 サービス停止: 復旧していません")
+            print("💡 対応策:")
+            print("   - 別のAIプロバイダーに切り替えてください")
+            print("   - しばらく時間を置いてから再試行してください")
+            return False
+    
+    elif error_code == '504':  # Gateway timeout
+        if attempt < max_retries - 1:
+            wait_time = retry_delay // 2  # タイムアウトの場合は短めの待機
+            print(f"🟡 タイムアウトエラー: {API_ERROR_CODES[error_code]}")
+            print(f"⏰ {wait_time}秒待機してから再試行します...")
+            time.sleep(wait_time)
+            return True  # リトライする
+        else:
+            print(f"🔴 タイムアウト: 最大リトライ回数に達しました")
+            print("💡 対応策:")
+            print("   - ネットワーク接続を確認してください")
+            print("   - 入力を短くしてください")
+            return False
+    
+    else:
+        # 不明なエラー
+        print(f"🔴 不明なAPIエラー: {error_str}")
+        return False
+
+def format_error_message(error_code, error_str):
+    """エラーメッセージを分かりやすい形式でフォーマットする"""
+    error_emojis = {
+        '413': '📏',
+        '429': '⏱️',
+        '503': '🚫',
+        '504': '⏰'
+    }
+    
+    emoji = error_emojis.get(error_code, '❌')
+    description = API_ERROR_CODES.get(error_code, 'Unknown error')
+    
+    return f"{emoji} {description}"
+
 def print_version_info():
     """バージョン情報を表示"""
     print(f"🤖 Chat - AI チャットボット v{VERSION} ({VERSION_DATE})")
@@ -52,7 +169,8 @@ def print_version_info():
     print("  📋 まとめ機能 - 会話履歴をAIが要約してファイル保存")
     print("  📝 複数行編集 - 高度な行編集機能（もとい/ちゃいちゃい）")
     print("  ⚡ 高速モデル - --fastスイッチで高速版に切り替え")
-    print("  🔄 Rate Limit対応 - 自動リトライ機能")
+    print("  � 包括的エラー対応 - API制限エラーの自動検出・対応・リトライ")
+    print("  💡 トークン節約機能 - まとめの履歴除外による長時間会話対応")
     print("=" * 60)
 
 class ConversationHistory:
@@ -78,6 +196,23 @@ class ConversationHistory:
         # 最大長を超えた場合、古いメッセージを削除
         if len(self.messages) > self.max_length * 2:
             self.messages = self.messages[-self.max_length * 2:]
+
+    def reduce_history(self, reduction_factor=0.5):
+        """会話履歴を削減する（413エラー対応）"""
+        if len(self.messages) > 2:  # 最低限の履歴は保持
+            new_length = max(2, int(len(self.messages) * reduction_factor))
+            # 最新のメッセージを優先して保持
+            self.messages = self.messages[-new_length:]
+            return True
+        return False
+    
+    def get_history_size_estimate(self):
+        """会話履歴のおおよそのサイズを推定する（文字数ベース）"""
+        total_chars = 0
+        for message in self.messages:
+            if hasattr(message, 'content'):
+                total_chars += len(str(message.content))
+        return total_chars
 
 def load_ai_assistants_config():
     """CSVファイルからAI Assistants設定を読み込む"""
@@ -242,6 +377,13 @@ def load_history_from_csv(filepath):
                 content_index = header.index('Content')
                 ai_assistant_index = header.index('AI_Assistant')
                 model_name_index = header.index('ModelName')
+                # IsSummary列の確認（古いログファイルとの互換性のため）
+                is_summary_index = None
+                try:
+                    is_summary_index = header.index('IsSummary')
+                except ValueError:
+                    # IsSummary列がない古いログファイルの場合
+                    pass
             except ValueError as e:
                 print(f"[ERROR] ログファイルのヘッダーが不正です: {e}. 必要な列: TurnID, Speaker, Content, AI_Assistant, ModelName")
                 return [], 0, None, None
@@ -255,6 +397,16 @@ def load_history_from_csv(filepath):
                     turn_id = int(row[turn_id_index])
                     speaker = row[speaker_index]
                     content = row[content_index]
+                    
+                    # まとめエントリを除外する
+                    is_summary = False
+                    if is_summary_index is not None and len(row) > is_summary_index:
+                        is_summary = row[is_summary_index].lower() == 'true'
+                    
+                    if is_summary:
+                        print(f"[INFO] まとめエントリをスキップしました: TurnID {turn_id}")
+                        continue  # まとめエントリは会話履歴に含めない
+                    
                     if speaker == 'Assistant':
                         # 空でない場合に更新する
                         assistant_in_row = row[ai_assistant_index]
@@ -626,7 +778,7 @@ def main():
             log_file_handle = open(conversation_log_filename, log_mode, newline='', encoding='utf-8')
             csv_writer = csv.writer(log_file_handle)
             if write_header:
-                header = ['Timestamp', 'TurnID', 'Speaker', 'Content', 'ExecutionTimeSeconds', 'AI_Assistant', 'ModelName', 'ExecStatus']
+                header = ['Timestamp', 'TurnID', 'Speaker', 'Content', 'ExecutionTimeSeconds', 'AI_Assistant', 'ModelName', 'ExecStatus', 'IsSummary']
                 csv_writer.writerow(header)
 
         except Exception as e:
@@ -682,11 +834,11 @@ def main():
                     # 会話履歴からまとめ用テキストを作成
                     history_summary = create_conversation_summary(conversation_history)
                     
-                    # ユーザー入力をCSVログに記録
+                    # ユーザー入力をCSVログに記録（まとめ要求として）
                     if csv_writer:
                         try:
                             timestamp_log = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                            row_data = [timestamp_log, id_num, 'User', user_question, '', ai_assistant, model_name, '']
+                            row_data = [timestamp_log, id_num, 'User', user_question, '', ai_assistant, model_name, '', 'True']
                             csv_writer.writerow(row_data)
                             log_file_handle.flush()
                         except Exception as e:
@@ -728,17 +880,30 @@ def main():
                             error_str = str(e)
                             print(f"まとめ生成エラー (試行 {attempt + 1}/{max_retries}): {e}")
                             
-                            if "429" in error_str or "rate limit" in error_str.lower():
-                                if attempt < max_retries - 1:
-                                    wait_time = retry_delay * (2 ** attempt)
-                                    print(f"レート制限に達しました。{wait_time}秒待機してから再試行します...")
-                                    time.sleep(wait_time)
-                                    continue
+                            # APIエラーコードを検出
+                            error_code = detect_api_error(error_str)
                             
-                            ai_response_content = f"まとめ生成エラー: {e}"
-                            if attempt == max_retries - 1:
-                                print(f"最大リトライ回数に達しました。エラー: {e}")
-                            break
+                            if error_code:
+                                should_retry = handle_api_error(error_code, error_str, attempt, max_retries, retry_delay, conversation_history)
+                                if should_retry:
+                                    continue
+                                else:
+                                    formatted_error = format_error_message(error_code, error_str)
+                                    ai_response_content = f"まとめ生成エラー: {formatted_error}"
+                                    break
+                            else:
+                                # 従来のrate limit検出（フォールバック）
+                                if "429" in error_str or "rate limit" in error_str.lower():
+                                    if attempt < max_retries - 1:
+                                        wait_time = retry_delay * (2 ** attempt)
+                                        print(f"レート制限に達しました。{wait_time}秒待機してから再試行します...")
+                                        time.sleep(wait_time)
+                                        continue
+                                
+                                ai_response_content = f"まとめ生成エラー: {e}"
+                                if attempt == max_retries - 1:
+                                    print(f"最大リトライ回数に達しました。エラー: {e}")
+                                break
                     
                     end_time = time.time()
                     run_time = round(end_time - start_time, 3)
@@ -749,18 +914,19 @@ def main():
                         # まとめをファイルに保存
                         summary_filename = save_summary_to_file(ai_response_content, ai_assistant, model_name)
                         
-                        # 会話履歴にまとめのやり取りを追加
-                        conversation_history.add_message(HumanMessage(content=user_question))
-                        if response_message:
-                            conversation_history.add_message(response_message)
+                        # ⚠️ まとめは会話履歴に追加しない（トークン節約のため）
+                        # conversation_history.add_message(HumanMessage(content=user_question))
+                        # if response_message:
+                        #     conversation_history.add_message(response_message)
+                        print("💡 まとめはトークン節約のため会話履歴に含めません。")
                     
                     print(f"\n--------------------\n実行時間: {run_time:.3f}秒\n--------------------")
                     
-                    # アシスタント応答をCSVログに記録
+                    # アシスタント応答をCSVログに記録（まとめとして）
                     if csv_writer:
                         try:
                             timestamp_log = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                            row_data = [timestamp_log, id_num, 'Assistant', ai_response_content, run_time, ai_assistant, model_name, exec_status]
+                            row_data = [timestamp_log, id_num, 'Assistant', ai_response_content, run_time, ai_assistant, model_name, exec_status, 'True']
                             csv_writer.writerow(row_data)
                             log_file_handle.flush()
                         except Exception as e:
@@ -773,7 +939,7 @@ def main():
                 if csv_writer:
                     try:
                         timestamp_log = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                        row_data = [timestamp_log, id_num, 'User', user_question, '', ai_assistant, model_name, '']
+                        row_data = [timestamp_log, id_num, 'User', user_question, '', ai_assistant, model_name, '', 'False']
                         csv_writer.writerow(row_data)
                         log_file_handle.flush() # バッファをフラッシュして即時書き込み
                     except Exception as e:
@@ -806,19 +972,31 @@ def main():
                         error_str = str(e)
                         print(f"エラーが発生しました (試行 {attempt + 1}/{max_retries}): {e}")
                         
-                        # レート制限エラーの場合の特別処理
-                        if "429" in error_str or "rate limit" in error_str.lower():
-                            if attempt < max_retries - 1:  # 最後の試行でない場合
-                                wait_time = retry_delay * (2 ** attempt)  # 指数バックオフ
-                                print(f"レート制限に達しました。{wait_time}秒待機してから再試行します...")
-                                time.sleep(wait_time)
-                                continue
+                        # APIエラーコードを検出
+                        error_code = detect_api_error(error_str)
                         
-                        # その他のエラーまたは最後の試行の場合
-                        ai_response_content = f"Error: {e}"
-                        if attempt == max_retries - 1:
-                            print(f"最大リトライ回数に達しました。エラー: {e}")
-                        break
+                        if error_code:
+                            should_retry = handle_api_error(error_code, error_str, attempt, max_retries, retry_delay, conversation_history)
+                            if should_retry:
+                                continue
+                            else:
+                                formatted_error = format_error_message(error_code, error_str)
+                                ai_response_content = f"Error: {formatted_error}"
+                                break
+                        else:
+                            # 従来のrate limit検出（フォールバック）
+                            if "429" in error_str or "rate limit" in error_str.lower():
+                                if attempt < max_retries - 1:  # 最後の試行でない場合
+                                    wait_time = retry_delay * (2 ** attempt)  # 指数バックオフ
+                                    print(f"レート制限に達しました。{wait_time}秒待機してから再試行します...")
+                                    time.sleep(wait_time)
+                                    continue
+                            
+                            # その他のエラーまたは最後の試行の場合
+                            ai_response_content = f"Error: {e}"
+                            if attempt == max_retries - 1:
+                                print(f"最大リトライ回数に達しました。エラー: {e}")
+                            break
 
                 end_time = time.time()
                 run_time = round(end_time - start_time, 3)
@@ -832,7 +1010,7 @@ def main():
                 if csv_writer:
                     try:
                         timestamp_log = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                        row_data = [timestamp_log, id_num, 'Assistant', ai_response_content, run_time, ai_assistant, model_name, exec_status]
+                        row_data = [timestamp_log, id_num, 'Assistant', ai_response_content, run_time, ai_assistant, model_name, exec_status, 'False']
                         csv_writer.writerow(row_data)
                         log_file_handle.flush() # バッファをフラッシュして即時書き込み
                     except Exception as e:
