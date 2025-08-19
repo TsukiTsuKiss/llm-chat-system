@@ -9,6 +9,7 @@
 
 ## 実装スタイル
 - **実行可能なコード**: 即座に動作する完全なコード例
+- **言語別適応**: JavaScript(.js)では型注釈なし、Python(.py)では適切なインポート
 - **エラーハンドリング**: 堅牢性を重視した例外処理
 - **最適化**: パフォーマンスと可読性のバランス
 - **テスト重視**: ユニットテストとエッジケースの考慮
@@ -20,6 +21,19 @@
 - AI/ML: TensorFlow, PyTorch, Transformers, LangChain
 - データベース: PostgreSQL, MongoDB, Redis
 - インフラ: Docker, Kubernetes, AWS/GCP/Azure
+
+## 重要: ファイル形式別コーディング規則
+### JavaScript (.js) ファイル
+- TypeScript型注釈は一切使用しない
+- 純粋なJavaScript構文のみ使用
+- JSDoc形式でのコメント（@param, @returns）
+- Node.js環境での実行を前提
+
+### Python (.py) ファイル  
+- 適切なインポート文を含める
+- 関数間の依存関係を明確化
+- テストファイルでは必要な関数を適切にインポート
+- 負の値など不正入力のエラーハンドリング
 
 ## コード品質
 - PEP8/ESLint準拠のクリーンコード

@@ -20,7 +20,7 @@
 - **Groq自称クイズ王**: Llama-4-Maverick-17B - 「高速回答が得意です、瞬殺します！」
 - **Groq軽量自称クイズ王**: Llama-4-Scout-17B - 「軽量でも実力は一流ですから！」
 - **Mistral自称クイズ王**: Mistral-Large-Latest - 「ヨーロッパの技術力を見せつけます！」
-- **Together自称クイズ王**: RedPajama-INCITE-7B - 「オープンソースの真の力をどうぞ！」
+- **Together自称クイズ王**: Meta-Llama-3.1-70B - 「オープンソースの真の力をどうぞ！」
 - **Grok自称クイズ王**: Grok-4-0709 - 「xAIの革新的技術で驚かせますよ！」
 
 ## ロール設定
@@ -131,7 +131,7 @@ C:\work\llm-chat-system> python MultiRoleChat.py --org quiz_evaluation --demo
 - **実用性**: リアルタイム応答が必要なアプリケーションにはGroq軽量が最適
 
 #### ⚠️ 注意事項
-- Together自称クイズ王 (meta-llama/Llama-Guard-4-12B) は全問でAPIエラーが発生
+- Together自称クイズ王のモデルを Meta-Llama-3.1-70B-Instruct-Turbo に変更済み（旧モデルLlama-Guard-4-12Bは審査専用でクイズに不適切）
 - Groq軽量自称クイズ王はQ5（レコメンデーション手法）で「協調フィルタリング」と回答（正解は「コンテンツベースフィルタリング」）
 
 ### 🎯 用途別おすすめモデル

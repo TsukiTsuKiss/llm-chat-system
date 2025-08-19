@@ -68,6 +68,12 @@
       "assistant": "Groq",
       "model": "llama-3.1-8b-instant",
       "system_prompt_file": "roles/planner.txt"
+    },
+    {
+      "name": "コードテスター",
+      "assistant": "Groq",
+      "model": "llama-3.1-8b-instant",
+      "system_prompt_file": "roles/code_tester.txt"
     }
   ],
   "workflows": {
@@ -132,9 +138,22 @@
     "code_and_run": {
       "name": "コード生成・実行",
       "description": "コード生成と即座のサンドボックス実行",
+      "max_iterations": 3,
+      "success_criteria": ["実行成功", "テスト合格", "エラーなし"],
       "steps": [
         {"role": "軽量実装エンジニア", "action": "実行可能なコード生成"},
-        {"role": "コードテスター", "action": "サンドボックスでの安全な実行・検証"}
+        {"role": "コードテスター", "action": "サンドボックスでの安全な実行・検証・合格判定"}
+      ],
+      "loop_condition": "テスト結果に問題がある場合は修正して再実行"
+    },
+    "code_and_run_iterative": {
+      "name": "反復コード生成・実行",
+      "description": "テスト合格まで自動修正を繰り返すコード生成",
+      "max_iterations": 5,
+      "steps": [
+        {"role": "軽量実装エンジニア", "action": "実行可能なコード生成", "step_type": "implementation"},
+        {"role": "コードテスター", "action": "実行・検証・合格判定", "step_type": "validation", "retry_on_fail": true},
+        {"role": "軽量実装エンジニア", "action": "エラー修正とコード改善", "step_type": "fix", "condition": "previous_failed"}
       ]
     }
   },

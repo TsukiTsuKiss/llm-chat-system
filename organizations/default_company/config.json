@@ -49,6 +49,9 @@
   "workflows": {
     "project_planning": {
       "name": "プロジェクト企画",
+      "response_limit": 500,
+      "style": "簡潔",
+      "format": "箇条書き推奨",
       "steps": [
         {"role": "企画", "action": "アイデア創出と企画立案"},
         {"role": "分析官", "action": "実現可能性と技術的検討"},

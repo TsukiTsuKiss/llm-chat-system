@@ -36,4 +36,13 @@ python MultiRoleChat.py --org default_company
 
 # または従来の方法
 python MultiRoleChat.py --config organizations/default_company/config.json
+
+# 新商品開発会議の実行
+python MultiRoleChat.py --org default_company --workflow new_product_meeting --topic "スマートウォッチの新機能について検討したい。健康管理とフィットネス分野で差別化を図りたい。"
+
+# プロジェクト企画ワークフロー
+python MultiRoleChat.py --org default_company --workflow project_planning --topic "AIを活用したカスタマーサポートシステムを企画したい。既存システムとの統合も考慮したい。"
+
+# 市場調査シナリオ
+python MultiRoleChat.py --org default_company --workflow market_research --topic "リモートワーク支援ツール市場の動向と競合分析を行いたい。"
 ```

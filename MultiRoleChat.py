@@ -49,6 +49,14 @@ MULTI_SUMMARIES_DIR = "multi_summaries"
 
 MAX_HISTORY_LENGTH = 10
 
+# ワークフロー用履歴設定
+WORKFLOW_HISTORY_LENGTH = 10  # 通常のワークフローでの前ステップ保持数
+ITERATIVE_WORKFLOW_HISTORY_LENGTH = 10  # 反復ワークフローでの前回反復結果保持数
+CURRENT_ITERATION_HISTORY_LENGTH = 5   # 反復ワークフローでの現在反復内ステップ保持数
+
+# ワークフロー用応答長制限
+WORKFLOW_RESPONSE_LIMIT = 500  # ワークフロー実行時の推奨文字数上限
+
 def load_model_costs():
     """CSVファイルからモデルコスト情報を読み込む"""
     model_costs = {}
@@ -257,7 +265,7 @@ def print_version_info():
 
 class MultiRoleConversationHistory:
     """マルチロール会話履歴を管理するクラス"""
-    def __init__(self, max_length=20):
+    def __init__(self, max_length=MAX_HISTORY_LENGTH * 2):  # マルチロールでは2倍の履歴を保持
         self.max_length = max_length
         self.messages = []
     
@@ -297,6 +305,7 @@ class MultiRoleManager:
         self.use_fast = use_fast
         self.config_file = config_file  # 古いシステム用（非推奨）
         self.organization_name = organization_name  # コマンドライン引数からの組織名
+        self.organization_config = None  # 組織設定データ
         self.active_roles = {}
         self.role_prompts = {}
         self.conversation_history = MultiRoleConversationHistory()
@@ -304,6 +313,10 @@ class MultiRoleManager:
         self.organization_info = self._detect_organization_info()
         # トークン使用量追跡
         self.token_tracker = TokenUsageTracker()
+        # 現在のワークフロー情報を保持
+        self.current_workflow_info = None
+        # ワークフロー実行中の全レスポンスを蓄積（最終保存用）
+        self.workflow_responses = []
     
     def _detect_organization_info(self):
         """設定ファイルから組織情報を検出"""
@@ -459,22 +472,30 @@ class MultiRoleManager:
                 
                 response_text = str(content) if content else "応答が空でした"
                 
-                # オプション: コード保存機能
-                if CODE_SAVING_ENABLED:
-                    try:
-                        code_saver = CodeSaver()
-                        session_info = code_saver.save_ai_response_complete(
-                            response_text, role_name, "role_response"
-                        )
-                        if session_info and session_info.get('saved_files'):
-                            print(f"\n💾 {len(session_info['saved_files'])} ファイル保存: sandbox/session_{session_info['session_id']}/")
-                    except Exception as save_error:
-                        # エラーがあってもメインフローは継続
-                        pass
+                # 個別のコード保存は無効化（ワークフロー完了時に統一保存）
+                # if CODE_SAVING_ENABLED:
+                #     try:
+                #         code_saver = CodeSaver()
+                #         session_info = code_saver.save_ai_response_complete(
+                #             response_text, role_name, "role_response"
+                #         )
+                #         if session_info and session_info.get('saved_files'):
+                #             print(f"\n💾 {len(session_info['saved_files'])} ファイル保存: sandbox/session_{session_info['session_id']}/")
+                #     except Exception as save_error:
+                #         # エラーがあってもメインフローは継続
+                #         pass
                 
                 # トークン使用量と応答時間を記録
                 model_name = role_info.get('model', 'unknown')
                 usage_info = self.token_tracker.add_usage(model_name, user_input, response_text, response_time)
+                
+                # ワークフロー実行中の場合、レスポンスを蓄積
+                if hasattr(self, 'workflow_responses'):
+                    self.workflow_responses.append({
+                        'role': role_name,
+                        'response': response_text,
+                        'timestamp': datetime.now().isoformat()
+                    })
                 
                 return response_text
             else:
@@ -541,15 +562,179 @@ class MultiRoleManager:
         
         return conversation_log
 
-    def execute_workflow(self, workflow_name, topic):
-        """ワークフローを実行"""
-        config = load_multi_role_config(self.config_file)
+    def execute_iterative_workflow(self, workflow_name, topic, max_iterations=5):
+        """反復実行可能なワークフローを実行（テスト合格まで自動修正）"""
+        # MultiRoleManagerに組織設定が保存されている場合はそれを優先使用
+        if hasattr(self, 'organization_config') and self.organization_config:
+            config = self.organization_config
+        else:
+            config = load_multi_role_config(self.config_file)
+        
         if not config or 'workflows' not in config or workflow_name not in config['workflows']:
             print(f"ワークフロー '{workflow_name}' が見つかりません")
             return
         
         workflow = config['workflows'][workflow_name]
+        max_iter = workflow.get('max_iterations', max_iterations)
+        
+        # 現在のワークフロー情報を保存
+        self.current_workflow_info = {
+            'name': workflow_name,
+            'display_name': workflow.get('name', workflow_name),
+            'description': workflow.get('description', '説明なし'),
+            'execution_mode': 'iterative',
+            'iteration_count': 0,  # 実行中に更新される
+            'max_iterations': max_iter,
+            'test_results': None
+        }
+        
+        # ワークフロー用レスポンス蓄積をリセット
+        self.workflow_responses = []
+        
+        print(f"\n🔄 反復ワークフロー '{workflow['name']}' を開始します")
+        print(f"📝 説明: {workflow.get('description', '')}")
+        print(f"💬 トピック: {topic}")
+        print(f"🔄 最大反復回数: {max_iter}")
+        print("=" * 60)
+        
+        all_results = []
+        iteration = 1
+        
+        while iteration <= max_iter:
+            print(f"\n🔄 反復 {iteration}/{max_iter}")
+            print("-" * 40)
+            
+            results = []
+            test_passed = False
+            
+            for i, step in enumerate(workflow['steps'], 1):
+                role_name = step['role']
+                action = step['action']
+                
+                if role_name not in self.active_roles:
+                    print(f"⚠️ ロール '{role_name}' が見つかりません。スキップします。")
+                    continue
+                
+                print(f"\n📋 ステップ {i}: {role_name}")
+                print(f"🎯 アクション: {action}")
+                print("-" * 40)
+                
+                # 前の反復結果も含めた入力を作成
+                input_text = f"{topic}\n\n{action}"
+                if all_results:
+                    input_text += f"\n\n前回の反復結果:\n{chr(10).join([str(r) for r in all_results[-ITERATIVE_WORKFLOW_HISTORY_LENGTH:]])}"
+                if results:
+                    input_text += f"\n\n現在の反復での前ステップ結果:\n{chr(10).join(results[-CURRENT_ITERATION_HISTORY_LENGTH:])}"
+                
+                # 反復ワークフロー用の簡潔性指示を追加
+                input_text += f"\n\n【重要】反復ワークフロー実行中です。以下の点を守ってください：\n- 応答は{WORKFLOW_RESPONSE_LIMIT}文字以内で簡潔に\n- 箇条書きを活用\n- 前回からの改善点を重視\n- 次の反復に繋がるよう明確に"
+                
+                response = self.get_response_from_role(role_name, input_text)
+                if isinstance(response, str):
+                    formatted_response = response.replace('\\n', '\n')
+                else:
+                    formatted_response = str(response) if response else ""
+                
+                print(f"💬 {role_name}: {formatted_response}")
+                results.append(f"[{role_name}] {response}")
+                
+                # コードテスターの場合、合格判定をチェック
+                if role_name == "コードテスター" and "✅ テスト結果: 合格" in str(response):
+                    test_passed = True
+                    print("🎉 テスト合格！")
+                elif role_name == "コードテスター" and "❌ テスト結果: 不合格" in str(response):
+                    print("⚠️ テスト不合格。修正が必要です。")
+            
+            all_results.extend(results)
+            
+            # テスト合格の場合は終了
+            if test_passed:
+                print(f"\n🎉 反復 {iteration} でテストに合格しました！")
+                break
+            
+            # 最大反復回数に達した場合
+            if iteration >= max_iter:
+                print(f"\n⚠️ 最大反復回数 {max_iter} に達しました。")
+                break
+            
+            iteration += 1
+        
+        print("=" * 60)
+        if test_passed:
+            print("✅ ワークフロー完了（テスト合格）")
+        else:
+            print("⚠️ ワークフロー終了（テスト不合格）")
+        
+        # 現在のワークフロー情報を最終結果で更新
+        if self.current_workflow_info:
+            self.current_workflow_info['iteration_count'] = iteration
+            self.current_workflow_info['test_results'] = test_passed
+        
+        # ワークフローログを保存
+        workflow_participants = [step['role'] for step in workflow['steps']]
+        
+        # 現在のワークフロー情報を使用、または代替情報を作成
+        workflow_info = self.current_workflow_info or {
+            'name': workflow_name,
+            'display_name': workflow.get('name', workflow_name),
+            'description': workflow.get('description', ''),
+            'execution_mode': 'iterative',
+            'iteration_count': iteration,
+            'max_iterations': max_iter,
+            'test_results': test_passed
+        }
+        
+        self.save_meeting_log(topic, workflow_participants, all_results, f"反復{iteration}回", "workflow", workflow_info=workflow_info)
+        
+        # ワークフロー完了時に最終コード保存
+        self._save_workflow_final_code(topic, workflow_name)
+        
+        return all_results
+
+    def execute_workflow(self, workflow_name, topic):
+        """ワークフローを実行"""
+        # MultiRoleManagerに組織設定が保存されている場合はそれを優先使用
+        if hasattr(self, 'organization_config') and self.organization_config:
+            config = self.organization_config
+        else:
+            config = load_multi_role_config(self.config_file)
+        
+        if not config or 'workflows' not in config or workflow_name not in config['workflows']:
+            print(f"ワークフロー '{workflow_name}' が見つかりません")
+            if config and 'workflows' in config:
+                available_workflows = list(config['workflows'].keys())
+                if available_workflows:
+                    print("利用可能なワークフロー:")
+                    for wf in available_workflows:
+                        print(f"  - {wf}")
+            return
+        
+        workflow = config['workflows'][workflow_name]
+        
+        # 現在のワークフロー情報を保存
+        self.current_workflow_info = {
+            'name': workflow_name,
+            'display_name': workflow.get('name', workflow_name),
+            'description': workflow.get('description', '説明なし'),
+            'execution_mode': 'single',
+            'iteration_count': 1,
+            'max_iterations': 1,
+            'test_results': None
+        }
+        
+        # ワークフロー用レスポンス蓄積をリセット
+        self.workflow_responses = []
+        
+        # ログファイルの初期化（ステップ単位保存用）
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_filename = f"multi_logs/{timestamp}_{workflow_name}.md"
+        os.makedirs("multi_logs", exist_ok=True)
+        
+        # ログヘッダーを初期作成
+        self._initialize_workflow_log(log_filename, workflow, topic, workflow_name)
+        
         print(f"\n🔄 ワークフロー '{workflow['name']}' を開始します")
+        print(f"📝 ログファイル: {log_filename}")
         print(f"トピック: {topic}")
         print("=" * 60)
         
@@ -568,7 +753,16 @@ class MultiRoleManager:
             # 前のステップの結果を含めた入力を作成
             input_text = f"{topic}\n\n{action}"
             if results:
-                input_text += f"\n\n前のステップの結果:\n{chr(10).join(results[-3:])}"  # 最新3件まで
+                input_text += f"\n\n前のステップの結果:\n{chr(10).join(results[-WORKFLOW_HISTORY_LENGTH:])}"
+            
+            # ワークフロー設定から制限値を取得
+            workflow_config = workflow
+            response_limit = workflow_config.get('response_limit', WORKFLOW_RESPONSE_LIMIT)
+            style = workflow_config.get('style', '簡潔')
+            format_pref = workflow_config.get('format', '箇条書き推奨')
+            
+            # ワークフロー用の簡潔性指示を追加（設定値使用）
+            input_text += f"\n\n【重要】ワークフロー実行中です。以下の点を守ってください：\n- 応答は{response_limit}文字以内で{style}に\n- {format_pref}\n- 重要なポイントのみに絞る\n- 他のロールが理解しやすい形で"
             
             response = self.get_response_from_role(role_name, input_text)
             # 改行処理を追加（文字列チェック付き）
@@ -577,6 +771,10 @@ class MultiRoleManager:
             else:
                 formatted_response = str(response) if response else ""
             print(f"🎭 {role_name}: {formatted_response}")
+            
+            # 【新機能】ステップ完了時にリアルタイムでログに追記
+            self._append_step_to_log(log_filename, i, role_name, action, formatted_response)
+            print(f"📝 ステップ {i} をログに保存しました")
             
             # ログにエラー詳細を含めて記録
             if any(error_indicator in str(response).lower() for error_indicator in [
@@ -598,7 +796,7 @@ class MultiRoleManager:
                 
                 error_detail = f"[{role_name}] 🚨 エラー詳細\n"
                 error_detail += f"  Organization: {organization}\n"
-                error_detail += f"  Config: {os.path.basename(config_path) if config_path != 'Unknown' else 'Unknown'}\n"
+                error_detail += f"  Config: {os.path.basename(config_path) if config_path and config_path != 'Unknown' else 'Unknown'}\n"
                 error_detail += f"  Source: {source_file}\n"
                 error_detail += f"  Provider: {provider_module}.{provider_class}\n"
                 error_detail += f"  Assistant: {assistant}\n"
@@ -622,10 +820,65 @@ class MultiRoleManager:
             # [ロール] 応答 形式に統一
             formatted_results.append(result)
         
-        self.save_meeting_log(topic, workflow_participants, formatted_results, "", "workflow")
+        # ワークフロー情報を作成
+        workflow_info = self.current_workflow_info or {
+            'name': workflow_name,
+            'display_name': workflow.get('name', workflow_name),
+            'description': workflow.get('description', ''),
+            'execution_mode': 'single',
+            'iteration_count': 1,
+            'max_iterations': 1,
+            'test_results': None
+        }
+        
+        # 【新機能】ログファイルの完了処理
+        session_summary = self.token_tracker.get_session_summary()
+        self._finalize_workflow_log(log_filename, session_summary)
+        print(f"💾 ワークフローログが完成しました: {log_filename}")
+        print(f"💰 このセッションのコスト: ${session_summary['total_cost']:.4f}")
+        
+        # 従来のログ保存は無効化（重複を避けるため）
+        # self.save_meeting_log(topic, workflow_participants, formatted_results, "", "workflow", workflow_info=workflow_info)
+        
+        # ワークフロー完了時に最終コード保存
+        self._save_workflow_final_code(topic, workflow_name)
         
         return results
     
+    def _save_workflow_final_code(self, topic, workflow_name):
+        """ワークフロー完了時に最終コードのみを保存"""
+        if not CODE_SAVING_ENABLED or not hasattr(self, 'workflow_responses') or not self.workflow_responses:
+            return
+        
+        try:
+            # 全レスポンスを統合してコード抽出
+            combined_response = "\n\n".join([
+                f"=== {resp['role']} ===\n{resp['response']}" 
+                for resp in self.workflow_responses
+            ])
+            
+            # 最終コード保存
+            code_saver = CodeSaver()
+            session_info = code_saver.save_ai_response_complete(
+                combined_response, 
+                f"workflow_{workflow_name}", 
+                f"final_result"
+            )
+            
+            if session_info and session_info.get('saved_files'):
+                print(f"\n🎯 最終コード保存完了: {len(session_info['saved_files'])} ファイル")
+                print(f"📁 保存先: sandbox/session_{session_info['session_id']}/")
+                
+                # 実行スクリプトがある場合は案内
+                if session_info.get('execution_script'):
+                    print(f"🚀 実行方法: cd sandbox/session_{session_info['session_id']} && ./run_all.sh")
+            
+            # ワークフロー完了後にレスポンス蓄積をクリア
+            self.workflow_responses = []
+            
+        except Exception as save_error:
+            print(f"⚠️ 最終コード保存エラー: {save_error}")
+
     def team_meeting(self, participants, topic, max_rounds=3):
         """チーム会議を実行"""
         if len(participants) < 2:
@@ -1095,13 +1348,107 @@ class MultiRoleManager:
         except Exception as e:
             print(f"⚠️ ログ保存エラー: {e}")
 
-    def save_meeting_log(self, topic, participants, meeting_log, summary="", log_type="meeting", response_times=None):
+    def _initialize_workflow_log(self, log_filename, workflow, topic, workflow_name):
+        """ワークフローログファイルのヘッダーを初期化"""
+        organization = self.organization_info.get('organization', '不明')
+        workflow_title = workflow.get('name', workflow_name)
+        workflow_description = workflow.get('description', '説明なし')
+        
+        # 参加ロール詳細情報を作成
+        workflow_participants = [step['role'] for step in workflow['steps']]
+        role_details = []
+        for participant in workflow_participants:
+            if participant in self.active_roles:
+                role_info = self.active_roles[participant]
+                assistant = role_info.get('assistant', '不明')
+                model = role_info.get('model', '不明')
+                role_details.append(f"{participant} ({assistant}:{model})")
+            else:
+                role_details.append(f"{participant} (設定なし)")
+        
+        header_content = f"""# ワークフローログ - {topic}
+
+**開催日時**: {datetime.now().strftime('%Y年%m月%d日 %H:%M:%S')}
+**組織**: {organization}
+**実行モード**: ワークフロー
+**ワークフロー名**: {workflow_title}
+**トピック**: {topic}
+**説明**: {workflow_description}
+**反復回数**: 1/1
+**参加者**: {', '.join(workflow_participants)}
+**参加ロール詳細**: 
+{chr(10).join([f'    {detail}' for detail in role_details])}
+**推定コスト**: 計算中...
+
+---
+
+## 📋 記録
+
+"""
+        
+        try:
+            with open(log_filename, 'w', encoding='utf-8') as f:
+                f.write(header_content)
+        except Exception as e:
+            print(f"⚠️ ログ初期化エラー: {e}")
+
+    def _append_step_to_log(self, log_filename, step_number, role_name, action, response):
+        """ワークフローのステップをログファイルに追記"""
+        step_content = f"""### {step_number}. {role_name}
+
+**アクション**: {action}
+
+{response}
+
+---
+
+"""
+        try:
+            with open(log_filename, 'a', encoding='utf-8') as f:
+                f.write(step_content)
+        except Exception as e:
+            print(f"⚠️ ステップログ追記エラー: {e}")
+
+    def _finalize_workflow_log(self, log_filename, session_summary):
+        """ワークフローログファイルを完了"""
+        cost_info = f"""
+
+## 💰 コスト情報
+
+**入力**: {session_summary['total_input_tokens']}tokens
+**出力**: {session_summary['total_output_tokens']}tokens
+**推定コスト**: ${session_summary['total_cost']:.4f}
+
+---
+
+**実行完了**: {datetime.now().strftime('%Y年%m月%d日 %H:%M:%S')}
+"""
+        try:
+            # コスト情報を更新（ヘッダーの「計算中...」部分を置換）
+            with open(log_filename, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            cost_summary = f"**入力**: {session_summary['total_input_tokens']}tokens\n**出力**: {session_summary['total_output_tokens']}tokens\n**推定コスト**: ${session_summary['total_cost']:.4f}"
+            content = content.replace("**推定コスト**: 計算中...", cost_summary)
+            
+            with open(log_filename, 'w', encoding='utf-8') as f:
+                f.write(content + cost_info)
+                
+        except Exception as e:
+            print(f"⚠️ ログ完了処理エラー: {e}")
+
+    def save_meeting_log(self, topic, participants, meeting_log, summary="", log_type="meeting", response_times=None, workflow_info=None):
         """会議ログをMarkdownファイルとして保存"""
         if not os.path.exists(MULTI_LOGS_DIR):
             os.makedirs(MULTI_LOGS_DIR)
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{MULTI_LOGS_DIR}/{timestamp}_{log_type}.md"
+        
+        # ワークフロー情報がある場合はファイル名に含める
+        if workflow_info and 'name' in workflow_info:
+            filename = f"{MULTI_LOGS_DIR}/{timestamp}_{workflow_info['name']}.md"
+        else:
+            filename = f"{MULTI_LOGS_DIR}/{timestamp}_{log_type}.md"
         
         # Markdownファイルの内容を作成
         log_type_jp = {
@@ -1116,7 +1463,18 @@ class MultiRoleManager:
         execution_mode_info = []
         if log_type == "workflow":
             execution_mode_info.append("**実行モード**: ワークフロー")
-            execution_mode_info.append("**ワークフロー名**: {情報が利用できません}")
+            if workflow_info:
+                execution_mode_info.append(f"**ワークフロー名**: {workflow_info.get('display_name', workflow_info.get('name', '不明'))}")
+                execution_mode_info.append(f"**トピック**: {topic}")
+                if 'description' in workflow_info and workflow_info['description']:
+                    execution_mode_info.append(f"**説明**: {workflow_info['description']}")
+                if 'iteration_count' in workflow_info:
+                    execution_mode_info.append(f"**反復回数**: {workflow_info['iteration_count']}/{workflow_info.get('max_iterations', '不明')}")
+                if 'test_results' in workflow_info and workflow_info['test_results'] is not None:
+                    status = "合格" if workflow_info['test_results'] else "不合格"
+                    execution_mode_info.append(f"**最終結果**: {status}")
+            else:
+                execution_mode_info.append("**ワークフロー名**: {情報が利用できません}")
         elif log_type == "conversation":
             execution_mode_info.append("**実行モード**: ロール間対話")
             execution_mode_info.append("**対話ペア**: {}, {}".format(participants[0] if len(participants) > 0 else "不明", participants[1] if len(participants) > 1 else "不明"))
@@ -1351,6 +1709,9 @@ def load_organization_ai_config(org_config, org_name):
 
 def setup_organization_from_config(role_manager, org_config):
     """組織設定からロールを設定"""
+    # 組織設定をMultiRoleManagerに保存
+    role_manager.organization_config = org_config
+    
     roles_to_process = []
     
     # 新形式（roles配列）をチェック
@@ -1397,7 +1758,7 @@ def setup_organization_from_config(role_manager, org_config):
             print(f"❌ ロール '{role_config['name']}' の設定でエラーが発生しました: {e}")
 
 def execute_workflow(role_manager, org_config, workflow_name, topic):
-    """ワークフローを実行"""
+    """ワークフローを実行（反復機能対応）"""
     if 'workflows' not in org_config or workflow_name not in org_config['workflows']:
         print(f"[ERROR] ワークフロー '{workflow_name}' が見つかりません。")
         available_workflows = list(org_config.get('workflows', {}).keys())
@@ -1411,120 +1772,33 @@ def execute_workflow(role_manager, org_config, workflow_name, topic):
     workflow_title = workflow.get('name', workflow_name)
     workflow_description = workflow.get('description', '')
     
-    print(f"\n🎭 ワークフロー実行: {workflow_title}")
-    if workflow_description:
-        print(f"📝 説明: {workflow_description}")
-    print(f"💬 トピック: {topic}")
-    print("=" * 60)
+    # 反復ワークフローかどうかを判定
+    is_iterative = workflow.get('max_iterations', 0) > 1 or workflow_name.endswith('_iterative')
     
-    # ログファイル名を生成
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_filename = f"multi_logs/{timestamp}_{workflow_name}.md"
-    
-    conversation_log = []
-    conversation_log.append(f"# ワークフローログ - {workflow_title}")
-    conversation_log.append(f"\n**実行日時**: {datetime.now().strftime('%Y年%m月%d日 %H:%M:%S')}")
-    
-    # 組織情報を取得
-    organization = role_manager.organization_info.get('organization', '不明')
-    conversation_log.append(f"**組織**: {organization}")
-    
-    conversation_log.append(f"**実行モード**: ワークフロー")
-    conversation_log.append(f"**ワークフロー名**: {workflow_name}")
-    conversation_log.append(f"**トピック**: {topic}")
-    if workflow_description:
-        conversation_log.append(f"**説明**: {workflow_description}")
-    
-    # 参加ロール詳細情報を作成
-    workflow_participants = [step['role'] for step in workflow['steps']]
-    role_details = []
-    for participant in workflow_participants:
-        if participant in role_manager.active_roles:
-            role_info = role_manager.active_roles[participant]
-            assistant = role_info.get('assistant', '不明')
-            model = role_info.get('model', '不明')
-            role_details.append(f"{participant} ({assistant}:{model})")
-        else:
-            role_details.append(f"{participant} (設定なし)")
-    
-    conversation_log.append("**参加ロール詳細**: ")
-    for detail in role_details:
-        conversation_log.append(f"  {detail}")
-    
-    # コスト情報をプレースホルダーとして追加（後で更新）
-    cost_placeholder_index = len(conversation_log)
-    conversation_log.append("**推定コスト**: 計算中...")
-    
-    conversation_log.append("\n---\n")
-    conversation_log.append("## 💬 ディスカッション\n")
-    
-    # ワークフローのステップを実行
-    for i, step in enumerate(workflow['steps'], 1):
-        role_name = step['role']
-        action = step['action']
+    if is_iterative:
+        print(f"\n🔄 反復ワークフロー実行: {workflow_title}")
+        if workflow_description:
+            print(f"📝 説明: {workflow_description}")
+        print(f"💬 トピック: {topic}")
+        max_iter = workflow.get('max_iterations', 5)
+        print(f"🔄 最大反復回数: {max_iter}")
+        print("=" * 60)
         
-        print(f"\n📋 ステップ {i}: {role_name}")
-        print(f"🎯 アクション: {action}")
-        print("-" * 40)
+        # 反復実行（ログは内部で処理）
+        role_manager.execute_iterative_workflow(workflow_name, topic, max_iter)
+    else:
+        print(f"\n🎭 ワークフロー実行: {workflow_title}")
+        if workflow_description:
+            print(f"📝 説明: {workflow_description}")
+        print(f"💬 トピック: {topic}")
+        print("=" * 60)
         
-        conversation_log.append(f"### {i}. {role_name}\n")
-        conversation_log.append(f"**アクション**: {action}\n")
-        
-        # ロールが存在するかチェック
-        if role_name not in role_manager.active_roles:
-            print(f"❌ ロール '{role_name}' が見つかりません。スキップします。")
-            conversation_log.append("❌ **エラー**: ロールが見つかりません\n")
-            continue
-        
-        # メッセージを構築
-        message = f"【{action}】\n\nトピック: {topic}\n\n"
-        if i > 1:
-            message += "これまでの議論を踏まえて、あなたの専門分野から貢献してください。"
-        else:
-            message += "このトピックについて、あなたの専門分野の視点から詳しく検討してください。"
-        
-        try:
-            response = role_manager.get_response_from_role(role_name, message)
-            print(f"💬 {role_name}: {response}")
-            conversation_log.append(f"{response}\n\n---\n")
-        except Exception as e:
-            error_msg = f"エラーが発生しました: {e}"
-            print(f"❌ {error_msg}")
-            conversation_log.append(f"❌ **エラー**: {error_msg}\n\n---\n")
+        # 通常実行（ログは内部で処理）
+        role_manager.execute_workflow(workflow_name, topic)
     
-    # ログを保存
-    try:
-        # 最終的なコスト情報を更新
-        session_summary = role_manager.token_tracker.get_session_summary()
-        cost_info = f"**入力**: {session_summary['total_input_tokens']}tokens\n**出力**: {session_summary['total_output_tokens']}tokens\n**推定コスト**: ${session_summary['total_cost']:.4f}"
-        conversation_log[cost_placeholder_index] = cost_info
-        
-        os.makedirs(os.path.dirname(log_filename), exist_ok=True)
-        with open(log_filename, 'w', encoding='utf-8') as f:
-            f.write('\n'.join(conversation_log))
-        print(f"\n💾 ワークフローログを保存しました: {log_filename}")
-        print(f"💰 このセッションのコスト: ${session_summary['total_cost']:.4f}")
-    except Exception as e:
-        print(f"❌ ログの保存に失敗しました: {e}")
-    
-    # オプション: コード保存統計
-    if CODE_SAVING_ENABLED:
-        try:
-            # sandbox ディレクトリの統計
-            sandbox_dir = "sandbox"
-            if os.path.exists(sandbox_dir):
-                sessions = [d for d in os.listdir(sandbox_dir) if d.startswith("session_")]
-                if sessions:
-                    latest_session = max(sessions)
-                    session_path = os.path.join(sandbox_dir, latest_session)
-                    files = [f for f in os.listdir(session_path) if not f.endswith('.meta.json')]
-                    if files:
-                        print(f"📁 実行可能ファイル: {len(files)} ファイル保存済み (sandbox/{latest_session}/)")
-        except Exception as e:
-            # デバッグ用: エラーを無視するが、必要に応じてログ出力
-            pass
-    
-    print(f"\n🎉 ワークフロー '{workflow_title}' が完了しました！")
+    # 反復ワークフローの場合は、既にログが保存されているので重複を避ける
+    # 通常ワークフローの場合も、role_manager.execute_workflow内でログが保存される
+
 
 def execute_scenario(role_manager, org_config, scenario_name, topic, max_rounds=3):
     """シナリオを実行"""

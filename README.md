@@ -335,6 +335,23 @@ sandbox/session_20250814_141337/
 3. **設定共有** - 業界特化の設定ファイル例
 4. **ドキュメント改善** - 使いやすさの向上
 
+## 🧪 テスト
+
+`tests/`ディレクトリには各機能の検証スクリプトが含まれています：
+
+```bash
+# 設定ファイルの検証
+python tests/test_config.py
+
+# 組織設定の整合性チェック
+python tests/test_organizations.py
+
+# ワークフロー機能のテスト
+python tests/test_workflow_logging.py
+```
+
+詳細は [`tests/README.md`](tests/README.md) を参照してください。
+
 ## 📄 ライセンス
 
 MIT License - 詳細は [LICENSE](LICENSE) ファイルを参照してください。

@@ -31,6 +31,12 @@
 - **コードテスター**: サンドボックスでの安全な実行・検証
 - **適用**: Hello World、関数作成、即座の動作確認
 
+#### `code_and_run_iterative` (2ロール) - 品質保証
+- **軽量実装エンジニア**: 実行可能なコード生成・エラー修正
+- **コードテスター**: 厳格な検証・合格判定（不合格時は自動修正ループ）
+- **特徴**: テスト合格まで最大5回自動修正、品質保証
+- **適用**: 信頼性が重要な関数、学習用の正確なコード
+
 #### `simple_coding` (3ロール) - 高速
 - **軽量プランナー**: 複雑度評価と要件整理
 - **軽量実装エンジニア**: シンプル実装とコメント付きコード作成
@@ -70,7 +76,8 @@
 
 ## ワークフロー選択ガイド
 
-- **`code_and_run`**: **NEW!** コード生成＋即座実行（2ロール、最速）
+- **`code_and_run`**: コード生成＋即座実行（2ロール、最速）
+- **`code_and_run_iterative`**: **🆕 テスト合格まで自動修正**（2ロール、品質保証）
 - **`simple_coding`**: Hello World、基本プログラム（3ロール、高速）
 - **`mvp_development`**: 製品開発（4ロール、バランス型）
 - **`rapid_iteration`**: 高速反復開発（4ロール、アジャイル）
@@ -86,6 +93,9 @@ python MultiRoleChat.py --org tech_startup
 
 # コード生成＋即座実行（推奨：最速）
 python MultiRoleChat.py --org tech_startup --workflow code_and_run --topic "フィボナッチ関数"
+
+# 🆕 品質保証版：テスト合格まで自動修正（推奨：学習・信頼性重視）
+python MultiRoleChat.py --org tech_startup --workflow code_and_run_iterative --topic "フィボナッチ関数"
 
 # 軽量実装（推奨：シンプルなプログラム）
 python MultiRoleChat.py --org tech_startup --workflow simple_coding --topic "Hello Worldプログラム"

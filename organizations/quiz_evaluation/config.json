@@ -41,7 +41,7 @@
     {
       "name": "Together自称クイズ王",
       "assistant": "Together",
-      "model": "meta-llama/Llama-Guard-4-12B",
+      "model": "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
       "system_prompt_file": "roles/quiz_king.txt"
     },
     {
@@ -91,7 +91,7 @@
     {
       "name": "Together自称クイズ王",
       "assistant": "Together",
-      "model": "meta-llama/Llama-Guard-4-12B",
+      "model": "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
       "system_prompt_file": "roles/quiz_king.txt"
     },
     {
@@ -165,7 +165,7 @@
       {
         "name": "Together 至高クイズ王",
         "assistant": "Together",
-        "model": "meta-llama/Llama-Guard-4-12B",
+        "model": "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
         "system_prompt_file": "roles/quiz_king.txt"
       },
       {

@@ -37,8 +37,8 @@ class CodeSaver:
             if not language:
                 language = "text"
             
-            # 実行可能な言語のみ処理
-            if language.lower() in ['python', 'py', 'javascript', 'js', 'node', 'bash', 'sh']:
+            # 実行可能な言語のみ処理（WebファイルもOK）
+            if language.lower() in ['python', 'py', 'javascript', 'js', 'node', 'bash', 'sh', 'html', 'css', 'json']:
                 code_blocks.append({
                     "id": f"{self.session_id}_{i:03d}",
                     "language": language.lower(),
@@ -57,8 +57,23 @@ class CodeSaver:
             'js': 'js',
             'node': 'js',
             'bash': 'sh',
-            'sh': 'sh'
+            'sh': 'sh',
+            'html': 'html',
+            'css': 'css',
+            'json': 'json'
         }
+        
+        # 特定ファイル名のマッピング
+        special_files = {
+            'html': 'index.html',
+            'css': 'styles.css',
+            'json': 'package.json',
+            'javascript': 'script.js',
+            'js': 'script.js'
+        }
+        
+        if language in special_files:
+            return special_files[language]
         
         ext = extensions.get(language, 'txt')
         return f"code_{index:03d}.{ext}"
@@ -66,12 +81,20 @@ class CodeSaver:
     def save_code_blocks(self, ai_response: str, metadata: Optional[Dict] = None) -> List[Dict]:
         """コードブロックをファイルに保存"""
         code_blocks = self.extract_code_blocks(ai_response)
+        
+        # Webアプリの場合、HTMLやCSSをレスポンステキストから抽出
+        web_files = self._extract_web_files(ai_response)
+        code_blocks.extend(web_files)
+        
         saved_files = []
         
         for block in code_blocks:
+            # コードの前処理（```マーカー除去など）
+            cleaned_code = self._clean_code(block['code'], block['language'])
+            
             # ファイル保存
             file_path = self.session_dir / block['filename']
-            file_path.write_text(block['code'], encoding='utf-8')
+            file_path.write_text(cleaned_code, encoding='utf-8')
             
             # メタデータ作成
             metadata_info = {
@@ -94,6 +117,72 @@ class CodeSaver:
         
         return saved_files
     
+    def _clean_code(self, code: str, language: str) -> str:
+        """コードの前処理を行う"""
+        # 先頭と末尾のコードブロックマーカーを除去
+        lines = code.split('\n')
+        
+        # 先頭のマーカー除去
+        if lines and lines[0].strip().startswith('```'):
+            lines = lines[1:]
+        
+        # 末尾のマーカー除去
+        if lines and lines[-1].strip() == '```':
+            lines = lines[:-1]
+        
+        # HTMLの場合、<!DOCTYPE html>を追加（存在しない場合）
+        if language == 'html':
+            content = '\n'.join(lines).strip()
+            if not content.lower().startswith('<!doctype'):
+                if content.lower().startswith('<html'):
+                    content = '<!DOCTYPE html>\n' + content
+        else:
+            content = '\n'.join(lines)
+        
+        return content
+    
+    def _extract_web_files(self, text: str) -> List[Dict]:
+        """AIレスポンスからHTMLやCSSファイル内容を抽出"""
+        web_files = []
+        
+        # HTML抽出（コードブロック外のものも含む）
+        html_patterns = [
+            r'```html\n(.*?)\n```',
+            r'<!DOCTYPE html.*?</html>',
+            r'<html.*?</html>'
+        ]
+        
+        for i, pattern in enumerate(html_patterns):
+            matches = re.findall(pattern, text, re.DOTALL | re.IGNORECASE)
+            for j, html_content in enumerate(matches):
+                if html_content.strip():
+                    web_files.append({
+                        "id": f"web_html_{i}_{j}",
+                        "language": "html",
+                        "code": html_content.strip(),
+                        "filename": "index.html"
+                    })
+                    break  # 最初のHTMLのみ
+        
+        # CSS抽出
+        css_patterns = [
+            r'```css\n(.*?)\n```',
+        ]
+        
+        for i, pattern in enumerate(css_patterns):
+            matches = re.findall(pattern, text, re.DOTALL | re.IGNORECASE)
+            for j, css_content in enumerate(matches):
+                if css_content.strip():
+                    web_files.append({
+                        "id": f"web_css_{i}_{j}",
+                        "language": "css",
+                        "code": css_content.strip(),
+                        "filename": "styles.css"
+                    })
+                    break  # 最初のCSSのみ
+        
+        return web_files
+    
     def create_execution_script(self, saved_files: List[Dict]) -> str:
         """Docker実行用のスクリプト作成"""
         script_lines = ["#!/bin/bash", ""]
@@ -102,22 +191,77 @@ class CodeSaver:
         script_lines.append(f"# Created: {datetime.now().isoformat()}")
         script_lines.append("")
         
-        for file_info in saved_files:
-            language = file_info['language']
-            filename = file_info['filename']
-            
-            script_lines.append(f"echo '=== Executing {filename} ({language}) ==='")
-            
-            if language in ['python', 'py']:
-                script_lines.append(f"python {filename}")
-            elif language in ['javascript', 'js', 'node']:
-                script_lines.append(f"node {filename}")
-            elif language in ['bash', 'sh']:
-                script_lines.append(f"bash {filename}")
-            
-            script_lines.append("echo")
+        has_web_app = self._detect_web_app(saved_files)
+        
+        if has_web_app:
+            # Webアプリケーションの場合の実行スクリプト
+            script_lines.extend(self._create_webapp_script())
+        else:
+            # 通常のコード実行
+            for file_info in saved_files:
+                language = file_info['language']
+                filename = file_info['filename']
+                
+                script_lines.append(f"echo '=== Executing {filename} ({language}) ==='")
+                
+                if language in ['python', 'py']:
+                    script_lines.append(f"python {filename}")
+                elif language in ['javascript', 'js', 'node']:
+                    script_lines.append(f"node {filename}")
+                elif language in ['bash', 'sh']:
+                    script_lines.append(f"bash {filename}")
+                
+                script_lines.append("echo")
         
         # スクリプト保存
+        script_path = self.session_dir / "run_all.sh"
+        script_path.write_text('\n'.join(script_lines), encoding='utf-8')
+        script_path.chmod(0o755)  # 実行権限付与
+        
+        return str(script_path)
+    
+    def _detect_web_app(self, saved_files: List[Dict]) -> bool:
+        """Webアプリケーションかどうかを検出"""
+        # HTMLファイルやCSSファイルが含まれているかチェック
+        for file_info in saved_files:
+            filename = file_info.get('filename', '')
+            if filename.endswith('.html') or filename.endswith('.css'):
+                return True
+        return False
+    
+    def _create_webapp_script(self) -> List[str]:
+        """Webアプリケーション用の実行スクリプト作成"""
+        return [
+            "# Webアプリケーション自動セットアップ",
+            "echo '🌐 Webアプリケーションを自動セットアップしています...'",
+            "",
+            "# HTMLファイルを検索して自動構築",
+            "if [ ! -f index.html ]; then",
+            "    # HTMLコンテンツをファイルに展開",
+            "    echo '📄 HTMLファイルを生成中...'",
+            "    # JavaScriptからHTMLを抽出してファイル作成する処理をここに追加",
+            "fi",
+            "",
+            "# Webサーバー起動",
+            "echo '🚀 Webサーバーを起動しています...'",
+            "echo 'アクセス先: http://localhost:8080'",
+            "python3 -m http.server 8080 &",
+            "SERVER_PID=$!",
+            "echo \"サーバーPID: $SERVER_PID\"",
+            "",
+            "# 少し待ってからブラウザテスト",
+            "sleep 3",
+            "echo '🔍 動作確認中...'",
+            "if command -v curl >/dev/null 2>&1; then",
+            "    curl -s http://localhost:8080/ | head -20",
+            "else",
+            "    echo 'curl not found, manual check required'",
+            "fi",
+            "",
+            "echo '✅ Webアプリが起動しました！'",
+            "echo 'ブラウザで http://localhost:8080 にアクセスしてください'",
+            ""
+        ]
         script_path = self.session_dir / "run_all.sh"
         script_path.write_text('\n'.join(script_lines), encoding='utf-8')
         script_path.chmod(0o755)  # 実行権限付与

@@ -16,7 +16,7 @@
     {
       "name": "業界専門家",
       "assistant": "Anthropic",
-      "model": "claude-4-opus-20250301",
+      "model": "claude-opus-4-20250514",
       "system_prompt_file": "roles/marketer.txt"
     }
   ],
@@ -30,7 +30,7 @@
     {
       "name": "戦略企画",
       "assistant": "Anthropic",
-      "model": "claude-4-opus-20250301",
+      "model": "claude-opus-4-20250514",
       "system_prompt_file": "roles/planner.txt"
     },
     {
