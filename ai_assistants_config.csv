@@ -1,8 +1,8 @@
 assistant_name,module,class,model,fast_model
-ChatGPT,langchain_openai,ChatOpenAI,gpt-5,gpt-5-chat-latest
-Gemini,langchain_google_genai,ChatGoogleGenerativeAI,gemini-2.5-pro,gemini-2.5-flash
-Groq,langchain_groq,ChatGroq,meta-llama/llama-4-maverick-17b-128e-instruct,meta-llama/llama-4-scout-17b-16e-instruct
-Mistral,langchain_mistralai,ChatMistralAI,mistral-large-latest,devstral-small-latest
-Together,langchain_together,ChatTogether,meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo,meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo
-Anthropic,langchain_anthropic,ChatAnthropic,claude-opus-4-20250514,claude-3-5-haiku-20241022
-Grok,langchain_xai,ChatXAI,grok-4-0709,grok-3-mini-fast
+ChatGPT,langchain_openai,ChatOpenAI,gpt-5.2,gpt-5-mini
+Gemini,langchain_google_genai,ChatGoogleGenerativeAI,gemini-3-pro-preview,gemini-3-flash-preview
+Groq,langchain_groq,ChatGroq,openai/gpt-oss-120b,openai/gpt-oss-20b
+Mistral,langchain_mistralai,ChatMistralAI,mistral-large-latest,mistral-small-latest
+Together,langchain_together,ChatTogether,meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8,meta-llama/Llama-4-Scout-17B-16E-Instruct
+Anthropic,langchain_anthropic,ChatAnthropic,claude-sonnet-4-5,claude-haiku-4-5
+Grok,langchain_xai,ChatXAI,grok-4-1-fast-reasoning,grok-4-1-fast-non-reasoning
