@@ -17,19 +17,19 @@
     {
       "name": "Anthropic自称クイズ王",
       "assistant": "Anthropic",
-      "model": "claude-opus-4-20250514",
+      "model": "claude-3-opus-20240229",
       "system_prompt_file": "roles/quiz_king.txt"
     },
     {
       "name": "Groq自称クイズ王",
       "assistant": "Groq",
-      "model": "meta-llama/llama-4-maverick-17b-128e-instruct",
+      "model": "llama-3.3-70b-versatile",
       "system_prompt_file": "roles/quiz_king.txt"
     },
     {
       "name": "Groq軽量自称クイズ王",
       "assistant": "Groq",
-      "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+      "model": "llama-3.3-70b-versatile",
       "system_prompt_file": "roles/quiz_king.txt"
     },
     {
@@ -47,7 +47,7 @@
     {
       "name": "Grok自称クイズ王",
       "assistant": "Grok",
-      "model": "grok-4-0709",
+      "model": "gpt-5",
       "system_prompt_file": "roles/quiz_king.txt"
     }
   ],
@@ -67,19 +67,19 @@
     {
       "name": "Anthropic自称クイズ王",
       "assistant": "Anthropic",
-      "model": "claude-opus-4-20250514",
+      "model": "claude-3-opus-20240229",
       "system_prompt_file": "roles/quiz_king.txt"
     },
     {
       "name": "Groq自称クイズ王",
       "assistant": "Groq",
-      "model": "meta-llama/llama-4-maverick-17b-128e-instruct",
+      "model": "llama-3.3-70b-versatile",
       "system_prompt_file": "roles/quiz_king.txt"
     },
     {
       "name": "Groq軽量自称クイズ王",
       "assistant": "Groq",
-      "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+      "model": "llama-3.3-70b-versatile",
       "system_prompt_file": "roles/quiz_king.txt"
     },
     {
@@ -97,7 +97,7 @@
     {
       "name": "Grok自称クイズ王",
       "assistant": "Grok",
-      "model": "grok-4-0709",
+      "model": "gpt-5",
       "system_prompt_file": "roles/quiz_king.txt"
     }
   ],
@@ -106,27 +106,72 @@
       "name": "自称クイズ王バトル",
       "description": "各AIプロバイダーの自称クイズ王による技術クイズ対決",
       "steps": [
-        {"role": "OpenAI自称クイズ王", "action": "GPT-5の自信満々な回答"},
-        {"role": "Google自称クイズ王", "action": "Geminiの余裕綽々な回答"},
-        {"role": "Anthropic自称クイズ王", "action": "Claudeの冷静かつ自信ある回答"},
-        {"role": "Groq自称クイズ王", "action": "Llamaの高速で自信に満ちた回答"},
-        {"role": "Mistral自称クイズ王", "action": "Mistralの技術力を誇示する回答"},
-        {"role": "Together自称クイズ王", "action": "Togetherのコミュニティパワーを活かした回答"},
-        {"role": "Grok自称クイズ王", "action": "Grokの独創的で自信ある回答"}
+        {
+          "role": "OpenAI自称クイズ王",
+          "action": "GPT-5の自信満々な回答"
+        },
+        {
+          "role": "Google自称クイズ王",
+          "action": "Geminiの余裕綽々な回答"
+        },
+        {
+          "role": "Anthropic自称クイズ王",
+          "action": "Claudeの冷静かつ自信ある回答"
+        },
+        {
+          "role": "Groq自称クイズ王",
+          "action": "Llamaの高速で自信に満ちた回答"
+        },
+        {
+          "role": "Mistral自称クイズ王",
+          "action": "Mistralの技術力を誇示する回答"
+        },
+        {
+          "role": "Together自称クイズ王",
+          "action": "Togetherのコミュニティパワーを活かした回答"
+        },
+        {
+          "role": "Grok自称クイズ王",
+          "action": "Grokの独創的で自信ある回答"
+        }
       ]
     },
     "model_comparison": {
       "name": "AIモデル性能比較",
       "description": "異なるAIモデルのクイズ性能を自称クイズ王として比較評価",
       "steps": [
-        {"role": "OpenAI自称クイズ王", "action": "高性能モデルによる自信満々回答"},
-        {"role": "Google自称クイズ王", "action": "Google AIによる余裕の回答"},
-        {"role": "Anthropic自称クイズ王", "action": "Claude系モデルによる分析的回答"},
-        {"role": "Groq自称クイズ王", "action": "高速推論モデルによる即答"},
-        {"role": "Groq軽量自称クイズ王", "action": "軽量モデルでも余裕だと主張する回答"},
-        {"role": "Mistral自称クイズ王", "action": "ヨーロッパの技術力を見せつける回答"},
-        {"role": "Together自称クイズ王", "action": "オープンソースの力を示す回答"},
-        {"role": "Grok自称クイズ王", "action": "最新技術による革新的回答"}
+        {
+          "role": "OpenAI自称クイズ王",
+          "action": "高性能モデルによる自信満々回答"
+        },
+        {
+          "role": "Google自称クイズ王",
+          "action": "Google AIによる余裕の回答"
+        },
+        {
+          "role": "Anthropic自称クイズ王",
+          "action": "Claude系モデルによる分析的回答"
+        },
+        {
+          "role": "Groq自称クイズ王",
+          "action": "高速推論モデルによる即答"
+        },
+        {
+          "role": "Groq軽量自称クイズ王",
+          "action": "軽量モデルでも余裕だと主張する回答"
+        },
+        {
+          "role": "Mistral自称クイズ王",
+          "action": "ヨーロッパの技術力を見せつける回答"
+        },
+        {
+          "role": "Together自称クイズ王",
+          "action": "オープンソースの力を示す回答"
+        },
+        {
+          "role": "Grok自称クイズ王",
+          "action": "最新技術による革新的回答"
+        }
       ]
     }
   },
@@ -147,13 +192,13 @@
       {
         "name": "Anthropic 絶対クイズ王",
         "assistant": "Anthropic",
-        "model": "claude-opus-4-20250514",
+        "model": "claude-3-opus-20240229",
         "system_prompt_file": "roles/quiz_king.txt"
       },
       {
         "name": "Meta 伝説クイズ王",
         "assistant": "Groq",
-        "model": "meta-llama/llama-4-maverick-17b-128e-instruct",
+        "model": "llama-3.3-70b-versatile",
         "system_prompt_file": "roles/quiz_king.txt"
       },
       {
@@ -165,13 +210,13 @@
       {
         "name": "Together 至高クイズ王",
         "assistant": "Together",
-        "model": "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
+        "model": "llama-3.3-70b-versatile",
         "system_prompt_file": "roles/quiz_king.txt"
       },
       {
         "name": "Grok 革命クイズ王",
         "assistant": "Grok",
-        "model": "grok-4-0709",
+        "model": "gpt-5",
         "system_prompt_file": "roles/quiz_king.txt"
       }
     ]

@@ -10,7 +10,7 @@
     {
       "name": "検証 確",
       "assistant": "Together",
-      "model": "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
+      "model": "llama-3.3-70b-versatile",
       "system_prompt_file": "roles/test_engineer.txt"
     }
   ],
@@ -24,7 +24,7 @@
     {
       "name": "検証 確",
       "assistant": "Together",
-      "model": "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
+      "model": "llama-3.3-70b-versatile",
       "system_prompt_file": "roles/test_engineer.txt"
     }
   ],
@@ -33,15 +33,24 @@
       "name": "即席開発",
       "description": "議論なしで要求から直接動作するアプリを即座に生成",
       "steps": [
-        {"role": "全能 統", "action": "要求分析と最適技術選定、完全なアプリケーション実装（フロント・バック・設定・実行手順すべて含む）"}
+        {
+          "role": "全能 統",
+          "action": "要求分析と最適技術選定、完全なアプリケーション実装（フロント・バック・設定・実行手順すべて含む）"
+        }
       ]
     },
     "rapid_mvp": {
       "name": "MVP高速生成",
       "description": "最小限の機能で動作するプロダクトを2ステップで作成",
       "steps": [
-        {"role": "全能 統", "action": "MVP設計と核心機能の実装"},
-        {"role": "検証 確", "action": "動作確認と改善提案"}
+        {
+          "role": "全能 統",
+          "action": "MVP設計と核心機能の実装"
+        },
+        {
+          "role": "検証 確",
+          "action": "動作確認と改善提案"
+        }
       ]
     }
   }

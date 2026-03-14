@@ -35,9 +35,10 @@
     },
     {
       "name": "プロダクトマネージャー",
-      "assistant": "Anthropic",
-      "model": "claude-opus-4-20250514",
-      "system_prompt_file": "roles/planner.txt"
+      "assistant": "ChatGPT",
+      "model": "gpt-4o-mini",
+      "system_prompt_file": "roles/planner.txt",
+      "role_type": "moderator"
     },
     {
       "name": "AIアーキテクト",
@@ -48,7 +49,7 @@
     {
       "name": "AI実装エンジニア",
       "assistant": "Anthropic",
-      "model": "claude-opus-4-20250514",
+      "model": "claude-3-opus-20240229",
       "system_prompt_file": "roles/ai_implementer.txt"
     },
     {
@@ -80,69 +81,160 @@
     "mvp_development": {
       "name": "MVP開発",
       "steps": [
-        {"role": "プロダクトオーナー", "action": "最小機能要件の定義とユーザーストーリー作成"},
-        {"role": "UI/UXデザイナー", "action": "シンプルなプロトタイプとワイヤーフレーム作成"},
-        {"role": "フルスタックエンジニア", "action": "迅速な実装とテスト環境構築"},
-        {"role": "CTO", "action": "技術選定とアーキテクチャ判断"}
+        {
+          "role": "プロダクトオーナー",
+          "action": "最小機能要件の定義とユーザーストーリー作成"
+        },
+        {
+          "role": "UI/UXデザイナー",
+          "action": "シンプルなプロトタイプとワイヤーフレーム作成"
+        },
+        {
+          "role": "フルスタックエンジニア",
+          "action": "迅速な実装とテスト環境構築"
+        },
+        {
+          "role": "CTO",
+          "action": "技術選定とアーキテクチャ判断"
+        }
       ]
     },
     "rapid_iteration": {
       "name": "高速反復開発",
       "steps": [
-        {"role": "フルスタックエンジニア", "action": "機能実装とデプロイ"},
-        {"role": "プロダクトオーナー", "action": "ユーザーフィードバック収集と次の優先度決定"},
-        {"role": "UI/UXデザイナー", "action": "ユーザビリティ改善とデザイン調整"},
-        {"role": "リードエンジニア", "action": "コード品質チェックとリファクタリング"}
+        {
+          "role": "フルスタックエンジニア",
+          "action": "機能実装とデプロイ"
+        },
+        {
+          "role": "プロダクトオーナー",
+          "action": "ユーザーフィードバック収集と次の優先度決定"
+        },
+        {
+          "role": "UI/UXデザイナー",
+          "action": "ユーザビリティ改善とデザイン調整"
+        },
+        {
+          "role": "リードエンジニア",
+          "action": "コード品質チェックとリファクタリング"
+        }
       ]
     },
     "tech_sprint": {
       "name": "技術スプリント",
       "steps": [
-        {"role": "CTO", "action": "技術課題の特定と解決方針策定"},
-        {"role": "リードエンジニア", "action": "実装計画と技術選定"},
-        {"role": "フルスタックエンジニア", "action": "集中的な実装作業"},
-        {"role": "プロダクトマネージャー", "action": "進捗管理とリリース計画"}
+        {
+          "role": "CTO",
+          "action": "技術課題の特定と解決方針策定"
+        },
+        {
+          "role": "リードエンジニア",
+          "action": "実装計画と技術選定"
+        },
+        {
+          "role": "フルスタックエンジニア",
+          "action": "集中的な実装作業"
+        },
+        {
+          "role": "プロダクトマネージャー",
+          "action": "進捗管理とリリース計画"
+        }
       ]
     },
     "ai_auto_programming": {
       "name": "AI自動プログラミング開発",
       "steps": [
-        {"role": "AIアーキテクト", "action": "システム全体のアーキテクチャ設計と技術選定"},
-        {"role": "AI実装エンジニア", "action": "コア機能の実装とモジュール構造の作成"},
-        {"role": "AIアーキテクト", "action": "実装の品質確認とセキュリティレビュー"},
-        {"role": "AI実装エンジニア", "action": "テストコードの実装とエラーハンドリング"},
-        {"role": "AIアーキテクト", "action": "デプロイ戦略と運用方針の策定"},
-        {"role": "AI実装エンジニア", "action": "ドキュメントとサンプルコードの作成"}
+        {
+          "role": "AIアーキテクト",
+          "action": "システム全体のアーキテクチャ設計と技術選定"
+        },
+        {
+          "role": "AI実装エンジニア",
+          "action": "コア機能の実装とモジュール構造の作成"
+        },
+        {
+          "role": "AIアーキテクト",
+          "action": "実装の品質確認とセキュリティレビュー"
+        },
+        {
+          "role": "AI実装エンジニア",
+          "action": "テストコードの実装とエラーハンドリング"
+        },
+        {
+          "role": "AIアーキテクト",
+          "action": "デプロイ戦略と運用方針の策定"
+        },
+        {
+          "role": "AI実装エンジニア",
+          "action": "ドキュメントとサンプルコードの作成"
+        }
       ]
     },
     "hello_world_development": {
       "name": "Hello World プログラム作成 (Python)",
       "steps": [
-        {"role": "プロダクトマネージャー", "action": "要件定義：Python で 'Hello, World\\n' を出力するプログラムの仕様確認"},
-        {"role": "AIアーキテクト", "action": "技術選定：Python の最適な実装方法とコード構造の決定"},
-        {"role": "AI実装エンジニア", "action": "実装：Python で Hello World プログラムのコード作成"},
-        {"role": "リードエンジニア", "action": "Python コードレビューと品質チェック"},
-        {"role": "AI実装エンジニア", "action": "Python テスト作成と実行確認"},
-        {"role": "CTO", "action": "最終確認とドキュメント作成"}
+        {
+          "role": "プロダクトマネージャー",
+          "action": "要件定義：Python で 'Hello, World\\n' を出力するプログラムの仕様確認"
+        },
+        {
+          "role": "AIアーキテクト",
+          "action": "技術選定：Python の最適な実装方法とコード構造の決定"
+        },
+        {
+          "role": "AI実装エンジニア",
+          "action": "実装：Python で Hello World プログラムのコード作成"
+        },
+        {
+          "role": "リードエンジニア",
+          "action": "Python コードレビューと品質チェック"
+        },
+        {
+          "role": "AI実装エンジニア",
+          "action": "Python テスト作成と実行確認"
+        },
+        {
+          "role": "CTO",
+          "action": "最終確認とドキュメント作成"
+        }
       ]
     },
     "simple_coding": {
       "name": "シンプルコーディング",
       "description": "軽量で単純なプログラムの迅速な実装",
       "steps": [
-        {"role": "軽量プランナー", "action": "複雑度評価と要件整理（簡易実装判定）"},
-        {"role": "軽量実装エンジニア", "action": "シンプル実装とコメント付きコード作成"},
-        {"role": "軽量レビューア", "action": "コードレビューと実行確認"}
+        {
+          "role": "軽量プランナー",
+          "action": "複雑度評価と要件整理（簡易実装判定）"
+        },
+        {
+          "role": "軽量実装エンジニア",
+          "action": "シンプル実装とコメント付きコード作成"
+        },
+        {
+          "role": "軽量レビューア",
+          "action": "コードレビューと実行確認"
+        }
       ]
     },
     "code_and_run": {
       "name": "コード生成・実行",
       "description": "コード生成と即座のサンドボックス実行",
       "max_iterations": 3,
-      "success_criteria": ["実行成功", "テスト合格", "エラーなし"],
+      "success_criteria": [
+        "実行成功",
+        "テスト合格",
+        "エラーなし"
+      ],
       "steps": [
-        {"role": "軽量実装エンジニア", "action": "実行可能なコード生成"},
-        {"role": "コードテスター", "action": "サンドボックスでの安全な実行・検証・合格判定"}
+        {
+          "role": "軽量実装エンジニア",
+          "action": "実行可能なコード生成"
+        },
+        {
+          "role": "コードテスター",
+          "action": "サンドボックスでの安全な実行・検証・合格判定"
+        }
       ],
       "loop_condition": "テスト結果に問題がある場合は修正して再実行"
     },
@@ -151,9 +243,23 @@
       "description": "テスト合格まで自動修正を繰り返すコード生成",
       "max_iterations": 5,
       "steps": [
-        {"role": "軽量実装エンジニア", "action": "実行可能なコード生成", "step_type": "implementation"},
-        {"role": "コードテスター", "action": "実行・検証・合格判定", "step_type": "validation", "retry_on_fail": true},
-        {"role": "軽量実装エンジニア", "action": "エラー修正とコード改善", "step_type": "fix", "condition": "previous_failed"}
+        {
+          "role": "軽量実装エンジニア",
+          "action": "実行可能なコード生成",
+          "step_type": "implementation"
+        },
+        {
+          "role": "コードテスター",
+          "action": "実行・検証・合格判定",
+          "step_type": "validation",
+          "retry_on_fail": true
+        },
+        {
+          "role": "軽量実装エンジニア",
+          "action": "エラー修正とコード改善",
+          "step_type": "fix",
+          "condition": "previous_failed"
+        }
       ]
     }
   },
@@ -182,7 +288,7 @@
       {
         "name": "AI実装エンジニア",
         "assistant": "Anthropic",
-        "model": "claude-opus-4-20250514",
+        "model": "claude-3-opus-20240229",
         "system_prompt_file": "roles/ai_implementer.txt"
       }
     ]

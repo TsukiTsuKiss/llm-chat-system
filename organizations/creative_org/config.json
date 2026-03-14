@@ -7,31 +7,36 @@
       "name": "ワイルドアイデア",
       "assistant": "ChatGPT",
       "model": "gpt-4o",
-      "system_prompt_file": "roles/wild_innovator.txt"
+      "system_prompt_file": "roles/wild_innovator.txt",
+      "role_type": "member"
     },
     {
       "name": "悪魔の代弁者",
       "assistant": "Gemini", 
       "model": "gemini-2.0-flash-exp",
-      "system_prompt_file": "roles/devil_advocate.txt"
+      "system_prompt_file": "roles/devil_advocate.txt",
+      "role_type": "member"
     },
     {
       "name": "創造性重視",
       "assistant": "Groq",
       "model": "llama-3.3-70b-versatile", 
-      "system_prompt_file": "roles/creative.txt"
+      "system_prompt_file": "roles/creative.txt",
+      "role_type": "member"
     },
     {
       "name": "ビジョナリー",
       "assistant": "Anthropic",
-      "model": "claude-3-5-sonnet-20241022",
-      "system_prompt_file": "roles/visionary.txt"
+      "model": "claude-3-opus-20240229",
+      "system_prompt_file": "roles/visionary.txt",
+      "role_type": "member"
     },
     {
       "name": "モデレーター",
-      "assistant": "Mistral",
-      "model": "mistral-large-2411",
-      "system_prompt_file": "roles/moderator.txt"
+      "assistant": "ChatGPT",
+      "model": "gpt-4o-mini",
+      "system_prompt_file": "roles/moderator.txt",
+      "role_type": "moderator"
     }
   ],
   "workflows": {
