@@ -36,8 +36,8 @@ from langchain.schema import AIMessage, HumanMessage
 import argparse
 
 # Version information
-VERSION = "1.0.0"
-VERSION_DATE = "2025-07-26"
+VERSION = "1.1.0"
+VERSION_DATE = "2025-11-28"
 
 # Configuration files
 AI_ASSISTANTS_CONFIG_FILE = "ai_assistants_config.csv"
@@ -308,6 +308,7 @@ class MultiRoleManager:
         self.organization_config = None  # 組織設定データ
         self.active_roles = {}
         self.role_prompts = {}
+        self.role_types = {}  # 各ロールのタイプを保存（moderator/member）
         self.conversation_history = MultiRoleConversationHistory()
         # 組織・設定ファイル情報を保持
         self.organization_info = self._detect_organization_info()
@@ -350,11 +351,14 @@ class MultiRoleManager:
         
         return org_info
     
-    def add_role(self, role_name, assistant_name, model_name, system_prompt, source_file=None):
+    def add_role(self, role_name, assistant_name, model_name, system_prompt, source_file=None, role_type="member"):
         """新しいロールを追加"""
         """新しいロールを追加"""
         if assistant_name not in self.ai_assistants:
             raise ValueError(f"Unknown assistant: {assistant_name}")
+        
+        # ロールタイプを保存
+        self.role_types[role_name] = role_type
         
         # アシスタントのインスタンスを作成
         assistant_instance = self.load_assistant(assistant_name, model_name, self.use_fast)
@@ -879,7 +883,7 @@ class MultiRoleManager:
         except Exception as save_error:
             print(f"⚠️ 最終コード保存エラー: {save_error}")
 
-    def team_meeting(self, participants, topic, max_rounds=3):
+    def team_meeting(self, participants, topic, max_rounds=3, interactive=False):
         """チーム会議を実行"""
         if len(participants) < 2:
             print("チーム会議には最低2人の参加者が必要です")
@@ -891,9 +895,12 @@ class MultiRoleManager:
             print(f"見つからないロール: {', '.join(missing_roles)}")
             return
         
-        print(f"\n🏢 チーム会議を開始します")
+        mode_label = "（インタラクティブモード）" if interactive else ""
+        print(f"\n🏢 チーム会議を開始します {mode_label}")
         print(f"参加者: {', '.join(participants)}")
         print(f"議題: {topic}")
+        if interactive:
+            print("💡 各ラウンド後にあなたの意見を入力できます")
         print("=" * 60)
         
         meeting_log = []
@@ -903,54 +910,151 @@ class MultiRoleManager:
             print(f"\n📋 Round {round_num}")
             print("-" * 40)
             
-            round_responses = []
-            for participant in participants:
-                # 会議ログを含めた入力を作成
-                input_text = f"会議議題: {topic}\n\n"
-                if meeting_log:
-                    input_text += "これまでの議論:\n"
-                    # 直近3発言に制限してトークン数を削減
-                    input_text += "\n".join(meeting_log[-3:])  
-                    input_text += f"\n\n現在の論点: {current_topic}"
-                else:
-                    input_text += f"あなたの専門性を活かして、この議題について意見を述べてください: {current_topic}"
-                
-                # 入力長制限 (約4000文字 = 約1000トークン)
-                if len(input_text) > 4000:
-                    input_text = input_text[:4000] + "...[省略]"
-                
-                response = self.get_response_from_role(participant, input_text)
-                # 改行処理を追加（文字列チェック付き）
-                if isinstance(response, str):
-                    formatted_response = response.replace('\\n', '\n')
-                else:
-                    formatted_response = str(response) if response else ""
-                print(f"🎭 {participant}: {formatted_response}")
-                
-                # ログに記録
-                log_entry = f"[{participant}] {response}"
-                meeting_log.append(log_entry)
-                round_responses.append(response)
+            # 並列実行用の関数
+            from concurrent.futures import ThreadPoolExecutor, as_completed
             
-            # 議論の方向性を更新（最後の発言を次の論点として使用）
-            if round_responses:
-                current_topic = f"前回の議論を踏まえて、さらに深く検討してください"
+            def get_participant_response(participant):
+                """参加者の応答を取得"""
+                try:
+                    # 会議ログを含めた入力を作成
+                    input_text = f"会議議題: {topic}\n\n"
+                    if meeting_log:
+                        input_text += "これまでの議論:\n"
+                        # 直近3発言に制限してトークン数を削減
+                        input_text += "\n".join(meeting_log[-3:])  
+                        input_text += f"\n\n現在の論点: {current_topic}"
+                    else:
+                        input_text += f"あなたの専門性を活かして、この議題について意見を述べてください: {current_topic}"
+                    
+                    # 入力長制限 (約4000文字 = 約1000トークン)
+                    if len(input_text) > 4000:
+                        input_text = input_text[:4000] + "...[省略]"
+                    
+                    start_time = time.time()
+                    response = self.get_response_from_role(participant, input_text)
+                    response_time = time.time() - start_time
+                    
+                    # 改行処理を追加（文字列チェック付き）
+                    if isinstance(response, str):
+                        formatted_response = response.replace('\\n', '\n')
+                    else:
+                        formatted_response = str(response) if response else ""
+                    
+                    return {
+                        'participant': participant,
+                        'response': response,
+                        'formatted_response': formatted_response,
+                        'response_time': response_time,
+                        'error': None
+                    }
+                except Exception as e:
+                    return {
+                        'participant': participant,
+                        'response': f"エラー: {e}",
+                        'formatted_response': f"エラー: {str(e)[:100]}...",
+                        'response_time': 0,
+                        'error': str(e)
+                    }
+            
+            # ラウンド内の全参加者に並列でリクエスト
+            round_responses = []
+            participant_order = {p: i for i, p in enumerate(participants)}  # 元の順序を保持
+            
+            print(f"⏳ 全員に送信中（レート制限対策で少しずつ）...\n")
+            
+            with ThreadPoolExecutor(max_workers=len(participants)) as executor:
+                # レート制限対策：少しずつずらして送信
+                future_to_participant = {}
+                for i, p in enumerate(participants):
+                    # 0.3秒ずつずらす（レート制限回避）
+                    if i > 0:
+                        time.sleep(0.3)
+                    future_to_participant[executor.submit(get_participant_response, p)] = p
+                
+                # 完了した順にリアルタイム表示
+                completed_count = 0
+                for future in as_completed(future_to_participant):
+                    completed_count += 1
+                    result = future.result()
+                    
+                    participant = result['participant']
+                    
+                    if result['error']:
+                        print(f"🎭 [{completed_count}/{len(participants)}] {participant} ({result['response_time']:.2f}秒): ❌ {result['formatted_response']}")
+                    else:
+                        print(f"🎭 [{completed_count}/{len(participants)}] {participant} ({result['response_time']:.2f}秒): {result['formatted_response']}")
+                    
+                    # 読む時間を確保するため少し待つ
+                    if completed_count < len(participants):
+                        time.sleep(0.5)
+                    
+                    # ログに記録（元の順序で保存するため一時保存）
+                    log_entry = f"[{participant}] {result['response']}"
+                    meeting_log.append(log_entry)
+                    round_responses.append((participant_order[participant], result['response']))
+            
+            # ログの最後の行を改行で区切る
+            print()
+            
+            # インタラクティブモード：ユーザーの意見を受け付ける
+            if interactive and round_num < max_rounds:
+                print("─" * 60)
+                print("💬 あなたの意見を入力してください（スキップは Enter）:")
+                try:
+                    user_input = input("> ").strip()
+                    if user_input:
+                        # ユーザーの意見をログに追加
+                        log_entry = f"[あなた] {user_input}"
+                        meeting_log.append(log_entry)
+                        print(f"\n✅ あなたの意見を会議に追加しました")
+                        # 次のラウンドではユーザーの意見を踏まえる
+                        current_topic = f"参加者の意見「{user_input}」を踏まえて、さらに深く検討してください"
+                    else:
+                        print("⏭️ スキップしました")
+                        current_topic = f"前回の議論を踏まえて、さらに深く検討してください"
+                except EOFError:
+                    print("\n⏭️ 入力をスキップしました")
+                    current_topic = f"前回の議論を踏まえて、さらに深く検討してください"
+            else:
+                # 議論の方向性を更新（最後の発言を次の論点として使用）
+                if round_responses:
+                    current_topic = f"前回の議論を踏まえて、さらに深く検討してください"
         
-        # 会議の総括
+        # 会議の総括（モデレーターロールに依頼）
         summary = ""
-        if "秘書" in self.active_roles:
-            print(f"\n📝 会議の総括 (秘書)")
+        # モデレーターロールを見つける
+        moderator_role = None
+        for role_name in self.active_roles:
+            if self.role_types.get(role_name) == "moderator":
+                moderator_role = role_name
+                break
+        
+        if moderator_role:
+            print(f"\n📝 会議の総括 ({moderator_role})")
             print("-" * 40)
-            summary_input = f"以下の会議内容を要約し、重要な決定事項とアクションアイテムを整理してください:\n\n議題: {topic}\n\n会議内容:\n" + "\n".join(meeting_log)
-            summary = self.get_response_from_role("秘書", summary_input)
+            summary_input = f"""以下の会議内容を要約し、重要な決定事項とアクションアイテムを整理してください。
+
+【制約】
+- 500文字以内でまとめてください
+- 箇条書きで簡潔に
+- 各参加者の主な意見を反映
+- 次のアクションを明確に
+
+議題: {topic}
+
+会議内容:
+""" + "\n".join(meeting_log)
+            
+            print(f"\n⏳ {moderator_role}がまとめを作成中...\n")
+            summary = self.get_response_from_role(moderator_role, summary_input)
             if isinstance(summary, str):
                 formatted_summary = summary.replace('\\n', '\n')
             else:
                 formatted_summary = str(summary) if summary else ""
-            print(f"🎭 秘書: {formatted_summary}")
+            print(f"🎭 {moderator_role}: {formatted_summary}")
         
-        # Markdownファイルとして保存
-        self.save_meeting_log(topic, participants, meeting_log, summary)
+        # Markdownファイルとして保存（モデレーター情報も渡す）
+        self.save_meeting_log(topic, participants, meeting_log, summary, moderator_role=moderator_role)
         
         print("=" * 60)
         print("✅ チーム会議終了")
@@ -986,15 +1090,16 @@ class MultiRoleManager:
 質問: 
 {question}"""
         
-        for i, role_name in enumerate(roles_to_use, 1):
+        # 並列実行用の関数
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        
+        def get_response_with_timing(role_name):
+            """応答を取得して時間を測定"""
             try:
-                # 応答時間の測定開始
                 start_time = time.time()
                 response = self.get_quiz_response(role_name, quiz_prompt)
                 end_time = time.time()
-                
                 response_time = end_time - start_time
-                response_times[role_name] = response_time
                 
                 # より厳格な文字数制限（100文字まで）
                 if len(response) > 100:
@@ -1005,15 +1110,56 @@ class MultiRoleManager:
                 else:
                     formatted_response = str(response) if response else ""
                 
-                # 応答時間を表示に含める
-                print(f"🎭 [{i}] {role_name} ({response_time:.2f}秒): {formatted_response}")
-                
-                quiz_responses.append(f"[{role_name}] {response}")
-                
+                return {
+                    'role_name': role_name,
+                    'response': response,
+                    'formatted_response': formatted_response,
+                    'response_time': response_time,
+                    'error': None
+                }
             except Exception as e:
-                print(f"🎭 [{i}] {role_name}: ❌ エラー - {e}")
-                quiz_responses.append(f"[{role_name}] エラー: {e}")
-                response_times[role_name] = 0  # エラー時は0秒
+                return {
+                    'role_name': role_name,
+                    'response': f"エラー: {e}",
+                    'formatted_response': f"エラー: {str(e)[:100]}...",
+                    'response_time': 0,
+                    'error': str(e)
+                }
+        
+        # 全ロールに並列でリクエストを送信
+        print("\n⏳ 全AIに質問を送信中（レート制限対策で少しずつ）...\n")
+        
+        with ThreadPoolExecutor(max_workers=len(roles_to_use)) as executor:
+            # レート制限対策：少しずつずらして送信
+            future_to_role = {}
+            for i, role in enumerate(roles_to_use):
+                # 0.3秒ずつずらす（レート制限回避）
+                if i > 0:
+                    time.sleep(0.3)
+                future_to_role[executor.submit(get_response_with_timing, role)] = role
+            
+            # 完了した順に結果を表示
+            completed_count = 0
+            for future in as_completed(future_to_role):
+                completed_count += 1
+                result = future.result()
+                
+                role_name = result['role_name']
+                response_time = result['response_time']
+                formatted_response = result['formatted_response']
+                
+                response_times[role_name] = response_time
+                
+                if result['error']:
+                    print(f"🎭 [{completed_count}] {role_name} ({response_time:.2f}秒): ❌ {formatted_response}")
+                    quiz_responses.append(f"[{role_name}] {result['response']}")
+                else:
+                    print(f"🎭 [{completed_count}] {role_name} ({response_time:.2f}秒): {formatted_response}")
+                    quiz_responses.append(f"[{role_name}] {result['response']}")
+                
+                # 読む時間を確保するため少し待つ（クイズは短いので0.3秒）
+                if completed_count < len(roles_to_use):
+                    time.sleep(0.3)
         
         print("=" * 60)
         
@@ -1437,7 +1583,7 @@ class MultiRoleManager:
         except Exception as e:
             print(f"⚠️ ログ完了処理エラー: {e}")
 
-    def save_meeting_log(self, topic, participants, meeting_log, summary="", log_type="meeting", response_times=None, workflow_info=None):
+    def save_meeting_log(self, topic, participants, meeting_log, summary="", log_type="meeting", response_times=None, workflow_info=None, moderator_role=None):
         """会議ログをMarkdownファイルとして保存"""
         if not os.path.exists(MULTI_LOGS_DIR):
             os.makedirs(MULTI_LOGS_DIR)
@@ -1550,7 +1696,8 @@ class MultiRoleManager:
         
         # 総括があれば追加
         if summary:
-            md_content += f"""## 📝 会議総括
+            moderator_label = f" ({moderator_role})" if moderator_role else ""
+            md_content += f"""## 📝 会議総括{moderator_label}
 
 {summary}
 
@@ -1612,7 +1759,10 @@ def parse_arguments():
   list                                     : 現在のロール一覧を表示
   talk <role> <message>                    : 指定ロールと会話
   conversation <role1> <role2> <message>   : ロール間会話を開始
-  quiz <question>                          : 複数ロールから簡潔回答を取得
+  meeting [-i] [-r N] [役割...] <議題>     : チーム会議を開催（-i: あなたも参加）
+  quiz <question>                          : 複数ロールから簡潔回答を取得（並列処理）
+  workflow <workflow_name> <topic>         : ワークフローを実行
+  cost                                     : セッションコストを表示
   quit                                     : 終了
         """
     )
@@ -1744,14 +1894,20 @@ def setup_organization_from_config(role_manager, org_config):
             
             system_prompt = load_system_prompt_from_file(system_prompt_file)
             if system_prompt:
+                # role_typeを取得（デフォルトは"member"）
+                role_type = role_config.get('role_type', 'member')
+                
                 role_manager.add_role(
                     role_config['name'],
                     role_config['assistant'],
                     role_config['model'],
                     system_prompt,
-                    source_file=system_prompt_file
+                    source_file=system_prompt_file,
+                    role_type=role_type
                 )
-                print(f"✅ ロール '{role_config['name']}' を追加しました")
+                
+                role_type_label = "👨‍💼(進行役)" if role_type == "moderator" else ""
+                print(f"✅ ロール '{role_config['name']}' を追加しました {role_type_label}")
             else:
                 print(f"❌ ロール '{role_config['name']}' のシステムプロンプト読み込みに失敗しました")
         except Exception as e:
@@ -2244,7 +2400,7 @@ def main():
     print("  quiz multiline continuous                - 複数行連続質問モード")
     print("  workflow <workflow_name> <topic>         - ワークフローを実行")
     print("  scenario <scenario_name> <topic>         - シナリオを実行")
-    print("  meeting <role1> <role2> ... <topic>      - チーム会議を開催")
+    print("  meeting [-i] [-r N] [role...] <topic>    - チーム会議を開催（-i: インタラクティブ）")
     print("  cost                                     - 現在のセッションコストを表示")
     print("  performance または perf                  - パフォーマンス統計を表示")
     print("  quit                                     - 終了")
@@ -2452,15 +2608,77 @@ def main():
                     role_manager.execute_workflow(scenario_name, topic)  # ワークフローとして実行
             
             elif cmd == 'meeting':
-                if len(cmd_args) < 3:
-                    print("使用法: meeting <role1> <role2> [<role3> ...] <topic>")
+                if len(cmd_args) < 1:
+                    print("使用法: ")
+                    print("  meeting <topic>                          - 全員参加のミーティング（3ラウンド）")
+                    print("  meeting -i <topic>                       - インタラクティブモード（あなたも参加）")
+                    print("  meeting -r <N> <topic>                   - ラウンド数指定")
+                    print("  meeting <role1> <role2> ... <topic>      - 指定ロールのミーティング")
+                    print("  meeting -i -r <N> <role1> <role2> <topic> - 全オプション組み合わせ")
+                    print("例:")
+                    print("  meeting 次四半期の戦略")
+                    print("  meeting -i 次四半期の戦略")
+                    print("  meeting -r 2 次四半期の戦略")
+                    print("  meeting -i -r 5 秘書 企画 マーケター プロジェクト計画")
                     continue
                 
-                # 最後の引数をトピックとして扱い、それ以外を参加者とする
-                participants = cmd_args[:-1]
-                topic = cmd_args[-1]
+                # ラウンド数のデフォルト
+                max_rounds = 3
+                # インタラクティブモードのデフォルト
+                interactive = False
                 
-                role_manager.team_meeting(participants, topic)
+                # -i/--interactive オプションをチェック
+                if cmd_args[0] in ['-i', '--interactive']:
+                    interactive = True
+                    cmd_args = cmd_args[1:]  # -i を除去
+                    if len(cmd_args) < 1:
+                        print("使用法: meeting -i <topic>")
+                        print("例: meeting -i 次四半期の戦略")
+                        continue
+                
+                # -r オプションでラウンド数を指定
+                if len(cmd_args) > 0 and cmd_args[0] in ['-r', '--rounds']:
+                    if len(cmd_args) < 3:
+                        print("使用法: meeting -r <ラウンド数> <topic>")
+                        print("例: meeting -r 2 次四半期の戦略")
+                        continue
+                    try:
+                        max_rounds = int(cmd_args[1])
+                        if max_rounds < 1 or max_rounds > 10:
+                            print("ラウンド数は1〜10の範囲で指定してください")
+                            continue
+                        cmd_args = cmd_args[2:]  # -r と数値を除去
+                    except ValueError:
+                        print("ラウンド数は数値で指定してください")
+                        continue
+                
+                # ロール指定があるか判定
+                # 全引数がアクティブロールに含まれている場合は、最後だけトピック
+                # そうでない場合は、全体をトピックとする
+                active_role_names = list(role_manager.active_roles.keys())
+                
+                if len(cmd_args) == 1:
+                    # 1つの引数 → トピックのみ、全員参加
+                    topic = cmd_args[0]
+                    participants = active_role_names
+                    print(f"\n👥 全員参加のミーティング（{len(participants)}名、{max_rounds}ラウンド）")
+                else:
+                    # 複数の引数 → 最後の1つ前までがロール名かチェック
+                    potential_roles = cmd_args[:-1]
+                    all_are_roles = all(role in active_role_names for role in potential_roles)
+                    
+                    if all_are_roles and len(potential_roles) >= 2:
+                        # ロール指定モード
+                        participants = potential_roles
+                        topic = cmd_args[-1]
+                        print(f"\n👥 指定ロールのミーティング（{len(participants)}名、{max_rounds}ラウンド）")
+                    else:
+                        # 全体をトピックとして扱い、全員参加
+                        topic = ' '.join(cmd_args)
+                        participants = active_role_names
+                        print(f"\n👥 全員参加のミーティング（{len(participants)}名、{max_rounds}ラウンド）")
+                
+                role_manager.team_meeting(participants, topic, max_rounds=max_rounds, interactive=interactive)
             
             elif cmd == 'cost':
                 session_summary = role_manager.token_tracker.get_session_summary()
