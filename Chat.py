@@ -1,5 +1,5 @@
 # Chat - 最新版チャットボット（まとめ機能・複数行編集・包括的エラー対応）
-# Version: 8.0.0
+# Version: 8.1.0
 # Features: 
 # - まとめ機能: AIによる会話履歴の要約とファイル保存
 # - 複数行入力: 継続的な複数行モードと高度な編集機能
@@ -7,6 +7,9 @@
 # - 包括的エラー対応: API制限エラーの自動検出・対応・リトライ
 # - トークン節約機能: まとめの履歴除外による長時間会話対応
 # - 最新AIモデル: 全プロバイダーの最新モデルに対応
+# - Python 3.13 対応: 型アノテーション強化とパフォーマンス最適化
+
+from __future__ import annotations
 
 import sys
 import os
@@ -14,23 +17,26 @@ import csv
 import time
 import importlib
 from datetime import datetime
-from langchain.prompts import (
+from typing import Dict, List, Optional, Union, Any
+from pathlib import Path
+
+from langchain_core.prompts import (
     ChatPromptTemplate,
     SystemMessagePromptTemplate,
     HumanMessagePromptTemplate,
     MessagesPlaceholder
 )
-from langchain.schema.runnable import (
+from langchain_core.runnables import (
     RunnableLambda,
     RunnableSequence,
     RunnablePassthrough
 )
-from langchain.schema import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 import argparse # argparseをインポート
 
 # Version information
-VERSION = "8.0.0"
-VERSION_DATE = "2025-08-18"
+VERSION = "8.1.0"
+VERSION_DATE = "2025-10-28"
 
 # AI Assistants configuration file
 AI_ASSISTANTS_CONFIG_FILE = "ai_assistants_config.csv"
