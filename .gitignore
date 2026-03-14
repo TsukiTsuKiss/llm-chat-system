@@ -20,18 +20,16 @@ Thumbs.db
 **/*secret*
 **/*token*
 
-# 一時ファイル
-*.tmp
-*.cache
-temp.txt
-
-
 # IDE
 .vscode/
 .idea/
+.vs/
 *.swp
 *.swo
 *~
+
+# ユーティリティスクリプト (独立ツール群)
+util/
 
 # 実験フォルダ (著作権のある質問データ含む)
 llm_*/
@@ -46,16 +44,6 @@ llm[0-9][0-9]*/
 **/*.log
 **/AI_Assistant_Log*.csv
 **/LLM*_Log*.csv
-
-# バックアップファイル
-*_backup_*.csv
-ai_assistants_config_backup_*.csv
-
-# 一時ファイル・キャッシュ
-temp.txt
-*.tmp
-*.cache
-output_*.txt
 
 # OS・エディタ
 .DS_Store
@@ -131,14 +119,22 @@ logs/
 **/logs/
 multi_logs/
 
-# 📄 サマリーファイル
+# � サンドボックス実行環境
+sandbox/
+**/sandbox/
+
+# �📄 サマリーファイル
 summaries/personal/     # 個人的なサマリーは除外
 summaries/private/      # プライベートサマリーは除外
 # ※ サンプルサマリーはリポジトリに含める
 
-# 💾 バックアップ・一時ファイル
+# SQLiteデータベース (CSVから生成されるキャッシュ)
+*.db
+
+# バックアップ・一時ファイル
 *_backup_*.csv
 ai_assistants_config_backup_*.csv
+*.backup
 temp.txt
 *.tmp
 *.cache
