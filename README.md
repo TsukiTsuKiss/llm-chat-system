@@ -17,6 +17,13 @@
 - 💰 **統合コスト管理システム** - リアルタイムコスト追跡と価格管理
 - 💾 **自動コード保存機能** - AIが生成したコードを`sandbox/`に自動保存
 
+**新機能 (v1.1.0 - 2025-11-28):**
+- 💬 **インタラクティブ会議** - `-i`オプションで人間も会議に参加可能
+- 👨‍💼 **モデレーター機能** - `role_type: "moderator"`で会議の自動まとめ
+- ⚡ **並列処理対応** - quiz/meetingコマンドの高速化
+- 🛡️ **レート制限対策** - APIリクエストを0.3秒ずつずらして送信
+- 🔢 **ラウンド数指定** - `-r`オプションで会議のラウンド数をカスタマイズ
+
 **新機能 (v1.4.0):**
 - 🎯 **クイズ評価システム** - 複数AIプロバイダーの性能比較・ベンチマーク機能
 - ⚡ **応答時間測定** - クイズモードでの詳細パフォーマンス分析
@@ -83,9 +90,69 @@
 
 ## 🔧 統合管理ユーティリティ
 
-### AI設定とコスト管理
+### 1. モデルコスト管理（SQLite） - `model_costs_db.py`
 
-`update_ai_config.py`はAI設定とコスト管理を一元的に行うツールです：
+**NEW!** `model_costs.csv`をSQLiteデータベースとして管理し、高度な分析が可能：
+
+```bash
+# データベースにロード
+python model_costs_db.py load
+
+# 最安値モデルを検索
+python model_costs_db.py cheapest --limit 5
+
+# プロバイダー別比較
+python model_costs_db.py provider OpenAI
+
+# 2つのCSVファイルを比較
+python model_costs_db.py compare-files model_costs.csv model_costs_backup.csv
+
+# 価格変動を分析
+python model_costs_db.py price-changes
+
+# SQLクエリを実行
+python model_costs_db.py sql "SELECT * FROM model_costs WHERE provider='OpenAI'"
+
+# インタラクティブSQLモード
+python model_costs_db.py sql-interactive
+
+# グラフ生成（matplotlibが必要）
+python model_costs_db.py price-changes --graph
+```
+
+**SQLクエリ集（`sql/`フォルダ）:**
+- `01_check_dates.sql` - 日付確認
+- `02_cheapest_models.sql` - 最安値モデル
+- `03_provider_comparison.sql` - プロバイダー比較
+- `04_price_changes.sql` - 価格変動分析
+- `05_groq_models.sql` - Groqモデル一覧
+- `06_new_models.sql` - 新規追加モデル
+- 他多数...
+
+### 2. 組織設定バリデーション - `validate_org_configs.py`
+
+組織設定ファイルのモデル名を`model_costs.csv`と照合し、自動修正：
+
+```bash
+# 全組織の設定を検証
+python validate_org_configs.py validate
+
+# 自動修正（同じタイプのモデルに置換）
+python validate_org_configs.py fix
+
+# 即座に修正を適用
+python validate_org_configs.py fix-force
+```
+
+**機能:**
+- ✅ モデル名の存在確認
+- ✅ 同じタイプのモデルへの自動置換（Opus→Opus、70B→70B）
+- ✅ バックアップ自動作成
+- ✅ 詳細レポート出力
+
+### 3. AI設定とコスト管理 - `update_ai_config.py`
+
+AI設定とコスト管理を一元的に行うツール：
 
 ```bash
 # AI設定の更新（最新モデル情報を取得）
@@ -111,24 +178,31 @@ python update_ai_config.py costs crawl all
 ### MultiRoleChat
 
 ```bash
-# 1. 組織指定とワークフロー直接実行（推奨）
+# 1. インタラクティブ会議（NEW v1.1.0）- あなたも参加！
+python MultiRoleChat.py --org creative_org --demo
+🎭 MultiRoleChat> meeting -i "革新的なAIサービスアイデア"
+
+# 2. 組織指定とワークフロー直接実行（推奨）
 python MultiRoleChat.py --org creative_org --workflow creative_brainstorm --topic "革新的なAIサービス"
 
-# 2. クイズ評価システム（NEW）- AIモデル性能比較
+# 3. クイズ評価システム（並列処理対応）- AIモデル性能比較
 python MultiRoleChat.py --org quiz_evaluation --demo
 🎭 MultiRoleChat> quiz multiline continuous
 
-# 3. 利用可能な組織とワークフローの確認
+# 4. 利用可能な組織とワークフローの確認
 python MultiRoleChat.py --org creative_org
 
-# 4. 組織を指定して対話モードで起動
+# 5. 組織を指定して対話モードで起動
 python MultiRoleChat.py --org tech_startup
 
-# 5. デモモードでの起動
+# 6. デモモードでの起動
 python MultiRoleChat.py --demo
 
-# 6. ワークフロー実行（対話モード内）
+# 7. ワークフロー実行（対話モード内）
 🎭 MultiRoleChat> workflow product_development "LLM仮想会社会議チャットボット"
+
+# 8. 高速並列クイズ（対話モード内）
+🎭 MultiRoleChat> quiz "日本で2番目に面積の大きい都道府県は？"
 ```
 
 ### Single Chat
