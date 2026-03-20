@@ -1,0 +1,148 @@
+{
+  "organization": "groq_fast_discussion",
+  "demo_roles": [
+    {
+      "name": "リーダー",
+      "assistant": "Groq",
+      "model": "openai/gpt-oss-120b",
+      "system_prompt_file": "roles/decision_leader.txt"
+    },
+    {
+      "name": "アナリスト",
+      "assistant": "Groq",
+      "model": "llama-3.3-70b-versatile",
+      "system_prompt_file": "roles/analyst.txt"
+    },
+    {
+      "name": "リスク評価",
+      "assistant": "Groq",
+      "model": "openai/gpt-oss-20b",
+      "system_prompt_file": "roles/risk_evaluator.txt"
+    }
+  ],
+  "organization_roles": [
+    {
+      "name": "リーダー",
+      "assistant": "Groq",
+      "model": "openai/gpt-oss-120b",
+      "system_prompt_file": "roles/decision_leader.txt"
+    },
+    {
+      "name": "アナリスト",
+      "assistant": "Groq",
+      "model": "llama-3.3-70b-versatile",
+      "system_prompt_file": "roles/analyst.txt"
+    },
+    {
+      "name": "リスク評価",
+      "assistant": "Groq",
+      "model": "openai/gpt-oss-20b",
+      "system_prompt_file": "roles/risk_evaluator.txt"
+    },
+    {
+      "name": "ファシリテーター",
+      "assistant": "Groq",
+      "model": "llama-3.1-8b-instant",
+      "system_prompt_file": "roles/facilitator.txt",
+      "role_type": "moderator"
+    }
+  ],
+  "workflows": {
+    "quick_discussion": {
+      "name": "高速ディスカッション",
+      "description": "テーマに対して多角的な議論を素早く展開し、合意形成を図る",
+      "steps": [
+        {
+          "role": "ファシリテーター",
+          "action": "テーマの論点整理と議論の方向性を示す"
+        },
+        {
+          "role": "アナリスト",
+          "action": "賛成・反対の根拠と選択肢を提示する"
+        },
+        {
+          "role": "リスク評価",
+          "action": "議論の盲点やリスクを指摘する"
+        },
+        {
+          "role": "リーダー",
+          "action": "議論を集約し、結論・合意事項を宣言する"
+        }
+      ]
+    },
+    "debate": {
+      "name": "ディベート",
+      "description": "テーマについて賛否両論を徹底的に議論し、より深い理解を得る",
+      "steps": [
+        {
+          "role": "ファシリテーター",
+          "action": "テーマの背景説明とディベートのルール確認"
+        },
+        {
+          "role": "アナリスト",
+          "action": "賛成側の主張と根拠を展開する"
+        },
+        {
+          "role": "リスク評価",
+          "action": "反対側の主張と懸念点を展開する"
+        },
+        {
+          "role": "アナリスト",
+          "action": "反対意見への反論と追加根拠を提示する"
+        },
+        {
+          "role": "リスク評価",
+          "action": "賛成意見への反論と追加懸念を提示する"
+        },
+        {
+          "role": "リーダー",
+          "action": "議論の総括と最終見解をまとめる"
+        }
+      ]
+    },
+    "issue_discussion": {
+      "name": "課題ディスカッション",
+      "description": "現場の課題や問題点について議論し、改善の方向性を探る",
+      "steps": [
+        {
+          "role": "ファシリテーター",
+          "action": "課題の現状整理と議論すべき論点の確認"
+        },
+        {
+          "role": "アナリスト",
+          "action": "課題の原因分析と改善案の提示"
+        },
+        {
+          "role": "リスク評価",
+          "action": "改善案の実行上の障壁と副作用を指摘"
+        },
+        {
+          "role": "リーダー",
+          "action": "議論を踏まえた改善方針と優先順位の決定"
+        }
+      ]
+    }
+  },
+  "scenarios": {
+    "quick_vote": [
+      {
+        "name": "賛成派",
+        "assistant": "Groq",
+        "model": "llama-3.3-70b-versatile",
+        "system_prompt_file": "roles/analyst.txt"
+      },
+      {
+        "name": "懸念派",
+        "assistant": "Groq",
+        "model": "openai/gpt-oss-20b",
+        "system_prompt_file": "roles/risk_evaluator.txt"
+      },
+      {
+        "name": "決裁者",
+        "assistant": "Groq",
+        "model": "openai/gpt-oss-120b",
+        "system_prompt_file": "roles/decision_leader.txt"
+      }
+    ]
+  }
+}
