@@ -1,0 +1,152 @@
+{
+  "organization": "nokuru",
+  "demo_roles": [
+    {
+      "name": "ひなた",
+      "assistant": "Groq",
+      "model": "llama-3.3-70b-versatile",
+      "system_prompt_file": "roles/hinata.txt"
+    },
+    {
+      "name": "さつき",
+      "assistant": "Groq",
+      "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+      "system_prompt_file": "roles/satsuki.txt"
+    },
+    {
+      "name": "ゆき（ゲスト）",
+      "assistant": "Groq",
+      "model": "openai/gpt-oss-120b",
+      "system_prompt_file": "roles/yuki.txt"
+    }
+  ],
+  "organization_roles": [
+    {
+      "name": "ひなた",
+      "assistant": "Groq",
+      "model": "llama-3.3-70b-versatile",
+      "system_prompt_file": "roles/hinata.txt"
+    },
+    {
+      "name": "さつき",
+      "assistant": "Groq",
+      "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+      "system_prompt_file": "roles/satsuki.txt"
+    },
+    {
+      "name": "ゆき（ゲスト）",
+      "assistant": "Groq",
+      "model": "openai/gpt-oss-120b",
+      "system_prompt_file": "roles/yuki.txt"
+    },
+    {
+      "name": "かえで",
+      "assistant": "Groq",
+      "model": "llama-3.1-8b-instant",
+      "system_prompt_file": "roles/kaede.txt",
+      "role_type": "moderator"
+    }
+  ],
+  "workflows": {
+    "camp_planning": {
+      "name": "キャンプ計画",
+      "description": "春休みのキャンプ先・装備・食事をみんなで楽しく計画する",
+      "steps": [
+        {
+          "role": "千明",
+          "action": "候補のキャンプ地や日程の概要を提示し、議論の方向性を決める"
+        },
+        {
+          "role": "なでしこ",
+          "action": "食べたいキャンプ飯や行ってみたい場所を元気よく提案する"
+        },
+        {
+          "role": "リン（ゲスト）",
+          "action": "候補地の実態・装備・天候など実用的な情報を補足する"
+        },
+        {
+          "role": "あおい",
+          "action": "準備の手間・アクセス・温泉など現実的な視点でバランスを取る"
+        },
+        {
+          "role": "千明",
+          "action": "みんなの意見をまとめてキャンプ計画を決定する"
+        }
+      ]
+    },
+    "camp_discussion": {
+      "name": "キャンプ談義",
+      "description": "キャンプにまつわるテーマについて自由に語り合う",
+      "steps": [
+        {
+          "role": "千明",
+          "action": "今日のテーマを発表して議論を始める"
+        },
+        {
+          "role": "なでしこ",
+          "action": "テーマについて自分の体験や思いを元気よく話す"
+        },
+        {
+          "role": "あおい",
+          "action": "のんびりした視点で一言添える"
+        },
+        {
+          "role": "リン（ゲスト）",
+          "action": "ソロキャンプ経験をもとに鋭い一言を添える"
+        },
+        {
+          "role": "千明",
+          "action": "話題を整理してみんなの気持ちをまとめる"
+        }
+      ]
+    },
+    "solo_vs_group": {
+      "name": "ソロ派vsグループ派ディベート",
+      "description": "ソロキャンプとグループキャンプの魅力について本音で語り合う",
+      "steps": [
+        {
+          "role": "千明",
+          "action": "「ソロキャンプvsグループキャンプ、どっちが楽しい？」の議題を提示"
+        },
+        {
+          "role": "なでしこ",
+          "action": "グループキャンプの楽しさを熱く語る"
+        },
+        {
+          "role": "リン（ゲスト）",
+          "action": "ソロキャンプの魅力と自由さを静かに主張する"
+        },
+        {
+          "role": "あおい",
+          "action": "両方の良さをゆるく認めつつ現実的な一言を添える"
+        },
+        {
+          "role": "千明",
+          "action": "野クルらしい結論でまとめる"
+        }
+      ]
+    }
+  },
+  "scenarios": {
+    "camp_brainstorm": [
+      {
+        "name": "ひなた",
+        "assistant": "Groq",
+        "model": "llama-3.3-70b-versatile",
+        "system_prompt_file": "roles/hinata.txt"
+      },
+      {
+        "name": "ゆき（ゲスト）",
+        "assistant": "Groq",
+        "model": "openai/gpt-oss-20b",
+        "system_prompt_file": "roles/yuki.txt"
+      },
+      {
+        "name": "さつき",
+        "assistant": "Groq",
+        "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+        "system_prompt_file": "roles/satsuki.txt"
+      }
+    ]
+  }
+}
