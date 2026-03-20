@@ -239,7 +239,7 @@ llm-chat-system/
 │   │   └── roles/                    # リーダー・アナリスト・リスク評価・ファシリテーター
 │   ├── nokuru/                        # キャラクター会話シミュレーションの実験的サンプル
 │   │   ├── config.json               # 3ワークフロー: camp_planning/camp_discussion/solo_vs_group
-│   │   └── roles/                    # なでしこ・あおい・千明・リン
+│   │   └── roles/                    # ひなた・さつき・ゆき（ゲスト）・かえで
 │   ├── tech_startup/config.json      # テックスタートアップ組織
 │   ├── consulting_firm/config.json   # コンサルティング組織
 │   └── default_company/config.json   # デフォルト組織
