@@ -6,14 +6,14 @@
     {
       "name": "ワイルドアイデア",
       "assistant": "ChatGPT",
-      "model": "gpt-4o",
+      "model": "gpt-5.4",
       "system_prompt_file": "roles/wild_innovator.txt",
       "role_type": "member"
     },
     {
       "name": "悪魔の代弁者",
       "assistant": "Gemini", 
-      "model": "gemini-2.0-flash-exp",
+      "model": "gemini-3.1-pro-preview",
       "system_prompt_file": "roles/devil_advocate.txt",
       "role_type": "member"
     },
@@ -27,14 +27,14 @@
     {
       "name": "ビジョナリー",
       "assistant": "Anthropic",
-      "model": "claude-3-opus-20240229",
+      "model": "claude-opus-4-6",
       "system_prompt_file": "roles/visionary.txt",
       "role_type": "member"
     },
     {
       "name": "モデレーター",
       "assistant": "ChatGPT",
-      "model": "gpt-4o-mini",
+      "model": "gpt-5-mini-2025-08-07",
       "system_prompt_file": "roles/moderator.txt",
       "role_type": "moderator"
     }
