@@ -1,5 +1,5 @@
 # Chat - 最新版チャットボット（まとめ機能・複数行編集・包括的エラー対応）
-# Version: 8.1.1
+# Version: 8.1.2
 # Features: 
 # - まとめ機能: AIによる会話履歴の要約とファイル保存
 # - 複数行入力: 継続的な複数行モードと高度な編集機能
@@ -35,7 +35,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 import argparse # argparseをインポート
 
 # Version information
-VERSION = "8.1.1"
+VERSION = "8.1.2"
 VERSION_DATE = "2026-03-24"
 
 # AI Assistants configuration file
@@ -92,7 +92,7 @@ def handle_api_error(error_code, error_str, attempt, max_retries, retry_delay, c
         # 会話履歴を自動削減して再試行
         if conversation_history and attempt < max_retries - 1:
             history_size = conversation_history.get_history_size_estimate()
-            print(f"� 現在の履歴サイズ: 約{history_size:,}文字")
+            print(f"📊 現在の履歴サイズ: 約{history_size:,}文字")
             
             if conversation_history.reduce_history():
                 new_size = conversation_history.get_history_size_estimate()
@@ -100,7 +100,7 @@ def handle_api_error(error_code, error_str, attempt, max_retries, retry_delay, c
                 print("🔄 削減された履歴で再試行します...")
                 return True  # リトライする
         
-        print("�💡 対応策:")
+        print("💡 対応策:")
         print("   - 入力テキストを短くしてください")
         print("   - 会話履歴をリセットしてください")
         print("   - より大きなコンテキストウィンドウを持つモデルに変更してください")
@@ -175,7 +175,7 @@ def print_version_info():
     print("  📋 まとめ機能 - 会話履歴をAIが要約してファイル保存")
     print("  📝 複数行編集 - 高度な行編集機能（もとい/ちゃいちゃい）")
     print("  ⚡ 高速モデル - --fastスイッチで高速版に切り替え")
-    print("  � 包括的エラー対応 - API制限エラーの自動検出・対応・リトライ")
+    print("  🛡️ 包括的エラー対応 - API制限エラーの自動検出・対応・リトライ")
     print("  💡 トークン節約機能 - まとめの履歴除外による長時間会話対応")
     print("=" * 60)
 
