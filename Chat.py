@@ -247,6 +247,8 @@ def load_ai_assistants_config():
     return ai_assistants
 
 def parse_arguments(ai_assistants):
+    default_assistant = next(iter(ai_assistants), "Groq")
+
     parser = argparse.ArgumentParser(
         description="Chat - AI チャットボット（まとめ機能・複数行編集対応）",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -279,9 +281,9 @@ def parse_arguments(ai_assistants):
     # システムメッセージファイルの引数（新規追加）
     parser.add_argument("-s", "--system-message", type=str, default="system_message.txt",
                         help="Path to the system message file. Default: system_message.txt")
-    # AIアシスタント名の引数 (デフォルト: Groq)
-    parser.add_argument("-a", "--assistant", type=str, default="Groq", choices=ai_assistants.keys(),
-                        help=f"Specify the AI assistant to use. Choices: {list(ai_assistants.keys())}")
+    # AIアシスタント名の引数（デフォルト: CSV先頭のassistant_name）
+    parser.add_argument("-a", "--assistant", type=str, default=default_assistant, choices=ai_assistants.keys(),
+                        help=f"Specify the AI assistant to use. Default: {default_assistant}. Choices: {list(ai_assistants.keys())}")
     # モデル名の引数 (デフォルトは選択されたアシスタントに依存)
     parser.add_argument("-m", "--model", type=str,
                         help="Specify the model name. If not provided, uses the default for the chosen assistant.")

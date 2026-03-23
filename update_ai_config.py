@@ -116,6 +116,12 @@ def get_fallback_models():
 def get_hardcoded_fallback_models():
     """ハードコードされた初期デフォルト値（設定ファイルが存在しない場合用）"""
     return {
+        'Groq': {
+            'module': 'langchain_groq',
+            'class': 'ChatGroq',
+            'model': 'llama-3.3-70b-versatile',  # 最新大型モデル
+            'fast_model': 'llama-3.1-8b-instant',  # 高速版
+        },
         'ChatGPT': {
             'module': 'langchain_openai',
             'class': 'ChatOpenAI',
@@ -127,12 +133,6 @@ def get_hardcoded_fallback_models():
             'class': 'ChatGoogleGenerativeAI',
             'model': 'gemini-2.5-pro',  # 最新安定版
             'fast_model': 'gemini-2.5-flash',  # 高速版
-        },
-        'Groq': {
-            'module': 'langchain_groq',
-            'class': 'ChatGroq',
-            'model': 'llama-3.3-70b-versatile',  # 最新大型モデル
-            'fast_model': 'llama-3.1-8b-instant',  # 高速版
         },
         'Mistral': {
             'module': 'langchain_mistralai',

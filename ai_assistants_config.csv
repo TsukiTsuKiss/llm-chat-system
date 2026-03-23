@@ -1,7 +1,7 @@
 assistant_name,module,class,model,fast_model
+Groq,langchain_groq,ChatGroq,openai/gpt-oss-120b,openai/gpt-oss-20b
 ChatGPT,langchain_openai,ChatOpenAI,gpt-5.4,gpt-5.3-chat-latest
 Gemini,langchain_google_genai,ChatGoogleGenerativeAI,gemini-3.1-pro-preview,gemini-3-flash-preview
-Groq,langchain_groq,ChatGroq,openai/gpt-oss-120b,openai/gpt-oss-20b
 Mistral,langchain_mistralai,ChatMistralAI,mistral-large-2512,ministral-14b-2512
 Together,langchain_together,ChatTogether,meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8,meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo
 Anthropic,langchain_anthropic,ChatAnthropic,claude-opus-4-6,claude-sonnet-4-5
