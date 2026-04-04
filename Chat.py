@@ -15,6 +15,7 @@ import sys
 import os
 import csv
 import time
+import re
 import importlib
 from datetime import datetime
 from typing import Dict, List, Optional, Union, Any
@@ -482,47 +483,66 @@ def create_prompt(ai_assistant, system_message_file="system_message.txt"):
     ])
     return ChatPromptTemplate.from_messages(prompt_messages)
 
-def save_summary_to_file(summary_content, ai_assistant, model_name):
-    """まとめ内容をFoam形式でファイルに保存"""
+def save_summary_to_file(summary_content, ai_assistant, model_name, zenn_mode=False):
+    """まとめ内容をFoam形式またはZenn草稿形式でファイルに保存"""
     try:
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        
-        # summariesフォルダを作成（存在しない場合）
-        os.makedirs(SUMMARIES_DIR, exist_ok=True)
-        
-        summary_filename = os.path.join(SUMMARIES_DIR, f"{timestamp}.md")
-        
-        with open(summary_filename, 'w', encoding='utf-8') as f:
-            # シンプルなヘッダー
-            f.write(f"# Chat 会話まとめ {timestamp}\n\n")
-            f.write(f"- **作成日時**: {datetime.now().strftime('%Y年%m月%d日 %H:%M:%S')}\n")
-            f.write(f"- **AI Assistant**: {ai_assistant}\n")
-            f.write(f"- **Model**: {model_name}\n")
-            f.write(f"- **生成者**: Chat v{VERSION}\n\n")
-            f.write(f"---\n\n")
-            
-            # AIが生成したコンテンツをそのまま挿入
-            f.write(summary_content)
-            f.write(f"\n\n")
-            
-            f.write(f"---\n")
-            f.write(f"*このファイルは Chat v{VERSION} により自動生成されました*\n")
-        
-        print(f"\n📝 まとめを {summary_filename} に保存しました。")
+
+        if zenn_mode:
+            # Zenn articles フォルダに保存
+            articles_dir = os.path.join(os.getcwd(), "articles")
+            os.makedirs(articles_dir, exist_ok=True)
+            summary_filename = os.path.join(articles_dir, f"draft_{timestamp}.md")
+            with open(summary_filename, 'w', encoding='utf-8') as f:
+                f.write(f"---\n")
+                f.write(f"title: \"（タイトルを入力してください）\"\n")
+                f.write(f"emoji: \"📝\"\n")
+                f.write(f"type: \"idea\"\n")
+                f.write(f"topics: []\n")
+                f.write(f"published: false\n")
+                f.write(f"---\n\n")
+                f.write(f"<!-- 生成日時: {datetime.now().strftime('%Y年%m月%d日 %H:%M:%S')} / {ai_assistant} / {model_name} -->\n\n")
+                f.write(summary_content)
+                f.write(f"\n")
+            print(f"\n📰 Zenn草稿を {summary_filename} に保存しました。")
+        else:
+            # 通常のsummariesフォルダに保存
+            os.makedirs(SUMMARIES_DIR, exist_ok=True)
+            summary_filename = os.path.join(SUMMARIES_DIR, f"{timestamp}.md")
+            with open(summary_filename, 'w', encoding='utf-8') as f:
+                f.write(f"# Chat 会話まとめ {timestamp}\n\n")
+                f.write(f"- **作成日時**: {datetime.now().strftime('%Y年%m月%d日 %H:%M:%S')}\n")
+                f.write(f"- **AI Assistant**: {ai_assistant}\n")
+                f.write(f"- **Model**: {model_name}\n")
+                f.write(f"- **生成者**: Chat v{VERSION}\n\n")
+                f.write(f"---\n\n")
+                f.write(summary_content)
+                f.write(f"\n\n")
+                f.write(f"---\n")
+                f.write(f"*このファイルは Chat v{VERSION} により自動生成されました*\n")
+            print(f"\n📝 まとめを {summary_filename} に保存しました。")
+
         return summary_filename
     except Exception as e:
         print(f"[ERROR] まとめファイルの保存に失敗しました: {e}")
         return None
 
 def is_summary_request(user_input):
-    """まとめ要求かどうかを判定"""
-    summary_keywords = [
-        "まとめてください", "ここまでをまとめてください", "要約してください",
-        "まとめて", "要約して", "整理してください", "整理して",
-        "振り返ってください", "振り返って", "総括してください", "総括して"
-    ]
-    user_lower = user_input.lower().strip()
-    return any(keyword in user_lower for keyword in summary_keywords)
+    """まとめ要求かどうかを判定（依頼形のみ・スペース・表記ゆれに対応）"""
+    # スペースを除去して正規化
+    normalized = re.sub(r'\s+', '', user_input.lower())
+    # Zennモードは除外（is_zenn_summary_requestで先に処理）
+    if re.search(r'zenn.{0,10}(ネタ|記事|草稿)', normalized):
+        return False
+    # 依頼形（〜して／〜してください／〜てください／〜てほしい）に限定
+    return bool(re.search(r'(まとめ|要約|整理|振り返|総括)(して|してください|てください|てほしい|てくれ)', normalized))
+
+def is_zenn_summary_request(user_input):
+    """Zenn記事草稿としてのまとめ要求かどうかを判定（依頼形のみ・スペース・表記ゆれに対応）"""
+    # スペースを除去して正規化
+    normalized = re.sub(r'\s+', '', user_input.lower())
+    # 「zenn」+「ネタ/記事/草稿」+「まとめ/整理」+依頼形の組み合わせを検知
+    return bool(re.search(r'zenn.{0,10}(ネタ|記事|草稿).{0,10}(まとめ|整理)(して|してください|てください|てほしい|てくれ)', normalized))
 
 def create_conversation_summary(conversation_history):
     """会話履歴からまとめ用テキストを作成"""
@@ -836,8 +856,12 @@ def main():
 
             if user_question:
                 # まとめ要求の検出と処理
-                if is_summary_request(user_question):
-                    print("📋 まとめ要求を検出しました。会話履歴をまとめています...")
+                zenn_mode = is_zenn_summary_request(user_question)
+                if zenn_mode or is_summary_request(user_question):
+                    if zenn_mode:
+                        print("📰 Zenn草稿モードのまとめ要求を検出しました。記事草稿を生成しています...")
+                    else:
+                        print("📋 まとめ要求を検出しました。会話履歴をまとめています...")
                     
                     # 会話履歴からまとめ用テキストを作成
                     history_summary = create_conversation_summary(conversation_history)
@@ -853,7 +877,17 @@ def main():
                             print(f"[ERROR] CSVログファイルへのユーザー入力書き込みに失敗しました: {e}")
                     
                     # AIによるまとめ生成
-                    summary_prompt = f"""以下の会話履歴をまとめてください。主要なポイント、結論、重要な情報を整理して分かりやすくまとめてください。
+                    if zenn_mode:
+                        summary_prompt = f"""以下の会話履歴を、Zenn記事の草稿としてまとめてください。
+読者はエンジニアを想定し、「です・ます」調で書いてください。
+主語は常に「自分がどう設計・判断・実装したか」に置き、
+構成は「## 見出し」を使って読みやすく整理してください。
+
+{history_summary}
+
+Zenn記事の草稿（タイトルは除く、本文のみ）を作成してください："""
+                    else:
+                        summary_prompt = f"""以下の会話履歴をまとめてください。主要なポイント、結論、重要な情報を整理して分かりやすくまとめてください。
 
 {history_summary}
 
@@ -920,7 +954,7 @@ def main():
                         print(f"\n📋 会話まとめ（{ai_assistant}:{model_name}）:\n{ai_response_content}")
                         
                         # まとめをファイルに保存
-                        summary_filename = save_summary_to_file(ai_response_content, ai_assistant, model_name)
+                        summary_filename = save_summary_to_file(ai_response_content, ai_assistant, model_name, zenn_mode=zenn_mode)
                         
                         # ⚠️ まとめは会話履歴に追加しない（トークン節約のため）
                         # conversation_history.add_message(HumanMessage(content=user_question))
