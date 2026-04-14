@@ -486,13 +486,13 @@ def create_prompt(ai_assistant, system_message_file="system_message.txt"):
 def save_summary_to_file(summary_content, ai_assistant, model_name, zenn_mode=False):
     """まとめ内容をFoam形式またはZenn草稿形式でファイルに保存"""
     try:
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-
         if zenn_mode:
             # Zenn articles フォルダに保存
+            # Zennのスラッグ命名ルールに合わせてハイフン区切り（%Y%m%d-%H%M%S）を使用
+            timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
             articles_dir = os.path.join(os.getcwd(), "articles")
             os.makedirs(articles_dir, exist_ok=True)
-            summary_filename = os.path.join(articles_dir, f"draft_{timestamp}.md")
+            summary_filename = os.path.join(articles_dir, f"{timestamp}.md")
             with open(summary_filename, 'w', encoding='utf-8') as f:
                 f.write(f"---\n")
                 f.write(f"title: \"（タイトルを入力してください）\"\n")
@@ -507,6 +507,7 @@ def save_summary_to_file(summary_content, ai_assistant, model_name, zenn_mode=Fa
             print(f"\n📰 Zenn草稿を {summary_filename} に保存しました。")
         else:
             # 通常のsummariesフォルダに保存
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             os.makedirs(SUMMARIES_DIR, exist_ok=True)
             summary_filename = os.path.join(SUMMARIES_DIR, f"{timestamp}.md")
             with open(summary_filename, 'w', encoding='utf-8') as f:
