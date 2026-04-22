@@ -34,10 +34,14 @@ from langchain.schema.runnable import (
 )
 from langchain.schema import AIMessage, HumanMessage
 import argparse
+from typing import Annotated, TypedDict
+import asyncio
+import concurrent.futures
+from langgraph.graph import StateGraph, END
 
 # Version information
-VERSION = "1.1.0"
-VERSION_DATE = "2025-11-28"
+VERSION = "1.2.0"
+VERSION_DATE = "2026-04-22"
 
 # Configuration files
 AI_ASSISTANTS_CONFIG_FILE = "ai_assistants_config.csv"
@@ -567,117 +571,136 @@ class MultiRoleManager:
         return conversation_log
 
     def execute_iterative_workflow(self, workflow_name, topic, max_iterations=5):
-        """反復実行可能なワークフローを実行（テスト合格まで自動修正）"""
-        # MultiRoleManagerに組織設定が保存されている場合はそれを優先使用
+        """反復実行可能なワークフローを実行（LangGraph対応: 条件分岐ループ）"""
         if hasattr(self, 'organization_config') and self.organization_config:
             config = self.organization_config
         else:
             config = load_multi_role_config(self.config_file)
-        
+
         if not config or 'workflows' not in config or workflow_name not in config['workflows']:
             print(f"ワークフロー '{workflow_name}' が見つかりません")
             return
-        
+
         workflow = config['workflows'][workflow_name]
         max_iter = workflow.get('max_iterations', max_iterations)
-        
-        # 現在のワークフロー情報を保存
+
         self.current_workflow_info = {
             'name': workflow_name,
             'display_name': workflow.get('name', workflow_name),
             'description': workflow.get('description', '説明なし'),
             'execution_mode': 'iterative',
-            'iteration_count': 0,  # 実行中に更新される
+            'iteration_count': 0,
             'max_iterations': max_iter,
             'test_results': None
         }
-        
-        # ワークフロー用レスポンス蓄積をリセット
         self.workflow_responses = []
-        
+
         print(f"\n🔄 反復ワークフロー '{workflow['name']}' を開始します")
         print(f"📝 説明: {workflow.get('description', '')}")
         print(f"💬 トピック: {topic}")
         print(f"🔄 最大反復回数: {max_iter}")
         print("=" * 60)
-        
-        all_results = []
-        iteration = 1
-        
-        while iteration <= max_iter:
+
+        # --- LangGraph State 定義 ---
+        class IterativeState(TypedDict):
+            topic: str
+            all_results: list
+            current_results: list
+            iteration: int
+            test_passed: bool
+
+        steps = workflow.get('steps', [])
+        role_manager_ref = self
+
+        def run_iteration(state: IterativeState) -> IterativeState:
+            """1回の反復（全ステップ）を実行するノード"""
+            iteration = state['iteration']
             print(f"\n🔄 反復 {iteration}/{max_iter}")
             print("-" * 40)
-            
-            results = []
+
+            current_results = []
             test_passed = False
-            
-            for i, step in enumerate(workflow['steps'], 1):
+
+            for i, step in enumerate(steps, 1):
                 role_name = step['role']
                 action = step['action']
-                
-                if role_name not in self.active_roles:
+
+                if role_name not in role_manager_ref.active_roles:
                     print(f"⚠️ ロール '{role_name}' が見つかりません。スキップします。")
                     continue
-                
+
                 print(f"\n📋 ステップ {i}: {role_name}")
                 print(f"🎯 アクション: {action}")
                 print("-" * 40)
-                
-                # 前の反復結果も含めた入力を作成
+
                 input_text = f"{topic}\n\n{action}"
-                if all_results:
-                    input_text += f"\n\n前回の反復結果:\n{chr(10).join([str(r) for r in all_results[-ITERATIVE_WORKFLOW_HISTORY_LENGTH:]])}"
-                if results:
-                    input_text += f"\n\n現在の反復での前ステップ結果:\n{chr(10).join(results[-CURRENT_ITERATION_HISTORY_LENGTH:])}"
-                
-                # 反復ワークフロー用の簡潔性指示を追加
+                if state['all_results']:
+                    input_text += f"\n\n前回の反復結果:\n" + "\n".join([str(r) for r in state['all_results'][-ITERATIVE_WORKFLOW_HISTORY_LENGTH:]])
+                if current_results:
+                    input_text += f"\n\n現在の反復での前ステップ結果:\n" + "\n".join(current_results[-CURRENT_ITERATION_HISTORY_LENGTH:])
                 input_text += f"\n\n【重要】反復ワークフロー実行中です。以下の点を守ってください：\n- 応答は{WORKFLOW_RESPONSE_LIMIT}文字以内で簡潔に\n- 箇条書きを活用\n- 前回からの改善点を重視\n- 次の反復に繋がるよう明確に"
-                
-                response = self.get_response_from_role(role_name, input_text)
-                if isinstance(response, str):
-                    formatted_response = response.replace('\\n', '\n')
-                else:
-                    formatted_response = str(response) if response else ""
-                
-                print(f"💬 {role_name}: {formatted_response}")
-                results.append(f"[{role_name}] {response}")
-                
-                # コードテスターの場合、合格判定をチェック
+
+                response = role_manager_ref.get_response_from_role(role_name, input_text)
+                formatted = response.replace('\\n', '\n') if isinstance(response, str) else str(response or "")
+                print(f"💬 {role_name}: {formatted}")
+                current_results.append(f"[{role_name}] {response}")
+
                 if role_name == "コードテスター" and "✅ テスト結果: 合格" in str(response):
                     test_passed = True
                     print("🎉 テスト合格！")
                 elif role_name == "コードテスター" and "❌ テスト結果: 不合格" in str(response):
                     print("⚠️ テスト不合格。修正が必要です。")
-            
-            all_results.extend(results)
-            
-            # テスト合格の場合は終了
-            if test_passed:
-                print(f"\n🎉 反復 {iteration} でテストに合格しました！")
-                break
-            
-            # 最大反復回数に達した場合
-            if iteration >= max_iter:
-                print(f"\n⚠️ 最大反復回数 {max_iter} に達しました。")
-                break
-            
-            iteration += 1
-        
+
+            return {
+                "topic": state['topic'],
+                "all_results": state['all_results'] + current_results,
+                "current_results": current_results,
+                "iteration": iteration + 1,
+                "test_passed": test_passed
+            }
+
+        def should_continue(state: IterativeState) -> str:
+            """継続するか終了するかを判定するエッジ関数"""
+            if state['test_passed']:
+                return "end"
+            if state['iteration'] > max_iter:
+                return "end"
+            return "continue"
+
+        # --- グラフ構築 ---
+        graph = StateGraph(IterativeState)
+        graph.add_node("iterate", run_iteration)
+        graph.set_entry_point("iterate")
+        graph.add_conditional_edges(
+            "iterate",
+            should_continue,
+            {"continue": "iterate", "end": END}
+        )
+
+        app = graph.compile()
+        final_state = app.invoke({
+            "topic": topic,
+            "all_results": [],
+            "current_results": [],
+            "iteration": 1,
+            "test_passed": False
+        })
+
+        all_results = final_state['all_results']
+        iteration = final_state['iteration'] - 1
+        test_passed = final_state['test_passed']
+
         print("=" * 60)
         if test_passed:
-            print("✅ ワークフロー完了（テスト合格）")
+            print(f"✅ ワークフロー完了（テスト合格: 反復{iteration}回）")
         else:
-            print("⚠️ ワークフロー終了（テスト不合格）")
-        
-        # 現在のワークフロー情報を最終結果で更新
+            print(f"⚠️ ワークフロー終了（最大反復回数{max_iter}回に到達）")
+
         if self.current_workflow_info:
             self.current_workflow_info['iteration_count'] = iteration
             self.current_workflow_info['test_results'] = test_passed
-        
-        # ワークフローログを保存
-        workflow_participants = [step['role'] for step in workflow['steps']]
-        
-        # 現在のワークフロー情報を使用、または代替情報を作成
+
+        workflow_participants = [step['role'] for step in steps]
         workflow_info = self.current_workflow_info or {
             'name': workflow_name,
             'display_name': workflow.get('name', workflow_name),
@@ -687,22 +710,19 @@ class MultiRoleManager:
             'max_iterations': max_iter,
             'test_results': test_passed
         }
-        
+
         self.save_meeting_log(topic, workflow_participants, all_results, f"反復{iteration}回", "workflow", workflow_info=workflow_info)
-        
-        # ワークフロー完了時に最終コード保存
         self._save_workflow_final_code(topic, workflow_name)
-        
+
         return all_results
 
     def execute_workflow(self, workflow_name, topic):
-        """ワークフローを実行"""
-        # MultiRoleManagerに組織設定が保存されている場合はそれを優先使用
+        """ワークフローを実行（LangGraph対応: 直列・並列・反復）"""
         if hasattr(self, 'organization_config') and self.organization_config:
             config = self.organization_config
         else:
             config = load_multi_role_config(self.config_file)
-        
+
         if not config or 'workflows' not in config or workflow_name not in config['workflows']:
             print(f"ワークフロー '{workflow_name}' が見つかりません")
             if config and 'workflows' in config:
@@ -712,10 +732,9 @@ class MultiRoleManager:
                     for wf in available_workflows:
                         print(f"  - {wf}")
             return
-        
+
         workflow = config['workflows'][workflow_name]
-        
-        # 現在のワークフロー情報を保存
+
         self.current_workflow_info = {
             'name': workflow_name,
             'display_name': workflow.get('name', workflow_name),
@@ -725,128 +744,127 @@ class MultiRoleManager:
             'max_iterations': 1,
             'test_results': None
         }
-        
-        # ワークフロー用レスポンス蓄積をリセット
         self.workflow_responses = []
-        
-        # ログファイルの初期化（ステップ単位保存用）
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         log_filename = f"multi_logs/{timestamp}_{workflow_name}.md"
         os.makedirs("multi_logs", exist_ok=True)
-        
-        # ログヘッダーを初期作成
         self._initialize_workflow_log(log_filename, workflow, topic, workflow_name)
-        
+
         print(f"\n🔄 ワークフロー '{workflow['name']}' を開始します")
         print(f"📝 ログファイル: {log_filename}")
         print(f"トピック: {topic}")
         print("=" * 60)
-        
-        results = []
-        for i, step in enumerate(workflow['steps'], 1):
+
+        # --- LangGraph State 定義 ---
+        class WorkflowState(TypedDict):
+            topic: str
+            results: list
+            step_index: int
+
+        steps = workflow.get('steps', [])
+        parallel_groups = workflow.get('parallel_steps', [])
+        response_limit = workflow.get('response_limit', WORKFLOW_RESPONSE_LIMIT)
+        style = workflow.get('style', '簡潔')
+        format_pref = workflow.get('format', '箇条書き推奨')
+
+        role_manager_ref = self  # クロージャ用
+
+        def make_step_node(step_index, role_name, action):
+            """直列ステップ用ノードを生成"""
+            def node(state: WorkflowState) -> WorkflowState:
+                print(f"\n📋 Step {step_index + 1}: {role_name} - {action}")
+                print("-" * 40)
+                input_text = f"{state['topic']}\n\n{action}"
+                if state['results']:
+                    input_text += f"\n\n前のステップの結果:\n" + "\n".join(state['results'][-WORKFLOW_HISTORY_LENGTH:])
+                input_text += f"\n\n【重要】ワークフロー実行中です。以下の点を守ってください：\n- 応答は{response_limit}文字以内で{style}に\n- {format_pref}\n- 重要なポイントのみに絞る"
+                response = role_manager_ref.get_response_from_role(role_name, input_text)
+                formatted = response.replace('\\n', '\n') if isinstance(response, str) else str(response or "")
+                print(f"🎭 {role_name}: {formatted}")
+                role_manager_ref._append_step_to_log(log_filename, step_index + 1, role_name, action, formatted)
+                print(f"📝 ステップ {step_index + 1} をログに保存しました")
+                new_results = state['results'] + [f"[{role_name}] {response}"]
+                return {"topic": state['topic'], "results": new_results, "step_index": step_index + 1}
+            return node
+
+        def make_parallel_node(group_index, group):
+            """並列グループ用ノードを生成"""
+            def node(state: WorkflowState) -> WorkflowState:
+                print(f"\n⚡ 並列グループ {group_index + 1} 開始（{len(group)}ロール同時実行）")
+                print("-" * 40)
+                input_text_base = state['topic']
+                if state['results']:
+                    input_text_base += "\n\n前のステップの結果:\n" + "\n".join(state['results'][-WORKFLOW_HISTORY_LENGTH:])
+                input_text_base += f"\n\n【重要】ワークフロー実行中です。以下の点を守ってください：\n- 応答は{response_limit}文字以内で{style}に\n- {format_pref}"
+
+                def call_role(step):
+                    role_name = step['role']
+                    action = step.get('action', '')
+                    inp = input_text_base + (f"\n\n{action}" if action else "")
+                    return role_name, role_manager_ref.get_response_from_role(role_name, inp)
+
+                new_results = list(state['results'])
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    futures = {executor.submit(call_role, step): step for step in group}
+                    for future in concurrent.futures.as_completed(futures):
+                        role_name, response = future.result()
+                        formatted = response.replace('\\n', '\n') if isinstance(response, str) else str(response or "")
+                        print(f"🎭 {role_name}: {formatted}")
+                        step_num = len(new_results) + 1
+                        action = futures[future].get('action', '')
+                        role_manager_ref._append_step_to_log(log_filename, step_num, role_name, action, formatted)
+                        new_results.append(f"[{role_name}] {response}")
+
+                return {"topic": state['topic'], "results": new_results, "step_index": state['step_index']}
+            return node
+
+        # --- グラフ構築 ---
+        graph = StateGraph(WorkflowState)
+
+        node_names = []
+
+        # 直列ステップをノードとして追加
+        for i, step in enumerate(steps):
             role_name = step['role']
             action = step['action']
-            
             if role_name not in self.active_roles:
                 print(f"⚠️ ロール '{role_name}' が見つかりません。スキップします。")
                 continue
-            
-            print(f"\n📋 Step {i}: {role_name} - {action}")
-            print("-" * 40)
-            
-            # 前のステップの結果を含めた入力を作成
-            input_text = f"{topic}\n\n{action}"
-            if results:
-                input_text += f"\n\n前のステップの結果:\n{chr(10).join(results[-WORKFLOW_HISTORY_LENGTH:])}"
-            
-            # ワークフロー設定から制限値を取得
-            workflow_config = workflow
-            response_limit = workflow_config.get('response_limit', WORKFLOW_RESPONSE_LIMIT)
-            style = workflow_config.get('style', '簡潔')
-            format_pref = workflow_config.get('format', '箇条書き推奨')
-            
-            # ワークフロー用の簡潔性指示を追加（設定値使用）
-            input_text += f"\n\n【重要】ワークフロー実行中です。以下の点を守ってください：\n- 応答は{response_limit}文字以内で{style}に\n- {format_pref}\n- 重要なポイントのみに絞る\n- 他のロールが理解しやすい形で"
-            
-            response = self.get_response_from_role(role_name, input_text)
-            # 改行処理を追加（文字列チェック付き）
-            if isinstance(response, str):
-                formatted_response = response.replace('\\n', '\n')
-            else:
-                formatted_response = str(response) if response else ""
-            print(f"🎭 {role_name}: {formatted_response}")
-            
-            # 【新機能】ステップ完了時にリアルタイムでログに追記
-            self._append_step_to_log(log_filename, i, role_name, action, formatted_response)
-            print(f"📝 ステップ {i} をログに保存しました")
-            
-            # ログにエラー詳細を含めて記録
-            if any(error_indicator in str(response).lower() for error_indicator in [
-                "エラー:", "api制限", "制限に達し", "クレジット不足", "credit balance", 
-                "rate_limit", "応答が空", "応答の取得に失敗"
-            ]) or not response or (isinstance(response, str) and response.strip() == ""):
-                # エラーの場合、ロール設定情報も含める
-                role_info = self.active_roles.get(role_name, {})
-                assistant = role_info.get('assistant', 'Unknown')
-                model = role_info.get('model', 'Unknown')
-                organization = role_info.get('organization', 'Unknown')
-                config_path = role_info.get('config_path', 'Unknown')
-                source_file = role_info.get('source_file', 'Unknown')
-                
-                # AI Assistant設定も取得
-                ai_config = self.ai_assistants.get(assistant, {})
-                provider_module = ai_config.get('module', 'Unknown')
-                provider_class = ai_config.get('class', 'Unknown')
-                
-                error_detail = f"[{role_name}] 🚨 エラー詳細\n"
-                error_detail += f"  Organization: {organization}\n"
-                error_detail += f"  Config: {os.path.basename(config_path) if config_path and config_path != 'Unknown' else 'Unknown'}\n"
-                error_detail += f"  Source: {source_file}\n"
-                error_detail += f"  Provider: {provider_module}.{provider_class}\n"
-                error_detail += f"  Assistant: {assistant}\n"
-                error_detail += f"  Model: {model}\n"
-                error_detail += f"  Error: {response}"
-                
-                results.append(error_detail)
-                print(f"\n🚨 詳細診断情報:")
-                print(error_detail)
-            else:
-                # 結果を保存
-                results.append(f"[{role_name}] {response}")
-        
+            node_name = f"step_{i}"
+            graph.add_node(node_name, make_step_node(i, role_name, action))
+            node_names.append(node_name)
+
+        # 並列グループをノードとして追加
+        for j, group in enumerate(parallel_groups):
+            node_name = f"parallel_{j}"
+            graph.add_node(node_name, make_parallel_node(j, group))
+            node_names.append(node_name)
+
+        if not node_names:
+            print("⚠️ 実行可能なステップがありません。")
+            return []
+
+        # エントリーポイントと順次エッジを設定
+        graph.set_entry_point(node_names[0])
+        for k in range(len(node_names) - 1):
+            graph.add_edge(node_names[k], node_names[k + 1])
+        graph.add_edge(node_names[-1], END)
+
+        app = graph.compile()
+        final_state = app.invoke({"topic": topic, "results": [], "step_index": 0})
+        results = final_state['results']
+
         print("=" * 60)
         print("✅ ワークフロー完了")
-        
-        # ワークフローログを保存
-        workflow_participants = [step['role'] for step in workflow['steps']]
-        formatted_results = []
-        for result in results:
-            # [ロール] 応答 形式に統一
-            formatted_results.append(result)
-        
-        # ワークフロー情報を作成
-        workflow_info = self.current_workflow_info or {
-            'name': workflow_name,
-            'display_name': workflow.get('name', workflow_name),
-            'description': workflow.get('description', ''),
-            'execution_mode': 'single',
-            'iteration_count': 1,
-            'max_iterations': 1,
-            'test_results': None
-        }
-        
-        # 【新機能】ログファイルの完了処理
+
         session_summary = self.token_tracker.get_session_summary()
         self._finalize_workflow_log(log_filename, session_summary)
         print(f"💾 ワークフローログが完成しました: {log_filename}")
         print(f"💰 このセッションのコスト: ${session_summary['total_cost']:.4f}")
-        
-        # 従来のログ保存は無効化（重複を避けるため）
-        # self.save_meeting_log(topic, workflow_participants, formatted_results, "", "workflow", workflow_info=workflow_info)
-        
-        # ワークフロー完了時に最終コード保存
+
         self._save_workflow_final_code(topic, workflow_name)
-        
+
         return results
     
     def _save_workflow_final_code(self, topic, workflow_name):
