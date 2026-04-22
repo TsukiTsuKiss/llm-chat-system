@@ -138,8 +138,8 @@
     },
     "model_comparison": {
       "name": "AIモデル性能比較",
-      "description": "異なるAIモデルのクイズ性能を自称クイズ王として比較評価",
-      "steps": [
+      "description": "異なるAIモデルのクイズ性能を並列で比較評価",
+      "parallel_steps": [
         {
           "role": "OpenAI自称クイズ王",
           "action": "高性能モデルによる自信満々回答"
