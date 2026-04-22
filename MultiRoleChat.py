@@ -836,9 +836,10 @@ class MultiRoleManager:
             node_names.append(node_name)
 
         # 並列グループをノードとして追加
-        for j, group in enumerate(parallel_groups):
-            node_name = f"parallel_{j}"
-            graph.add_node(node_name, make_parallel_node(j, group))
+        # parallel_steps はフラットなリスト → 全体を1つの並列グループとして実行
+        if parallel_groups:
+            node_name = "parallel_0"
+            graph.add_node(node_name, make_parallel_node(0, parallel_groups))
             node_names.append(node_name)
 
         if not node_names:
@@ -1518,8 +1519,9 @@ class MultiRoleManager:
         workflow_title = workflow.get('name', workflow_name)
         workflow_description = workflow.get('description', '説明なし')
         
-        # 参加ロール詳細情報を作成
-        workflow_participants = [step['role'] for step in workflow['steps']]
+        # 参加ロール詳細情報を作成（steps / parallel_steps 両対応）
+        _steps = workflow.get('steps', []) + workflow.get('parallel_steps', [])
+        workflow_participants = [step['role'] for step in _steps]
         role_details = []
         for participant in workflow_participants:
             if participant in self.active_roles:
