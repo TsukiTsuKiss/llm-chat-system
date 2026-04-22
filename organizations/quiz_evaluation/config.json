@@ -5,49 +5,49 @@
     {
       "name": "OpenAI自称クイズ王",
       "assistant": "ChatGPT",
-      "model": "gpt-5",
+      "model": "gpt-5.4",
       "system_prompt_file": "roles/quiz_king.txt"
     },
     {
       "name": "Google自称クイズ王",
       "assistant": "Gemini",
-      "model": "gemini-2.5-pro",
+      "model": "gemini-3.1-pro-preview",
       "system_prompt_file": "roles/quiz_king.txt"
     },
     {
       "name": "Anthropic自称クイズ王",
       "assistant": "Anthropic",
-      "model": "claude-3-opus-20240229",
+      "model": "claude-opus-4-6",
       "system_prompt_file": "roles/quiz_king.txt"
     },
     {
       "name": "Groq自称クイズ王",
       "assistant": "Groq",
-      "model": "llama-3.3-70b-versatile",
+      "model": "openai/gpt-oss-120b",
       "system_prompt_file": "roles/quiz_king.txt"
     },
     {
       "name": "Groq軽量自称クイズ王",
       "assistant": "Groq",
-      "model": "llama-3.3-70b-versatile",
+      "model": "openai/gpt-oss-20b",
       "system_prompt_file": "roles/quiz_king.txt"
     },
     {
       "name": "Mistral自称クイズ王",
       "assistant": "Mistral",
-      "model": "mistral-large-latest",
+      "model": "mistral-large-2512",
       "system_prompt_file": "roles/quiz_king.txt"
     },
     {
       "name": "Together自称クイズ王",
       "assistant": "Together",
-      "model": "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
+      "model": "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
       "system_prompt_file": "roles/quiz_king.txt"
     },
     {
       "name": "Grok自称クイズ王",
       "assistant": "Grok",
-      "model": "gpt-5",
+      "model": "grok-4-1-fast",
       "system_prompt_file": "roles/quiz_king.txt"
     }
   ],
@@ -55,49 +55,49 @@
     {
       "name": "OpenAI自称クイズ王",
       "assistant": "ChatGPT",
-      "model": "gpt-5",
+      "model": "gpt-5.4",
       "system_prompt_file": "roles/quiz_king.txt"
     },
     {
       "name": "Google自称クイズ王",
       "assistant": "Gemini",
-      "model": "gemini-2.5-pro",
+      "model": "gemini-3.1-pro-preview",
       "system_prompt_file": "roles/quiz_king.txt"
     },
     {
       "name": "Anthropic自称クイズ王",
       "assistant": "Anthropic",
-      "model": "claude-3-opus-20240229",
+      "model": "claude-opus-4-6",
       "system_prompt_file": "roles/quiz_king.txt"
     },
     {
       "name": "Groq自称クイズ王",
       "assistant": "Groq",
-      "model": "llama-3.3-70b-versatile",
+      "model": "openai/gpt-oss-120b",
       "system_prompt_file": "roles/quiz_king.txt"
     },
     {
       "name": "Groq軽量自称クイズ王",
       "assistant": "Groq",
-      "model": "llama-3.3-70b-versatile",
+      "model": "openai/gpt-oss-20b",
       "system_prompt_file": "roles/quiz_king.txt"
     },
     {
       "name": "Mistral自称クイズ王",
       "assistant": "Mistral",
-      "model": "mistral-large-latest",
+      "model": "mistral-large-2512",
       "system_prompt_file": "roles/quiz_king.txt"
     },
     {
       "name": "Together自称クイズ王",
       "assistant": "Together",
-      "model": "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
+      "model": "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
       "system_prompt_file": "roles/quiz_king.txt"
     },
     {
       "name": "Grok自称クイズ王",
       "assistant": "Grok",
-      "model": "gpt-5",
+      "model": "grok-4-1-fast",
       "system_prompt_file": "roles/quiz_king.txt"
     }
   ],
@@ -178,14 +178,38 @@
       "name": "自称クイズ王バトル（並列）",
       "description": "全AIプロバイダーに同時に質問を投げて回答を比較する並列実行版",
       "parallel_steps": [
-        { "role": "OpenAI自称クイズ王", "action": "GPT-5の自信満々な回答" },
-        { "role": "Google自称クイズ王", "action": "Geminiの余裕綽々な回答" },
-        { "role": "Anthropic自称クイズ王", "action": "Claudeの冷静かつ自信ある回答" },
-        { "role": "Groq自称クイズ王", "action": "Llamaの高速で自信に満ちた回答" },
-        { "role": "Groq軽量自称クイズ王", "action": "軽量モデルでも余裕だと主張する回答" },
-        { "role": "Mistral自称クイズ王", "action": "Mistralの技術力を誇示する回答" },
-        { "role": "Together自称クイズ王", "action": "Togetherのコミュニティパワーを活かした回答" },
-        { "role": "Grok自称クイズ王", "action": "Grokの独創的で自信ある回答" }
+        {
+          "role": "OpenAI自称クイズ王",
+          "action": "GPT-5の自信満々な回答"
+        },
+        {
+          "role": "Google自称クイズ王",
+          "action": "Geminiの余裕綽々な回答"
+        },
+        {
+          "role": "Anthropic自称クイズ王",
+          "action": "Claudeの冷静かつ自信ある回答"
+        },
+        {
+          "role": "Groq自称クイズ王",
+          "action": "Llamaの高速で自信に満ちた回答"
+        },
+        {
+          "role": "Groq軽量自称クイズ王",
+          "action": "軽量モデルでも余裕だと主張する回答"
+        },
+        {
+          "role": "Mistral自称クイズ王",
+          "action": "Mistralの技術力を誇示する回答"
+        },
+        {
+          "role": "Together自称クイズ王",
+          "action": "Togetherのコミュニティパワーを活かした回答"
+        },
+        {
+          "role": "Grok自称クイズ王",
+          "action": "Grokの独創的で自信ある回答"
+        }
       ]
     }
   },
@@ -194,43 +218,43 @@
       {
         "name": "OpenAI 最強クイズ王",
         "assistant": "ChatGPT",
-        "model": "gpt-5",
+        "model": "gpt-5.4",
         "system_prompt_file": "roles/quiz_king.txt"
       },
       {
         "name": "Google 無敵クイズ王",
         "assistant": "Gemini",
-        "model": "gemini-2.5-pro",
+        "model": "gemini-3.1-pro-preview",
         "system_prompt_file": "roles/quiz_king.txt"
       },
       {
         "name": "Anthropic 絶対クイズ王",
         "assistant": "Anthropic",
-        "model": "claude-3-opus-20240229",
+        "model": "claude-opus-4-6",
         "system_prompt_file": "roles/quiz_king.txt"
       },
       {
         "name": "Meta 伝説クイズ王",
         "assistant": "Groq",
-        "model": "llama-3.3-70b-versatile",
+        "model": "openai/gpt-oss-120b",
         "system_prompt_file": "roles/quiz_king.txt"
       },
       {
         "name": "Mistral 究極クイズ王",
         "assistant": "Mistral",
-        "model": "mistral-large-latest",
+        "model": "mistral-large-2512",
         "system_prompt_file": "roles/quiz_king.txt"
       },
       {
         "name": "Together 至高クイズ王",
         "assistant": "Together",
-        "model": "llama-3.3-70b-versatile",
+        "model": "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
         "system_prompt_file": "roles/quiz_king.txt"
       },
       {
         "name": "Grok 革命クイズ王",
         "assistant": "Grok",
-        "model": "gpt-5",
+        "model": "grok-4-1-fast",
         "system_prompt_file": "roles/quiz_king.txt"
       }
     ]
