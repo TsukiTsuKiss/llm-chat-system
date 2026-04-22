@@ -1,42 +1,36 @@
 # Python 3.13 対応 LLM Chat System 必要パッケージ
-# 基本 langchain パッケージ: 現在使用している拡張 (langchain-groq / langchain-openai) は
-# langchain-core < 1.0.0 系を要求するため、互換性のために 0.3.x 系に固定します。
-# langchain-groq は >=0.3.75, langchain-openai は >=0.3.78 を要求するため、
-# 両方を満たす最新の 0.3.x バージョンを使用します。
+# 動作確認済み環境: Python 3.13 / .venv13
+# 最終更新: 2026-04-22
+
+# --- LangChain コア ---
+# langchain-core < 1.0.0 系を要求する拡張があるため 0.3.x 系に固定
 langchain==0.3.27
 langchain-core>=0.3.75,<1.0.0
+
+# --- LangGraph (ワークフローエンジン) ---
+# v1.2.0 以降の MultiRoleChat.py は LangGraph の StateGraph を使用
 langgraph>=1.0.1
+langgraph-checkpoint>=3.0.0
+langgraph-prebuilt>=1.0.1
 
-# OpenAI
-langchain-openai
+# --- AI プロバイダー ---
+langchain-openai>=0.3.35       # OpenAI (ChatGPT, gpt-5.4)
+langchain-anthropic>=0.3.22    # Anthropic (claude-opus-4-6)
+langchain-google-genai>=2.1.12 # Google (gemini-3.1-pro-preview)
+langchain-xai>=0.2.5           # Grok (grok-4-1-fast)
+langchain-groq>=0.3.8          # Groq (openai/gpt-oss-120b)
+langchain-mistralai>=0.2.12    # Mistral (mistral-large-2512)
+langchain-together>=0.3.1      # Together AI (Llama-3.3-70B-Instruct-Turbo)
 
-# Anthropic (Claude)
-langchain-anthropic
-
-# Google (Gemini)
-langchain-google-genai
-
-# Grok
-langchain-xai
-
-# Groq
-langchain-groq
-
-# Mistral
-langchain_mistralai
-
-# Together AI
-langchain-together
-
-# Web検索機能 (ChatSearch.py, langgraph_web_search.py)
+# --- Web検索機能 ---
 requests>=2.31.0
 beautifulsoup4>=4.12.0
 
-# 一般的なパッケージ
+# --- 共通ユーティリティ ---
 pydantic>=2.7.4
 typing-extensions>=4.7.0
 
-# オプション: AI プロバイダー固有パッケージ
-# openai  # OpenAI API直接利用時
-# anthropic  # Anthropic API直接利用時
-# google-generativeai  # Google Gemini API直接利用時
+# --- オプション (API直接利用時) ---
+# openai
+# anthropic
+# google-generativeai

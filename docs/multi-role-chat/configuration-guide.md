@@ -40,10 +40,13 @@ organizations/
 
 ```csv
 assistant_name,module,class,model,fast_model
-ChatGPT,langchain_openai,ChatOpenAI,gpt-5,gpt-5-chat-latest
-Gemini,langchain_google_genai,ChatGoogleGenerativeAI,gemini-2.5-pro,gemini-2.5-flash
-Groq,langchain_groq,ChatGroq,meta-llama/llama-4-maverick-17b-128e-instruct,meta-llama/llama-4-scout-17b-16e-instruct
-Anthropic,langchain_anthropic,ChatAnthropic,claude-opus-4-20250514,claude-3-5-haiku-20241022
+ChatGPT,langchain_openai,ChatOpenAI,gpt-5.4,gpt-5.3-chat-latest
+Gemini,langchain_google_genai,ChatGoogleGenerativeAI,gemini-3.1-pro-preview,gemini-3-flash-preview
+Groq,langchain_groq,ChatGroq,openai/gpt-oss-120b,openai/gpt-oss-20b
+Anthropic,langchain_anthropic,ChatAnthropic,claude-opus-4-6,claude-sonnet-4-5
+Mistral,langchain_mistralai,ChatMistralAI,mistral-large-2512,ministral-14b-2512
+Together,langchain_together,ChatTogether,meta-llama/Llama-3.3-70B-Instruct-Turbo,meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo
+Grok,langchain_xai,ChatXAI,grok-4-1-fast,grok-4-1-fast-non-reasoning
 ```
 
 ### マルチロール設定ファイル構造
@@ -65,10 +68,21 @@ Anthropic,langchain_anthropic,ChatAnthropic,claude-opus-4-20250514,claude-3-5-ha
       "steps": [
         {"role": "ロール名", "action": "実行内容"}
       ]
+    },
+    "並列ワークフロー名": {
+      "name": "表示名（並列）",
+      "parallel_steps": [
+        {"role": "ロール名1", "action": "実行内容"},
+        {"role": "ロール名2", "action": "実行内容"}
+      ]
     }
   }
 }
 ```
+
+> **`steps` vs `parallel_steps`**
+> - `steps`: 前のロールの回答を次のロールに引き継ぐ逐次実行。対話形式の議論に最適。
+> - `parallel_steps`: 全ロールに同じ入力を同時投げる並列実行。最遅モデルの時間で全吧1回分完了（鱼次比最大4倍速）。
 
 ## ロール名の統一
 
@@ -120,12 +134,12 @@ Anthropic,langchain_anthropic,ChatAnthropic,claude-opus-4-20250514,claude-3-5-ha
 ```json
 {
   "organization_roles": [
-    {"name": "秘書", "assistant": "Anthropic", "model": "claude-3-5-haiku-20241022"},
-    {"name": "企画", "assistant": "Gemini", "model": "gemini-2.5-flash"},
-    {"name": "分析専門", "assistant": "ChatGPT", "model": "gpt-5-chat-latest"},
-    {"name": "実装専門", "assistant": "Groq", "model": "meta-llama/llama-4-scout-17b-16e-instruct"},
-    {"name": "マーケター", "assistant": "Mistral", "model": "devstral-small-latest"},
-    {"name": "デザイナー", "assistant": "Grok", "model": "grok-3-mini-fast"}
+    {"name": "秘書", "assistant": "Anthropic", "model": "claude-sonnet-4-5"},
+    {"name": "企画", "assistant": "Gemini", "model": "gemini-3-flash-preview"},
+    {"name": "分析専門", "assistant": "ChatGPT", "model": "gpt-5.3-chat-latest"},
+    {"name": "実装専門", "assistant": "Groq", "model": "openai/gpt-oss-20b"},
+    {"name": "マーケター", "assistant": "Mistral", "model": "ministral-14b-2512"},
+    {"name": "デザイナー", "assistant": "Grok", "model": "grok-4-1-fast-non-reasoning"}
   ]
 }
 ```

@@ -181,6 +181,63 @@ organizations/creative_org/
 }
 ```
 
+## 利用可能な組織（一覧）
+
+| 組織名 | 用途 | ワークフロー数 |
+|---|---|---|
+| `creative_org` | 創造的ブレインストーミング | 4 |
+| `quiz_evaluation` | AIモデルのクイズ性能比較 | 3 |
+| `tech_startup` | スタートアップ開発・議論 | 複数 |
+| `consulting_firm` | コンサルティング・分析 | 複数 |
+| `default_company` | 汎用企業シミュレーション | 複数 |
+| `groq_fast_discussion` | Groq 高速討論 | 複数 |
+| `codecraft_collective` | コード生成・レビュー | 複数 |
+| `nokuru` | キャラクター会話 | 複数 |
+
+---
+
+### quiz_evaluation（AIクイズ比較組織）
+
+**目的**: 複数 AI プロバイダーにクイズを投げてモデル性能を比較評価
+
+**参加ロール** (8ロール):
+| ロール名 | プロバイダー | モデル |
+|---|---|---|
+| OpenAI自称クイズ王 | ChatGPT | gpt-5.4 |
+| Google自称クイズ王 | Gemini | gemini-3.1-pro-preview |
+| Anthropic自称クイズ王 | Anthropic | claude-opus-4-6 |
+| Groq自称クイズ王 | Groq | openai/gpt-oss-120b |
+| Groq軽量自称クイズ王 | Groq | openai/gpt-oss-20b |
+| Mistral自称クイズ王 | Mistral | mistral-large-2512 |
+| Together自称クイズ王 | Together | Llama-3.3-70B-Instruct-Turbo |
+| Grok自称クイズ王 | Grok | grok-4-1-fast |
+
+**利用可能なワークフロー**:
+
+| ワークフロー名 | 実行方式 | 説明 |
+|---|---|---|
+| `quiz_battle` | 逐次 (`steps`) | 前の回答を見てマウント合戦しながら回答 |
+| `model_comparison` | 並列 (`parallel_steps`) | 各モデルが独立して同時に回答 |
+| `quiz_battle_parallel` | 並列 (`parallel_steps`) | 全プロバイダー同時実行（最速） |
+
+**実行例**:
+```bash
+# 並列クイズバトル（推奨）
+python MultiRoleChat.py --org quiz_evaluation
+workflow quiz_battle_parallel 日本の首都はどこですか
+
+# 逐次バトル（他モデルの回答を見て反応し合う）
+workflow quiz_battle 量子コンピュータの原理を説明してください
+```
+
+**パフォーマンス比較** (実測):
+| モード | 実時間 | トークン | コスト |
+|---|---|---|---|
+| `quiz_battle`（逐次） | 約45秒 | 〜3,800 | $0.01 |
+| `quiz_battle_parallel`（並列） | 約11秒 | 〜700 | $0.005 |
+
+---
+
 ## 新しい組織の作成
 
 1. `organizations/` ディレクトリに新しい組織フォルダを作成

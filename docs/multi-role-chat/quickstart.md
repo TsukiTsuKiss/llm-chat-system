@@ -69,28 +69,31 @@ python MultiRoleChat.py --organization
 workflow market_research "競合他社分析"
 ```
 
-### 創造的ブレインストーミング（新機能）
+### 創造的ブレインストーミング
 ```bash
-# 創造性特化組織での革新的アイデア生成
 python MultiRoleChat.py --org creative_org --workflow creative_brainstorm --topic "革新的なAIペットサービス"
+# 結果: multi_logs/YYYYMMDD_HHMMSS_creative_brainstorm.md に保存
+```
 
-# 結果: multi_logs/creative_brainstorm_YYYYMMDD_HHMMSS.md に保存
+### AIクイズ比較（並列実行）
+```bash
+python MultiRoleChat.py --org quiz_evaluation
+workflow quiz_battle_parallel 量子コンピュータとは何ですか
+# 8プロバイダーが同時回答、約10秒で完了
 ```
 
 ## 🔧 利用可能なワークフロー
-
-### 標準組織
-- `startup_launch` - スタートアップ立ち上げ
-- `project_planning` - プロジェクト企画
-- `product_development` - 製品開発  
-- `market_research` - 市場調査
-- `new_product_meeting` - 新商品開発会議
 
 ### 創造性特化組織（creative_org）
 - `creative_brainstorm` - 制約のない自由な発想から革新的なアイデアを生み出す
 - `idea_refinement` - アイデアの詳細化と実現可能性の検討
 - `innovation_session` - 新技術や新市場への挑戦的なアプローチ
 - `vision_planning` - 長期的ビジョンと戦略的方向性の策定
+
+### クイズ評価組織（quiz_evaluation）
+- `quiz_battle` - 逐次実行・他モデルの回答を参照しながら回答（〜45秒）
+- `model_comparison` - 並列実行・独立した回答比較（〜11秒）
+- `quiz_battle_parallel` - 並列実行・全8プロバイダー同時（〜11秒）
 
 ## ❓ トラブル解決
 
