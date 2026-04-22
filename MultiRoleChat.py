@@ -2599,7 +2599,17 @@ def main():
             elif cmd == 'workflow':
                 if len(cmd_args) < 2:
                     print("使用法: workflow <workflow_name> <topic>")
-                    print("利用可能なワークフロー: project_planning, product_development, market_research")
+                    # 組織設定からワークフロー一覧を動的に取得
+                    _wf_config = None
+                    if hasattr(role_manager, 'organization_config') and role_manager.organization_config:
+                        _wf_config = role_manager.organization_config
+                    elif hasattr(role_manager, 'config_file') and role_manager.config_file:
+                        _wf_config = load_multi_role_config(role_manager.config_file)
+                    if _wf_config and 'workflows' in _wf_config:
+                        _wf_names = list(_wf_config['workflows'].keys())
+                        print("利用可能なワークフロー: " + ", ".join(_wf_names))
+                    else:
+                        print("利用可能なワークフロー: project_planning, product_development, market_research")
                     continue
                 
                 workflow_name = cmd_args[0]
