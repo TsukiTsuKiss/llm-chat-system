@@ -173,6 +173,20 @@
           "action": "最新技術による革新的回答"
         }
       ]
+    },
+    "quiz_battle_parallel": {
+      "name": "自称クイズ王バトル（並列）",
+      "description": "全AIプロバイダーに同時に質問を投げて回答を比較する並列実行版",
+      "parallel_steps": [
+        { "role": "OpenAI自称クイズ王", "action": "GPT-5の自信満々な回答" },
+        { "role": "Google自称クイズ王", "action": "Geminiの余裕綽々な回答" },
+        { "role": "Anthropic自称クイズ王", "action": "Claudeの冷静かつ自信ある回答" },
+        { "role": "Groq自称クイズ王", "action": "Llamaの高速で自信に満ちた回答" },
+        { "role": "Groq軽量自称クイズ王", "action": "軽量モデルでも余裕だと主張する回答" },
+        { "role": "Mistral自称クイズ王", "action": "Mistralの技術力を誇示する回答" },
+        { "role": "Together自称クイズ王", "action": "Togetherのコミュニティパワーを活かした回答" },
+        { "role": "Grok自称クイズ王", "action": "Grokの独創的で自信ある回答" }
+      ]
     }
   },
   "scenarios": {
