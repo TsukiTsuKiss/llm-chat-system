@@ -4,19 +4,19 @@
     {
       "name": "フルスタックエンジニア",
       "assistant": "ChatGPT",
-      "model": "gpt-5",
+      "model": "gpt-5.4",
       "system_prompt_file": "roles/programmer.txt"
     },
     {
       "name": "UI/UXデザイナー",
       "assistant": "Gemini",
-      "model": "gemini-2.5-pro",
+      "model": "gemini-3-flash-preview",
       "system_prompt_file": "roles/designer.txt"
     },
     {
       "name": "プロダクトオーナー",
       "assistant": "Groq",
-      "model": "llama-3.3-70b-versatile",
+      "model": "openai/gpt-oss-120b",
       "system_prompt_file": "roles/planner.txt"
     }
   ],
@@ -24,56 +24,56 @@
     {
       "name": "CTO",
       "assistant": "ChatGPT",
-      "model": "gpt-5",
+      "model": "gpt-5.4",
       "system_prompt_file": "roles/programmer.txt"
     },
     {
       "name": "リードエンジニア",
       "assistant": "Groq",
-      "model": "llama-3.3-70b-versatile",
+      "model": "openai/gpt-oss-120b",
       "system_prompt_file": "roles/programmer.txt"
     },
     {
       "name": "プロダクトマネージャー",
       "assistant": "ChatGPT",
-      "model": "gpt-4o-mini",
+      "model": "gpt-5.3-chat-latest",
       "system_prompt_file": "roles/planner.txt",
       "role_type": "moderator"
     },
     {
       "name": "AIアーキテクト",
       "assistant": "ChatGPT",
-      "model": "gpt-5",
+      "model": "gpt-5.4",
       "system_prompt_file": "roles/ai_architect.txt"
     },
     {
       "name": "AI実装エンジニア",
       "assistant": "Anthropic",
-      "model": "claude-3-opus-20240229",
+      "model": "claude-opus-4-6",
       "system_prompt_file": "roles/ai_implementer.txt"
     },
     {
       "name": "軽量実装エンジニア",
       "assistant": "Groq",
-      "model": "llama-3.1-8b-instant",
+      "model": "openai/gpt-oss-20b",
       "system_prompt_file": "roles/ai_implementer.txt"
     },
     {
       "name": "軽量レビューア",
       "assistant": "Groq",
-      "model": "llama-3.1-8b-instant",
+      "model": "openai/gpt-oss-20b",
       "system_prompt_file": "roles/programmer.txt"
     },
     {
       "name": "軽量プランナー",
       "assistant": "Groq",
-      "model": "llama-3.1-8b-instant",
+      "model": "openai/gpt-oss-20b",
       "system_prompt_file": "roles/planner.txt"
     },
     {
       "name": "コードテスター",
       "assistant": "Groq",
-      "model": "llama-3.1-8b-instant",
+      "model": "openai/gpt-oss-20b",
       "system_prompt_file": "roles/code_tester.txt"
     }
   ],
@@ -268,13 +268,13 @@
       {
         "name": "未来志向派",
         "assistant": "ChatGPT",
-        "model": "gpt-5",
+        "model": "gpt-5.4",
         "system_prompt_file": "roles/creative.txt"
       },
       {
         "name": "エンジニア視点",
         "assistant": "Groq",
-        "model": "llama-3.3-70b-versatile",
+        "model": "openai/gpt-oss-120b",
         "system_prompt_file": "roles/realistic.txt"
       }
     ],
@@ -282,13 +282,13 @@
       {
         "name": "AIアーキテクト",
         "assistant": "ChatGPT",
-        "model": "gpt-5",
+        "model": "gpt-5.4",
         "system_prompt_file": "roles/ai_architect.txt"
       },
       {
         "name": "AI実装エンジニア",
         "assistant": "Anthropic",
-        "model": "claude-3-opus-20240229",
+        "model": "claude-opus-4-6",
         "system_prompt_file": "roles/ai_implementer.txt"
       }
     ]

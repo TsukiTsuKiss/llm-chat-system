@@ -4,13 +4,13 @@
     {
       "name": "プログラマー",
       "assistant": "ChatGPT",
-      "model": "gpt-5",
+      "model": "gpt-5.4",
       "system_prompt_file": "roles/programmer.txt"
     },
     {
       "name": "デザイナー",
       "assistant": "Gemini",
-      "model": "gemini-2.5-pro",
+      "model": "gemini-3-flash-preview",
       "system_prompt_file": "roles/designer.txt"
     },
     {
@@ -24,25 +24,25 @@
     {
       "name": "企画",
       "assistant": "ChatGPT",
-      "model": "gpt-5",
+      "model": "gpt-5.4",
       "system_prompt_file": "roles/planner.txt"
     },
     {
       "name": "分析官",
       "assistant": "Gemini",
-      "model": "gemini-2.5-pro",
+      "model": "gemini-3-flash-preview",
       "system_prompt_file": "roles/analyst.txt"
     },
     {
       "name": "実行担当",
       "assistant": "Groq",
-      "model": "llama-3.3-70b-versatile",
+      "model": "openai/gpt-oss-120b",
       "system_prompt_file": "roles/programmer.txt"
     },
     {
       "name": "秘書",
       "assistant": "ChatGPT",
-      "model": "gpt-4o-mini",
+      "model": "gpt-5.3-chat-latest",
       "system_prompt_file": "roles/secretary.txt",
       "role_type": "moderator"
     }
@@ -194,13 +194,13 @@
       {
         "name": "賛成派",
         "assistant": "ChatGPT",
-        "model": "gpt-5",
+        "model": "gpt-5.4",
         "system_prompt_file": "roles/debate_pro.txt"
       },
       {
         "name": "反対派",
         "assistant": "Gemini",
-        "model": "gemini-2.5-pro",
+        "model": "gemini-3-flash-preview",
         "system_prompt_file": "roles/debate_con.txt"
       }
     ],
@@ -208,13 +208,13 @@
       {
         "name": "創造性重視",
         "assistant": "ChatGPT",
-        "model": "gpt-5",
+        "model": "gpt-5.4",
         "system_prompt_file": "roles/creative.txt"
       },
       {
         "name": "実現性重視",
         "assistant": "Groq",
-        "model": "llama-3.3-70b-versatile",
+        "model": "openai/gpt-oss-120b",
         "system_prompt_file": "roles/realistic.txt"
       }
     ],
@@ -222,13 +222,13 @@
       {
         "name": "面接官",
         "assistant": "Gemini",
-        "model": "gemini-2.5-pro",
+        "model": "gemini-3-flash-preview",
         "system_prompt_file": "roles/interviewer.txt"
       },
       {
         "name": "候補者",
         "assistant": "ChatGPT",
-        "model": "gpt-5",
+        "model": "gpt-5.4",
         "system_prompt_file": "roles/candidate.txt"
       }
     ]

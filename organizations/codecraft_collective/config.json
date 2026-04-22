@@ -4,13 +4,13 @@
     {
       "name": "全能 統",
       "assistant": "ChatGPT",
-      "model": "gpt-4o-mini",
+      "model": "gpt-5.3-chat-latest",
       "system_prompt_file": "roles/fullstack_developer.txt"
     },
     {
       "name": "検証 確",
       "assistant": "Together",
-      "model": "llama-3.3-70b-versatile",
+      "model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
       "system_prompt_file": "roles/test_engineer.txt"
     }
   ],
@@ -18,13 +18,13 @@
     {
       "name": "全能 統",
       "assistant": "ChatGPT",
-      "model": "gpt-4o-mini",
+      "model": "gpt-5.3-chat-latest",
       "system_prompt_file": "roles/fullstack_developer.txt"
     },
     {
       "name": "検証 確",
       "assistant": "Together",
-      "model": "llama-3.3-70b-versatile",
+      "model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
       "system_prompt_file": "roles/test_engineer.txt"
     }
   ],

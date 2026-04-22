@@ -4,13 +4,13 @@
     {
       "name": "ひなた",
       "assistant": "Groq",
-      "model": "llama-3.3-70b-versatile",
+      "model": "openai/gpt-oss-120b",
       "system_prompt_file": "roles/hinata.txt"
     },
     {
       "name": "さつき",
       "assistant": "Groq",
-      "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+      "model": "openai/gpt-oss-120b",
       "system_prompt_file": "roles/satsuki.txt"
     },
     {
@@ -24,13 +24,13 @@
     {
       "name": "ひなた",
       "assistant": "Groq",
-      "model": "llama-3.3-70b-versatile",
+      "model": "openai/gpt-oss-120b",
       "system_prompt_file": "roles/hinata.txt"
     },
     {
       "name": "さつき",
       "assistant": "Groq",
-      "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+      "model": "openai/gpt-oss-120b",
       "system_prompt_file": "roles/satsuki.txt"
     },
     {
@@ -42,7 +42,7 @@
     {
       "name": "かえで",
       "assistant": "Groq",
-      "model": "llama-3.1-8b-instant",
+      "model": "openai/gpt-oss-20b",
       "system_prompt_file": "roles/kaede.txt",
       "role_type": "moderator"
     }
@@ -132,7 +132,7 @@
       {
         "name": "ひなた",
         "assistant": "Groq",
-        "model": "llama-3.3-70b-versatile",
+        "model": "openai/gpt-oss-120b",
         "system_prompt_file": "roles/hinata.txt"
       },
       {
@@ -144,7 +144,7 @@
       {
         "name": "さつき",
         "assistant": "Groq",
-        "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+        "model": "openai/gpt-oss-120b",
         "system_prompt_file": "roles/satsuki.txt"
       }
     ]

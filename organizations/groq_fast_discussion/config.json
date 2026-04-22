@@ -10,7 +10,7 @@
     {
       "name": "アナリスト",
       "assistant": "Groq",
-      "model": "llama-3.3-70b-versatile",
+      "model": "openai/gpt-oss-120b",
       "system_prompt_file": "roles/analyst.txt"
     },
     {
@@ -30,7 +30,7 @@
     {
       "name": "アナリスト",
       "assistant": "Groq",
-      "model": "llama-3.3-70b-versatile",
+      "model": "openai/gpt-oss-120b",
       "system_prompt_file": "roles/analyst.txt"
     },
     {
@@ -42,7 +42,7 @@
     {
       "name": "ファシリテーター",
       "assistant": "Groq",
-      "model": "llama-3.1-8b-instant",
+      "model": "openai/gpt-oss-20b",
       "system_prompt_file": "roles/facilitator.txt",
       "role_type": "moderator"
     }
@@ -128,7 +128,7 @@
       {
         "name": "賛成派",
         "assistant": "Groq",
-        "model": "llama-3.3-70b-versatile",
+        "model": "openai/gpt-oss-120b",
         "system_prompt_file": "roles/analyst.txt"
       },
       {
