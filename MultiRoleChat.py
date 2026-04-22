@@ -750,6 +750,7 @@ class MultiRoleManager:
         log_filename = f"multi_logs/{timestamp}_{workflow_name}.md"
         os.makedirs("multi_logs", exist_ok=True)
         self._initialize_workflow_log(log_filename, workflow, topic, workflow_name)
+        _workflow_start = time.time()
 
         print(f"\n🔄 ワークフロー '{workflow['name']}' を開始します")
         print(f"📝 ログファイル: {log_filename}")
@@ -779,10 +780,12 @@ class MultiRoleManager:
                 if state['results']:
                     input_text += f"\n\n前のステップの結果:\n" + "\n".join(state['results'][-WORKFLOW_HISTORY_LENGTH:])
                 input_text += f"\n\n【重要】ワークフロー実行中です。以下の点を守ってください：\n- 応答は{response_limit}文字以内で{style}に\n- {format_pref}\n- 重要なポイントのみに絞る"
+                _t0 = time.time()
                 response = role_manager_ref.get_response_from_role(role_name, input_text)
+                _elapsed = time.time() - _t0
                 formatted = response.replace('\\n', '\n') if isinstance(response, str) else str(response or "")
-                print(f"🎭 {role_name}: {formatted}")
-                role_manager_ref._append_step_to_log(log_filename, step_index + 1, role_name, action, formatted)
+                print(f"🎭 {role_name}（{_elapsed:.2f}秒）: {formatted}")
+                role_manager_ref._append_step_to_log(log_filename, step_index + 1, role_name, action, formatted, elapsed=_elapsed)
                 print(f"📝 ステップ {step_index + 1} をログに保存しました")
                 new_results = state['results'] + [f"[{role_name}] {response}"]
                 return {"topic": state['topic'], "results": new_results, "step_index": step_index + 1}
@@ -802,18 +805,20 @@ class MultiRoleManager:
                     role_name = step['role']
                     action = step.get('action', '')
                     inp = input_text_base + (f"\n\n{action}" if action else "")
-                    return role_name, role_manager_ref.get_response_from_role(role_name, inp)
+                    _t0 = time.time()
+                    response = role_manager_ref.get_response_from_role(role_name, inp)
+                    return role_name, response, time.time() - _t0
 
                 new_results = list(state['results'])
                 with concurrent.futures.ThreadPoolExecutor() as executor:
                     futures = {executor.submit(call_role, step): step for step in group}
                     for future in concurrent.futures.as_completed(futures):
-                        role_name, response = future.result()
+                        role_name, response, _elapsed = future.result()
                         formatted = response.replace('\\n', '\n') if isinstance(response, str) else str(response or "")
-                        print(f"🎭 {role_name}: {formatted}")
+                        print(f"🎭 {role_name}（{_elapsed:.2f}秒）: {formatted}")
                         step_num = len(new_results) + 1
                         action = futures[future].get('action', '')
-                        role_manager_ref._append_step_to_log(log_filename, step_num, role_name, action, formatted)
+                        role_manager_ref._append_step_to_log(log_filename, step_num, role_name, action, formatted, elapsed=_elapsed)
                         new_results.append(f"[{role_name}] {response}")
 
                 return {"topic": state['topic'], "results": new_results, "step_index": state['step_index']}
@@ -856,11 +861,12 @@ class MultiRoleManager:
         final_state = app.invoke({"topic": topic, "results": [], "step_index": 0})
         results = final_state['results']
 
+        _workflow_elapsed = time.time() - _workflow_start
         print("=" * 60)
-        print("✅ ワークフロー完了")
+        print(f"✅ ワークフロー完了（実時間: {_workflow_elapsed:.2f}秒）")
 
         session_summary = self.token_tracker.get_session_summary()
-        self._finalize_workflow_log(log_filename, session_summary)
+        self._finalize_workflow_log(log_filename, session_summary, total_elapsed=_workflow_elapsed)
         print(f"💾 ワークフローログが完成しました: {log_filename}")
         print(f"💰 このセッションのコスト: ${session_summary['total_cost']:.4f}")
 
@@ -1558,9 +1564,10 @@ class MultiRoleManager:
         except Exception as e:
             print(f"⚠️ ログ初期化エラー: {e}")
 
-    def _append_step_to_log(self, log_filename, step_number, role_name, action, response):
+    def _append_step_to_log(self, log_filename, step_number, role_name, action, response, elapsed=None):
         """ワークフローのステップをログファイルに追記"""
-        step_content = f"""### {step_number}. {role_name}
+        time_label = f"（{elapsed:.2f}秒）" if elapsed is not None else ""
+        step_content = f"""### {step_number}. {role_name}{time_label}
 
 **アクション**: {action}
 
@@ -1575,8 +1582,9 @@ class MultiRoleManager:
         except Exception as e:
             print(f"⚠️ ステップログ追記エラー: {e}")
 
-    def _finalize_workflow_log(self, log_filename, session_summary):
+    def _finalize_workflow_log(self, log_filename, session_summary, total_elapsed=None):
         """ワークフローログファイルを完了"""
+        elapsed_line = f"\n**実時間**: {total_elapsed:.2f}秒" if total_elapsed is not None else ""
         cost_info = f"""
 
 ## 💰 コスト情報
@@ -1587,7 +1595,7 @@ class MultiRoleManager:
 
 ---
 
-**実行完了**: {datetime.now().strftime('%Y年%m月%d日 %H:%M:%S')}
+**実行完了**: {datetime.now().strftime('%Y年%m月%d日 %H:%M:%S')}{elapsed_line}
 """
         try:
             # コスト情報を更新（ヘッダーの「計算中...」部分を置換）
