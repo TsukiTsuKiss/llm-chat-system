@@ -34,13 +34,12 @@ from langchain.schema.runnable import (
 )
 from langchain.schema import AIMessage, HumanMessage
 import argparse
-from typing import Annotated, TypedDict
+from typing import Annotated
 import asyncio
 import concurrent.futures
-from langgraph.graph import StateGraph, END
 
 # Version information
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 VERSION_DATE = "2026-04-22"
 
 # Configuration files
@@ -604,7 +603,7 @@ class MultiRoleManager:
         }
 
     def execute_iterative_workflow(self, workflow_name, topic, max_iterations=5):
-        """反復実行可能なワークフローを実行（LangGraph対応: 条件分岐ループ）"""
+        """反復実行可能なワークフローを実行（条件分岐ループ）"""
         workflow = self._resolve_workflow(workflow_name, show_available=True)
         if not workflow:
             return
@@ -612,12 +611,8 @@ class MultiRoleManager:
         max_iter = workflow.get('max_iterations', max_iterations)
 
         self.current_workflow_info = self._build_workflow_info(
-            workflow_name,
-            workflow,
-            execution_mode='iterative',
-            iteration_count=0,
-            max_iterations=max_iter,
-            test_results=None
+            workflow_name, workflow, execution_mode='iterative',
+            iteration_count=0, max_iterations=max_iter, test_results=None
         )
         self.workflow_responses = []
 
@@ -627,100 +622,44 @@ class MultiRoleManager:
         print(f"🔄 最大反復回数: {max_iter}")
         print("=" * 60)
 
-        # --- LangGraph State 定義 ---
-        class IterativeState(TypedDict):
-            topic: str
-            all_results: list
-            current_results: list
-            iteration: int
-            test_passed: bool
-
         steps = workflow.get('steps', [])
-        role_manager_ref = self
+        exec_plan = [[step] for step in steps if step['role'] in self.active_roles]
+        for step in steps:
+            if step['role'] not in self.active_roles:
+                print(f"⚠️ ロール '{step['role']}' が見つかりません。スキップします。")
 
-        def run_iteration(state: IterativeState) -> IterativeState:
-            """1回の反復（全ステップ）を実行するノード"""
-            iteration = state['iteration']
+        if not exec_plan:
+            print("⚠️ 実行可能なステップがありません。")
+            return []
+
+        all_results = []
+        test_passed = False
+        iteration = 0
+        _iter_start = time.time()
+
+        for iteration in range(1, max_iter + 1):
             print(f"\n🔄 反復 {iteration}/{max_iter}")
             print("-" * 40)
 
-            current_results = []
-            test_passed = False
+            engine_result = self._run_engine(
+                exec_plan, topic,
+                prev_results=all_results,
+                extra_hint='前回からの改善点を重視し、次の反復に繋がるよう明確に'
+            )
+            new_results = engine_result['results'][len(all_results):]
+            all_results = engine_result['results']
 
-            for i, step in enumerate(steps, 1):
-                role_name = step['role']
-                action = step['action']
-
-                if role_name not in role_manager_ref.active_roles:
-                    print(f"⚠️ ロール '{role_name}' が見つかりません。スキップします。")
-                    continue
-
-                print(f"\n📋 ステップ {i}: {role_name}")
-                print(f"🎯 アクション: {action}")
-                print("-" * 40)
-
-                input_text = f"{topic}\n\n{action}"
-                if state['all_results']:
-                    input_text += f"\n\n前回の反復結果:\n" + "\n".join([str(r) for r in state['all_results'][-ITERATIVE_WORKFLOW_HISTORY_LENGTH:]])
-                if current_results:
-                    input_text += f"\n\n現在の反復での前ステップ結果:\n" + "\n".join(current_results[-CURRENT_ITERATION_HISTORY_LENGTH:])
-                input_text += f"\n\n【重要】反復ワークフロー実行中です。以下の点を守ってください：\n- 応答は{WORKFLOW_RESPONSE_LIMIT}文字以内で簡潔に\n- 箇条書きを活用\n- 前回からの改善点を重視\n- 次の反復に繋がるよう明確に"
-
-                result = role_manager_ref._execute_timed_response(
-                    'role_name', role_name,
-                    role_manager_ref.get_response_from_role, role_name, input_text
-                )
-                _elapsed = result['response_time']
-                formatted = result['formatted_response']
-                print(f"💬 {role_name}（{_elapsed:.2f}秒）: {formatted}")
-                current_results.append(f"[{role_name}] {result['response']}")
-
-                if role_name == "コードテスター" and "✅ テスト結果: 合格" in str(result['response']):
+            for entry in new_results:
+                if "コードテスター" in entry and "✅ テスト結果: 合格" in entry:
                     test_passed = True
                     print("🎉 テスト合格！")
-                elif role_name == "コードテスター" and "❌ テスト結果: 不合格" in str(result['response']):
+                elif "コードテスター" in entry and "❌ テスト結果: 不合格" in entry:
                     print("⚠️ テスト不合格。修正が必要です。")
 
-            return {
-                "topic": state['topic'],
-                "all_results": state['all_results'] + current_results,
-                "current_results": current_results,
-                "iteration": iteration + 1,
-                "test_passed": test_passed
-            }
+            if test_passed:
+                break
 
-        def should_continue(state: IterativeState) -> str:
-            """継続するか終了するかを判定するエッジ関数"""
-            if state['test_passed']:
-                return "end"
-            if state['iteration'] > max_iter:
-                return "end"
-            return "continue"
-
-        # --- グラフ構築 ---
-        graph = StateGraph(IterativeState)
-        graph.add_node("iterate", run_iteration)
-        graph.set_entry_point("iterate")
-        graph.add_conditional_edges(
-            "iterate",
-            should_continue,
-            {"continue": "iterate", "end": END}
-        )
-
-        app = graph.compile()
-        _iter_start = time.time()
-        final_state = app.invoke({
-            "topic": topic,
-            "all_results": [],
-            "current_results": [],
-            "iteration": 1,
-            "test_passed": False
-        })
-
-        all_results = final_state['all_results']
-        iteration = final_state['iteration'] - 1
-        test_passed = final_state['test_passed']
-
+        _iter_elapsed = time.time() - _iter_start
         print("=" * 60)
         if test_passed:
             print(f"✅ ワークフロー完了（テスト合格: 反復{iteration}回）")
@@ -733,33 +672,24 @@ class MultiRoleManager:
 
         workflow_participants = [step['role'] for step in steps]
         workflow_info = self.current_workflow_info or self._build_workflow_info(
-            workflow_name,
-            workflow,
-            execution_mode='iterative',
-            iteration_count=iteration,
-            max_iterations=max_iter,
-            test_results=test_passed
+            workflow_name, workflow, execution_mode='iterative',
+            iteration_count=iteration, max_iterations=max_iter, test_results=test_passed
         )
 
-        _iter_elapsed = time.time() - _iter_start
-        self.save_meeting_log(topic, workflow_participants, all_results, f"反復{iteration}回", "workflow", workflow_info=workflow_info, total_elapsed=_iter_elapsed)
+        self.save_meeting_log(topic, workflow_participants, all_results, f"反復{iteration}回",
+                              "workflow", workflow_info=workflow_info, total_elapsed=_iter_elapsed)
         self._save_workflow_final_code(topic, workflow_name)
-
         return all_results
 
     def execute_workflow(self, workflow_name, topic):
-        """ワークフローを実行（LangGraph対応: 直列・並列・反復）"""
+        """ワークフローを実行（直列・並列）"""
         workflow = self._resolve_workflow(workflow_name, show_available=True)
         if not workflow:
             return
 
         self.current_workflow_info = self._build_workflow_info(
-            workflow_name,
-            workflow,
-            execution_mode='single',
-            iteration_count=1,
-            max_iterations=1,
-            test_results=None
+            workflow_name, workflow, execution_mode='single',
+            iteration_count=1, max_iterations=1, test_results=None
         )
         self.workflow_responses = []
 
@@ -767,133 +697,45 @@ class MultiRoleManager:
         log_filename = f"multi_logs/{timestamp}_{workflow_name}.md"
         os.makedirs("multi_logs", exist_ok=True)
         self._initialize_workflow_log(log_filename, workflow, topic, workflow_name)
-        _workflow_start = time.time()
 
         print(f"\n🔄 ワークフロー '{workflow['name']}' を開始します")
         print(f"📝 ログファイル: {log_filename}")
         print(f"トピック: {topic}")
         print("=" * 60)
 
-        # --- LangGraph State 定義 ---
-        class WorkflowState(TypedDict):
-            topic: str
-            results: list
-            step_index: int
-
         steps = workflow.get('steps', [])
         parallel_groups = workflow.get('parallel_steps', [])
-        response_limit = workflow.get('response_limit', WORKFLOW_RESPONSE_LIMIT)
-        style = workflow.get('style', '簡潔')
-        format_pref = workflow.get('format', '箇条書き推奨')
 
-        role_manager_ref = self  # クロージャ用
-
-        def make_step_node(step_index, role_name, action):
-            """直列ステップ用ノードを生成"""
-            def node(state: WorkflowState) -> WorkflowState:
-                print(f"\n📋 Step {step_index + 1}: {role_name} - {action}")
-                print("-" * 40)
-                input_text = f"{state['topic']}\n\n{action}"
-                if state['results']:
-                    input_text += f"\n\n前のステップの結果:\n" + "\n".join(state['results'][-WORKFLOW_HISTORY_LENGTH:])
-                input_text += f"\n\n【重要】ワークフロー実行中です。以下の点を守ってください：\n- 応答は{response_limit}文字以内で{style}に\n- {format_pref}\n- 重要なポイントのみに絞る"
-                result = role_manager_ref._execute_timed_response(
-                    'role_name', role_name,
-                    role_manager_ref.get_response_from_role, role_name, input_text
-                )
-                _elapsed = result['response_time']
-                formatted = result['formatted_response']
-                print(f"🎭 {role_name}（{_elapsed:.2f}秒）: {formatted}")
-                role_manager_ref._append_step_to_log(log_filename, step_index + 1, role_name, action, formatted, elapsed=_elapsed)
-                print(f"📝 ステップ {step_index + 1} をログに保存しました")
-                new_results = state['results'] + [f"[{role_name}] {result['response']}"]
-                return {"topic": state['topic'], "results": new_results, "step_index": step_index + 1}
-            return node
-
-        def make_parallel_node(group_index, group):
-            """並列グループ用ノードを生成"""
-            def node(state: WorkflowState) -> WorkflowState:
-                print(f"\n⚡ 並列グループ {group_index + 1} 開始（{len(group)}ロール同時実行）")
-                print("-" * 40)
-                input_text_base = state['topic']
-                if state['results']:
-                    input_text_base += "\n\n前のステップの結果:\n" + "\n".join(state['results'][-WORKFLOW_HISTORY_LENGTH:])
-                input_text_base += f"\n\n【重要】ワークフロー実行中です。以下の点を守ってください：\n- 応答は{response_limit}文字以内で{style}に\n- {format_pref}"
-
-                def call_role(step):
-                    role_name = step['role']
-                    action = step.get('action', '')
-                    inp = input_text_base + (f"\n\n{action}" if action else "")
-                    return role_manager_ref._execute_timed_response(
-                        'role_name', role_name,
-                        role_manager_ref.get_response_from_role, role_name, inp
-                    )
-
-                new_results = list(state['results'])
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    futures = {executor.submit(call_role, step): step for step in group}
-                    for future in concurrent.futures.as_completed(futures):
-                        result = future.result()
-                        role_name = result['role_name']
-                        _elapsed = result['response_time']
-                        formatted = result['formatted_response']
-                        print(f"🎭 {role_name}（{_elapsed:.2f}秒）: {formatted}")
-                        step_num = len(new_results) + 1
-                        action = futures[future].get('action', '')
-                        role_manager_ref._append_step_to_log(log_filename, step_num, role_name, action, formatted, elapsed=_elapsed)
-                        new_results.append(f"[{role_name}] {result['response']}")
-
-                return {"topic": state['topic'], "results": new_results, "step_index": state['step_index']}
-            return node
-
-        # --- グラフ構築 ---
-        graph = StateGraph(WorkflowState)
-
-        node_names = []
-
-        # 直列ステップをノードとして追加
-        for i, step in enumerate(steps):
-            role_name = step['role']
-            action = step['action']
-            if role_name not in self.active_roles:
-                print(f"⚠️ ロール '{role_name}' が見つかりません。スキップします。")
-                continue
-            node_name = f"step_{i}"
-            graph.add_node(node_name, make_step_node(i, role_name, action))
-            node_names.append(node_name)
-
-        # 並列グループをノードとして追加
-        # parallel_steps はフラットなリスト → 全体を1つの並列グループとして実行
+        exec_plan = [[step] for step in steps if step['role'] in self.active_roles]
+        skipped = [step['role'] for step in steps if step['role'] not in self.active_roles]
+        for r in skipped:
+            print(f"⚠️ ロール '{r}' が見つかりません。スキップします。")
         if parallel_groups:
-            node_name = "parallel_0"
-            graph.add_node(node_name, make_parallel_node(0, parallel_groups))
-            node_names.append(node_name)
+            exec_plan.append(parallel_groups)
 
-        if not node_names:
+        if not exec_plan:
             print("⚠️ 実行可能なステップがありません。")
             return []
 
-        # エントリーポイントと順次エッジを設定
-        graph.set_entry_point(node_names[0])
-        for k in range(len(node_names) - 1):
-            graph.add_edge(node_names[k], node_names[k + 1])
-        graph.add_edge(node_names[-1], END)
+        engine_result = self._run_engine(
+            exec_plan, topic,
+            log_filename=log_filename,
+            response_limit=workflow.get('response_limit', WORKFLOW_RESPONSE_LIMIT),
+            style=workflow.get('style', '簡潔'),
+            format_pref=workflow.get('format', '箇条書き推奨'),
+        )
+        results = engine_result['results']
+        total_elapsed = engine_result['elapsed']
 
-        app = graph.compile()
-        final_state = app.invoke({"topic": topic, "results": [], "step_index": 0})
-        results = final_state['results']
-
-        _workflow_elapsed = time.time() - _workflow_start
         print("=" * 60)
-        print(f"✅ ワークフロー完了（実時間: {_workflow_elapsed:.2f}秒）")
+        print(f"✅ ワークフロー完了（実時間: {total_elapsed:.2f}秒）")
 
         session_summary = self.token_tracker.get_session_summary()
-        self._finalize_workflow_log(log_filename, session_summary, total_elapsed=_workflow_elapsed)
+        self._finalize_workflow_log(log_filename, session_summary, total_elapsed=total_elapsed)
         print(f"💾 ワークフローログが完成しました: {log_filename}")
         print(f"💰 このセッションのコスト: ${session_summary['total_cost']:.4f}")
 
         self._save_workflow_final_code(topic, workflow_name)
-
         return results
     
     def _save_workflow_final_code(self, topic, workflow_name):
@@ -1002,6 +844,180 @@ class MultiRoleManager:
             quiz_prompt,
             max_chars=100
         )
+
+    def _build_log_header(self, title, participants, metadata_lines, heading_level=1):
+        """ログファイルの共通ヘッダ文字列を生成する
+
+        title          : 見出しテキスト（例: "ワークフローログ - テーマ"）
+        participants   : 参加ロール名リスト
+        metadata_lines : 見出し直下に並べる "**キー**: 値" 文字列のリスト
+        heading_level  : タイトル見出しレベル（デフォルト 1）
+        """
+        organization = self.organization_info.get('organization', '不明')
+        role_details = []
+        for name in participants:
+            if name in self.active_roles:
+                ri = self.active_roles[name]
+                role_details.append(f"{name} ({ri.get('assistant','不明')}:{ri.get('model','不明')})")
+            else:
+                role_details.append(f"{name} (設定なし)")
+
+        detail_indent = chr(10).join([f"    {d}" for d in role_details])
+
+        lines = [
+            self._markdown_heading(heading_level, title),
+            "",
+            f"**生成ツール**: MultiRoleChat v{VERSION}",
+            f"**開催日時**: {datetime.now().strftime('%Y年%m月%d日 %H:%M:%S')}",
+            f"**組織**: {organization}",
+        ] + metadata_lines + [
+            f"**参加者**: {', '.join(participants)}",
+            f"**参加ロール詳細**: \n{detail_indent}",
+            "",
+            "---",
+            "",
+        ]
+        return "\n".join(lines)
+
+    def _build_log_footer(self, session_summary, total_elapsed=None):
+        """ログファイルの共通フッタ文字列を生成する（終了時刻・実行時間・コスト）"""
+        elapsed_line = f"\n**実時間**: {total_elapsed:.2f}秒" if total_elapsed is not None else ""
+        cost_line = (f"\n**推定コスト**: ${session_summary['total_cost']:.4f}"
+                     f"（入力 {session_summary['total_input_tokens']}tokens"
+                     f" / 出力 {session_summary['total_output_tokens']}tokens）")
+        return f"\n---\n\n**実行完了**: {datetime.now().strftime('%Y年%m月%d日 %H:%M:%S')}{elapsed_line}{cost_line}\n"
+
+    def _build_response_summary_table(self, meeting_log, log_times=None, response_times=None):
+        """応答時間サマリー表を生成する（ログ付録用）"""
+        rows = []
+        for i, entry in enumerate(meeting_log, 1):
+            role_name, _ = self._parse_bracketed_log_entry(entry)
+            if role_name is None:
+                continue
+            model = self.active_roles.get(role_name, {}).get('model', '不明')
+            if log_times and i - 1 < len(log_times) and log_times[i - 1] is not None:
+                time_str = f"{log_times[i - 1]:.2f}秒"
+            elif response_times and role_name in response_times:
+                t = response_times[role_name]
+                time_str = f"{t:.2f}秒" if t > 0 else "エラー"
+            else:
+                time_str = "-"
+            rows.append((i, role_name, model, time_str))
+
+        if not rows:
+            return ""
+
+        lines = [
+            "\n\n---\n",
+            "## 📊 応答時間サマリー\n",
+            "| # | ロール | モデル | 応答時間 |",
+            "|---|---|---|---|",
+        ]
+        for idx, role, model, t in rows:
+            lines.append(f"| {idx} | {role} | {model} | {t} |")
+        return "\n".join(lines) + "\n"
+
+    def _build_role_details(self, participants):
+        """参加ロール詳細文字列リストを返す（後方互換用）"""
+        result = []
+        for name in participants:
+            if name in self.active_roles:
+                ri = self.active_roles[name]
+                result.append(f"{name} ({ri.get('assistant','不明')}:{ri.get('model','不明')})")
+            else:
+                result.append(f"{name} (設定なし)")
+        return result
+
+    def _run_engine(self, exec_plan, topic, log_filename=None, step_offset=0,
+                    response_limit=WORKFLOW_RESPONSE_LIMIT, style='簡潔', format_pref='箇条書き推奨',
+                    prev_results=None, extra_hint=''):
+        """ワークフロー実行エンジン（直列・並列を統一処理）
+
+        exec_plan: [[{role, action}, ...], ...]
+            1件グループ → 直列ステップ、複数件グループ → 並列実行
+        log_filename: 指定時は _append_step_to_log でリアルタイム追記
+        step_offset: ログのステップ番号オフセット（反復呼び出し時に使用）
+        prev_results: 前の反復など、コンテキストとして渡す既存結果
+        extra_hint: 制約テキストへの追加指示（反復時の '前回からの改善点を重視' など）
+        Returns: {'results': list[str], 'elapsed': float}
+        """
+        results = list(prev_results or [])
+        _start = time.time()
+        step_num = step_offset + 1
+        serial_constraint = (
+            f"\n\n【重要】ワークフロー実行中です。以下の点を守ってください：\n"
+            f"- 応答は{response_limit}文字以内で{style}に\n"
+            f"- {format_pref}\n"
+            f"- 重要なポイントのみに絞る"
+            + (f"\n- {extra_hint}" if extra_hint else "")
+        )
+        parallel_constraint = (
+            f"\n\n【重要】ワークフロー実行中です。以下の点を守ってください：\n"
+            f"- 応答は{response_limit}文字以内で{style}に\n"
+            f"- {format_pref}"
+            + (f"\n- {extra_hint}" if extra_hint else "")
+        )
+
+        for group in exec_plan:
+            if len(group) == 1:
+                # --- 直列ステップ ---
+                step = group[0]
+                role_name = step['role']
+                action = step.get('action', '')
+                if role_name not in self.active_roles:
+                    print(f"⚠️ ロール '{role_name}' が見つかりません。スキップします。")
+                    step_num += 1
+                    continue
+                print(f"\n📋 Step {step_num}: {role_name} - {action}")
+                print("-" * 40)
+                input_text = f"{topic}\n\n{action}"
+                if results:
+                    input_text += "\n\n前のステップの結果:\n" + "\n".join(results[-WORKFLOW_HISTORY_LENGTH:])
+                input_text += serial_constraint
+                result = self._execute_timed_response(
+                    'role_name', role_name,
+                    self.get_response_from_role, role_name, input_text
+                )
+                print(f"🎭 {role_name}（{result['response_time']:.2f}秒）: {result['formatted_response']}")
+                if log_filename:
+                    self._append_step_to_log(log_filename, step_num, role_name, action,
+                                             result['formatted_response'], elapsed=result['response_time'])
+                    print(f"📝 ステップ {step_num} をログに保存しました")
+                results.append(f"[{role_name}] {result['response']}")
+                step_num += 1
+
+            else:
+                # --- 並列グループ ---
+                print(f"\n⚡ 並列グループ開始（{len(group)}ロール同時実行）")
+                print("-" * 40)
+                input_text_base = topic
+                if results:
+                    input_text_base += "\n\n前のステップの結果:\n" + "\n".join(results[-WORKFLOW_HISTORY_LENGTH:])
+                input_text_base += parallel_constraint
+
+                def call_step(step):
+                    r = step['role']
+                    a = step.get('action', '')
+                    inp = input_text_base + (f"\n\n{a}" if a else "")
+                    return self._execute_timed_response(
+                        'role_name', r,
+                        self.get_response_from_role, r, inp
+                    )
+
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    futures = {executor.submit(call_step, s): s for s in group}
+                    for future in concurrent.futures.as_completed(futures):
+                        result = future.result()
+                        role_name = result['role_name']
+                        print(f"🎭 {role_name}（{result['response_time']:.2f}秒）: {result['formatted_response']}")
+                        if log_filename:
+                            action = futures[future].get('action', '')
+                            self._append_step_to_log(log_filename, step_num, role_name, action,
+                                                     result['formatted_response'], elapsed=result['response_time'])
+                        results.append(f"[{role_name}] {result['response']}")
+                        step_num += 1
+
+        return {'results': results, 'elapsed': time.time() - _start}
 
     def _run_meeting_round(self, participants, topic, current_topic, meeting_log, log_times, round_boundaries):
         """会議ラウンドの参加者フェーズを実行する（送信・収集・計測）"""
@@ -1424,34 +1440,18 @@ class MultiRoleManager:
         filename = f"{MULTI_LOGS_DIR}/{timestamp}_continuous_quiz.md"
         
         roles_used = list(self.active_roles.keys())
-        
-        # 組織情報を取得
-        organization = self.organization_info.get('organization', '不明')
-        
-        # 参加ロール詳細情報を作成
-        role_details = []
-        for role_name in roles_used:
-            if role_name in self.active_roles:
-                role_info = self.active_roles[role_name]
-                assistant = role_info.get('assistant', '不明')
-                model = role_info.get('model', '不明')
-                role_details.append(f"{role_name} ({assistant}:{model})")
-            else:
-                role_details.append(f"{role_name} (設定なし)")
-        
-        md_content = f"""# 連続クイズログ
 
-**開催日時**: {datetime.now().strftime("%Y年%m月%d日 %H:%M:%S")}
-**組織**: {organization}
-**実行モード**: 連続クイズ
-**参加ロール**: {', '.join(roles_used)}
-**参加ロール詳細**: 
-  {chr(10).join([f'  {detail}' for detail in role_details])}
-**総質問数**: {len(all_quiz_logs)}
-
----
-
-"""
+        session_summary = self.token_tracker.get_session_summary()
+        metadata = [
+            "**実行モード**: 連続クイズ",
+            f"**総質問数**: {len(all_quiz_logs)}",
+        ]
+        md_content = self._build_log_header(
+            "連続クイズログ",
+            roles_used,
+            metadata,
+            heading_level=1,
+        ) + "\n"
         
         # 各クイズをMarkdown形式で整理
         for quiz_data in all_quiz_logs:
@@ -1565,13 +1565,7 @@ class MultiRoleManager:
                     avg_row += " **N/A** |"
             md_content += avg_row + "\n\n---\n\n"
         
-        md_content += f"""
----
-
-**実行完了**: {datetime.now().strftime('%Y年%m月%d日 %H:%M:%S')}
-
-*この連続クイズログは MultiRoleChat v{VERSION} により自動生成されました*
-"""
+        md_content += self._build_log_footer(session_summary)
         
         # ファイルに保存
         try:
@@ -1583,44 +1577,26 @@ class MultiRoleManager:
 
     def _initialize_workflow_log(self, log_filename, workflow, topic, workflow_name):
         """ワークフローログファイルのヘッダーを初期化"""
-        organization = self.organization_info.get('organization', '不明')
         workflow_title = workflow.get('name', workflow_name)
         workflow_description = workflow.get('description', '説明なし')
-        
-        # 参加ロール詳細情報を作成（steps / parallel_steps 両対応）
         _steps = workflow.get('steps', []) + workflow.get('parallel_steps', [])
         workflow_participants = [step['role'] for step in _steps]
-        role_details = []
-        for participant in workflow_participants:
-            if participant in self.active_roles:
-                role_info = self.active_roles[participant]
-                assistant = role_info.get('assistant', '不明')
-                model = role_info.get('model', '不明')
-                role_details.append(f"{participant} ({assistant}:{model})")
-            else:
-                role_details.append(f"{participant} (設定なし)")
-        
-        header_content = f"""# ワークフローログ - {topic}
 
-**開催日時**: {datetime.now().strftime('%Y年%m月%d日 %H:%M:%S')}
-**組織**: {organization}
-**実行モード**: ワークフロー
-**ワークフローID**: {workflow_name}
-**ワークフロー名**: {workflow_title}
-**トピック**: {topic}
-**説明**: {workflow_description}
-**反復回数**: 1/1
-**参加者**: {', '.join(workflow_participants)}
-**参加ロール詳細**: 
-{chr(10).join([f'    {detail}' for detail in role_details])}
-**推定コスト**: 計算中...
+        metadata = [
+            "**実行モード**: ワークフロー",
+            f"**ワークフローID**: {workflow_name}",
+            f"**ワークフロー名**: {workflow_title}",
+            f"**トピック**: {topic}",
+            f"**説明**: {workflow_description}",
+            "**反復回数**: 1/1",
+        ]
+        header_content = self._build_log_header(
+            f"ワークフローログ - {topic}",
+            workflow_participants,
+            metadata,
+            heading_level=1,
+        ) + "\n## 📋 記録\n\n"
 
----
-
-## 📋 記録
-
-"""
-        
         try:
             with open(log_filename, 'w', encoding='utf-8') as f:
                 f.write(header_content)
@@ -1645,30 +1621,10 @@ class MultiRoleManager:
 
     def _finalize_workflow_log(self, log_filename, session_summary, total_elapsed=None):
         """ワークフローログファイルを完了"""
-        elapsed_line = f"\n**実時間**: {total_elapsed:.2f}秒" if total_elapsed is not None else ""
-        cost_info = f"""
-
-## 💰 コスト情報
-
-**入力**: {session_summary['total_input_tokens']}tokens
-**出力**: {session_summary['total_output_tokens']}tokens
-**推定コスト**: ${session_summary['total_cost']:.4f}
-
----
-
-**実行完了**: {datetime.now().strftime('%Y年%m月%d日 %H:%M:%S')}{elapsed_line}
-"""
+        footer = self._build_log_footer(session_summary, total_elapsed)
         try:
-            # コスト情報を更新（ヘッダーの「計算中...」部分を置換）
-            with open(log_filename, 'r', encoding='utf-8') as f:
-                content = f.read()
-            
-            cost_summary = f"**入力**: {session_summary['total_input_tokens']}tokens\n**出力**: {session_summary['total_output_tokens']}tokens\n**推定コスト**: ${session_summary['total_cost']:.4f}"
-            content = content.replace("**推定コスト**: 計算中...", cost_summary)
-            
-            with open(log_filename, 'w', encoding='utf-8') as f:
-                f.write(content + cost_info)
-                
+            with open(log_filename, 'a', encoding='utf-8') as f:
+                f.write(footer)
         except Exception as e:
             print(f"⚠️ ログ完了処理エラー: {e}")
 
@@ -1767,49 +1723,24 @@ class MultiRoleManager:
         else:  # meeting
             execution_mode_info.append("**実行モード**: チーム会議")
             execution_mode_info.append(f"**会議テーマ**: {topic}")
-            if total_elapsed is not None:
-                execution_mode_info.append(f"**実時間**: {total_elapsed:.2f}秒")
             if summary_elapsed is not None:
                 execution_mode_info.append(f"**まとめ時間**: {summary_elapsed:.2f}秒")
         
         # セッションの使用量サマリーを取得
         session_summary = self.token_tracker.get_session_summary()
-        cost_info = f"**入力**: {session_summary['total_input_tokens']}tokens\n**出力**: {session_summary['total_output_tokens']}tokens\n**推定コスト**: ${session_summary['total_cost']:.4f}"
-        
-        # 組織情報を取得
-        organization = self.organization_info.get('organization', '不明')
-        
-        # 参加ロール詳細情報を作成
-        role_details = []
-        for participant in participants:
-            if participant in self.active_roles:
-                role_info = self.active_roles[participant]
-                assistant = role_info.get('assistant', '不明')
-                model = role_info.get('model', '不明')
-                role_details.append(f"{participant} ({assistant}:{model})")
-            else:
-                role_details.append(f"{participant} (設定なし)")
 
         # 見出しレベルを親から相対計算
         title_level = max(1, min(6, parent_heading_level + 1))
         section_level = max(1, min(6, title_level + 1))
         entry_level = max(1, min(6, section_level + 1))
-        
-        md_content = f"""{self._markdown_heading(title_level, f"{log_type_jp.get(log_type, 'ログ')} - {topic}")}
 
-**開催日時**: {datetime.now().strftime("%Y年%m月%d日 %H:%M:%S")}
-**組織**: {organization}
-{chr(10).join(execution_mode_info)}
-**参加者**: {', '.join(participants)}
-**参加ロール詳細**: 
-  {chr(10).join([f'  {detail}' for detail in role_details])}
-**推定コスト**: {cost_info}
-
----
-
-{self._markdown_heading(section_level, f"📋 {'議事録' if log_type == 'meeting' else '記録'}")}
-
-"""
+        section_title = '議事録' if log_type == 'meeting' else '記録'
+        md_content = self._build_log_header(
+            f"{log_type_jp.get(log_type, 'ログ')} - {topic}",
+            participants,
+            execution_mode_info,
+            heading_level=title_level,
+        ) + f"\n{self._markdown_heading(section_level, f'📋 {section_title}')}\n\n"
         
         # クイズの場合は応答時間情報を追加
         if log_type == "quiz" and response_times:
@@ -1868,17 +1799,11 @@ class MultiRoleManager:
 {adjusted_summary}
 
 ---
-
-*このログは MultiRoleChat v{VERSION} により自動生成されました*
 """
         
         # 完了フッターを追加
-        elapsed_line = f"\n**実時間**: {total_elapsed:.2f}秒" if total_elapsed is not None else ""
-        md_content += f"""
----
-
-**実行完了**: {datetime.now().strftime('%Y年%m月%d日 %H:%M:%S')}{elapsed_line}
-"""
+        md_content += self._build_log_footer(session_summary, total_elapsed)
+        md_content += self._build_response_summary_table(meeting_log, log_times, response_times)
 
         # ファイルに保存
         try:
