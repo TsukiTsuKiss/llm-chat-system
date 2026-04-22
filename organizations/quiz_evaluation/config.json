@@ -41,7 +41,7 @@
     {
       "name": "Together自称クイズ王",
       "assistant": "Together",
-      "model": "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
+      "model": "meta-llama/Llama-4-Maverick-17B-128E-Instruct-Turbo",
       "system_prompt_file": "roles/quiz_king.txt"
     },
     {
@@ -91,7 +91,7 @@
     {
       "name": "Together自称クイズ王",
       "assistant": "Together",
-      "model": "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
+      "model": "meta-llama/Llama-4-Maverick-17B-128E-Instruct-Turbo",
       "system_prompt_file": "roles/quiz_king.txt"
     },
     {
