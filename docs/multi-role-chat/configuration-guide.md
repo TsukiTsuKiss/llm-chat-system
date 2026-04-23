@@ -82,7 +82,72 @@ Grok,langchain_xai,ChatXAI,grok-4-1-fast,grok-4-1-fast-non-reasoning
 
 > **`steps` vs `parallel_steps`**
 > - `steps`: 前のロールの回答を次のロールに引き継ぐ逐次実行。対話形式の議論に最適。
-> - `parallel_steps`: 全ロールに同じ入力を同時投げる並列実行。最遅モデルの時間で全吧1回分完了（鱼次比最大4倍速）。
+> - `parallel_steps`: 全ロールに同じ入力を同時投げる並列実行。最遅モデルの時間で全部1回分完了（逐次比最大4倍速）。
+
+### phases スキーマ（推奨・新スキーマ）
+
+`phases` を使うとネスト構造・ループ・サブルーチン呼び出しを表現できます。`steps` / `parallel_steps` と共存可能（互換維持）。
+
+```json
+"workflows": {
+  "my_workflow": {
+    "name": "ワークフロー名",
+    "description": "説明文",
+    "phases": [
+      {
+        "type": "parallel",
+        "steps": [
+          {"role": "ロールA", "action": "アイデア出し"},
+          {"role": "ロールB", "action": "別視点で提案"}
+        ]
+      },
+      {
+        "type": "serial",
+        "steps": [
+          {"role": "司会", "action": "議論をまとめる"}
+        ]
+      },
+      {
+        "type": "loop",
+        "max_iterations": 3,
+        "exit_condition": "全員賛成",
+        "phases": [
+          {"type": "serial", "steps": [
+            {"role": "司会", "action": "最有力案に賛否を問う"},
+            {"role": "メンバー", "action": "賛否と理由を述べる"}
+          ]}
+        ]
+      },
+      {
+        "type": "call",
+        "workflow": "vote_base"
+      }
+    ]
+  },
+  "vote_base": {
+    "name": "投票（共通）",
+    "phases": [
+      {"type": "loop", "max_iterations": 3, "exit_condition": "全員賛成",
+       "phases": [{"type": "serial", "steps": [
+         {"role": "司会", "action": "最有力案に賛否を問う"},
+         {"role": "メンバー", "action": "賛否を答える"}
+       ]}]}
+    ]
+  }
+}
+```
+
+| フェーズタイプ | 説明 | 主な用途 |
+|---|---|---|
+| `serial` | 前の発言を引き継いで順番に実行 | 議論・検討 |
+| `parallel` | 全ステップを同時並列実行 | アイデア出し・多視点分析 |
+| `loop` | `exit_condition` に合致するまで繰り返す | 投票・レビュー・反復改善 |
+| `call` | 別ワークフローをサブルーチンとして実行 | 共通処理の再利用 |
+
+> **`call` の注意点**
+> - 呼び出し先ワークフローは同じ `config.json` の `workflows` 内に定義する
+> - 循環呼び出し（A→B→A）は自動検出してスキップ
+> - `--mermaid` オプションで call 先の中身を含む subgraph 展開済みフロー図を確認できる
 
 ## ロール名の統一
 

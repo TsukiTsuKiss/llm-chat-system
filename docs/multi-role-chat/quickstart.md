@@ -13,10 +13,10 @@ python MultiRoleChat.py --demo
 # 企業経営向け（秘書、企画、分析官、実行担当、マーケター、デザイナー）
 python MultiRoleChat.py --organization
 
-# 創造性特化組織での直接ワークフロー実行（新機能）
+# 創造性特化組織での直接ワークフロー実行
 python MultiRoleChat.py --org creative_org --workflow creative_brainstorm --topic "革新的なAIサービス"
 
-# 組織の利用可能ワークフロー確認（新機能）
+# 組織の利用可能ワークフロー確認
 python MultiRoleChat.py --org creative_org
 
 # 討論・面接などの特定シナリオ

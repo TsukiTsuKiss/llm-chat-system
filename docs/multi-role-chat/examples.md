@@ -288,4 +288,72 @@ workflow project_planning "参入戦略の立案"
 meeting 全メンバー "最終的な実行計画"
 ```
 
+---
+
+## 🎯 シナリオ7: サブルーチン呼び出し（`call` フェーズ）
+
+### 目標
+汎用的な投票処理を再利用可能なサブワークフローとして定義し、複数のワークフローから呼び出す
+
+### 設定例（nokuru 組織）
+
+```json
+"workflows": {
+  "vote_base": {
+    "name": "投票（共通）",
+    "phases": [{
+      "type": "loop", "max_iterations": 3, "exit_condition": "全員賛成",
+      "phases": [{"type": "serial", "steps": [
+        {"role": "かえで", "action": "最有力案を1つに絞り全員に賛否を問う"},
+        {"role": "ひなた", "action": "賛成か反対か理由とともに答える"},
+        {"role": "さつき", "action": "賛否をのんびり一言で答える"},
+        {"role": "ゆき（ゲスト）", "action": "実用面から短く答える。全員賛成なら「全員賛成」と明記"}
+      ]}]
+    }]
+  },
+  "camp_with_vote": {
+    "name": "キャンプ議題→投票",
+    "phases": [
+      {"type": "parallel", "steps": [
+        {"role": "ひなた", "action": "行きたいキャンプ地を熱くプレゼンする"},
+        {"role": "さつき", "action": "キャンプ飯の観点でオススメを提案する"},
+        {"role": "ゆき（ゲスト）", "action": "ソロ経験から穴場を提案する"}
+      ]},
+      {"type": "call", "workflow": "vote_base"}
+    ]
+  }
+}
+```
+
+### 実行
+
+```bash
+# フロー図を事前確認（vote_base の中身が subgraph で展開される）
+python MultiRoleChat.py --org nokuru --workflow camp_with_vote --mermaid
+
+# 実行
+python MultiRoleChat.py --org nokuru --workflow camp_with_vote --topic "夏の締めくくりキャンプ"
+```
+
+### 実行フロー
+
+```
+1. 並列: ひなた・さつき・ゆきが同時にキャンプ地案を出す
+   ↓
+📞 サブワークフロー '投票（共通）' を呼び出します
+   ↓
+2. ループ（最大3回）:
+   - かえでが最有力案に絞り賛否を問う
+   - 3人が順番に回答
+   - 「全員賛成」が出たらループ終了
+```
+
+### `call` の特徴
+
+- `vote_base` は単独でも実行でき、他のワークフローからも呼べる
+- 循環呼び出し（A→B→A）は自動検出してスキップ
+- ログの「フロー設計」Mermaidに `subgraph` として call 先の中身が展開される
+
+---
+
 これらのシナリオを参考に、あなたの具体的なニーズに合わせてMultiRoleChatを活用してください！

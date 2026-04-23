@@ -39,8 +39,8 @@ import asyncio
 import concurrent.futures
 
 # Version information
-VERSION = "1.3.0"
-VERSION_DATE = "2026-04-22"
+VERSION = "1.6.0"
+VERSION_DATE = "2026-04-23"
 
 # Configuration files
 AI_ASSISTANTS_CONFIG_FILE = "ai_assistants_config.csv"
@@ -602,6 +602,122 @@ class MultiRoleManager:
             'test_results': test_results
         }
 
+    def _run_phases(self, phases, topic, accumulated=None, step_num=1, **engine_kwargs):
+        """phases リストを再帰的に実行。(accumulated_results, next_step_num) を返す"""
+        acc = list(accumulated or [])
+        # _call_stack は call フェーズ用の内部管理キーで _run_engine には渡さない
+        call_stack_value = engine_kwargs.pop('_call_stack', frozenset())
+
+        for phase in phases:
+            phase_type = phase.get('type', 'serial')
+
+            if phase_type == 'serial':
+                steps = phase.get('steps', [])
+                exec_plan = [[s] for s in steps if s['role'] in self.active_roles]
+                for s in steps:
+                    if s['role'] not in self.active_roles:
+                        print(f"⚠️ ロール '{s['role']}' が見つかりません。スキップします。")
+                if exec_plan:
+                    result = self._run_engine(exec_plan, topic, step_offset=step_num - 1, prev_results=acc, **engine_kwargs)
+                    acc = result['results']
+                    step_num += len(exec_plan)
+
+            elif phase_type == 'parallel':
+                steps = phase.get('steps', [])
+                active = [s for s in steps if s['role'] in self.active_roles]
+                for s in steps:
+                    if s['role'] not in self.active_roles:
+                        print(f"⚠️ ロール '{s['role']}' が見つかりません。スキップします。")
+                if active:
+                    exec_plan = [active]
+                    result = self._run_engine(exec_plan, topic, step_offset=step_num - 1, prev_results=acc, **engine_kwargs)
+                    acc = result['results']
+                    step_num += len(active)
+
+            elif phase_type == 'loop':
+                max_iter = phase.get('max_iterations', 3)
+                exit_condition = phase.get('exit_condition', '')
+                sub_phases = phase.get('phases', [])
+
+                for iteration in range(1, max_iter + 1):
+                    print(f"\n🔄 ループ反復 {iteration}/{max_iter}")
+                    print("-" * 40)
+                    acc, step_num = self._run_phases(sub_phases, topic, accumulated=acc, step_num=step_num, **engine_kwargs)
+                    if exit_condition and acc:
+                        if exit_condition in acc[-1]:
+                            print(f"✅ 終了条件達成: '{exit_condition}'")
+                            break
+                        else:
+                            if iteration < max_iter:
+                                print(f"⏩ 終了条件未達成。次の反復へ...")
+
+            elif phase_type == 'call':
+                sub_wf_name = phase.get('workflow')
+                workflows = self.organization_config.get('workflows', {}) if self.organization_config else {}
+                if not sub_wf_name:
+                    print(f"⚠️ call フェーズに 'workflow' が指定されていません。スキップします。")
+                elif sub_wf_name in call_stack_value:
+                    print(f"⚠️ 循環呼び出しを検出: '{sub_wf_name}'。スキップします。")
+                elif sub_wf_name not in workflows:
+                    print(f"⚠️ サブワークフロー '{sub_wf_name}' が見つかりません。スキップします。")
+                else:
+                    sub_wf = workflows[sub_wf_name]
+                    sub_phases = sub_wf.get('phases', [])
+                    sub_name = sub_wf.get('name', sub_wf_name)
+                    print(f"\n📞 サブワークフロー '{sub_name}' を呼び出します")
+                    print("-" * 40)
+                    acc, step_num = self._run_phases(
+                        sub_phases, topic, accumulated=acc, step_num=step_num,
+                        _call_stack=call_stack_value | {sub_wf_name},
+                        **engine_kwargs
+                    )
+
+            else:
+                print(f"⚠️ 未知のフェーズタイプ '{phase_type}' をスキップします。")
+
+        return acc, step_num
+
+    def _execute_phases_workflow(self, workflow_name, workflow, topic):
+        """phases スキーマで定義されたワークフローを実行"""
+        self.current_workflow_info = self._build_workflow_info(
+            workflow_name, workflow, execution_mode='phases',
+            iteration_count=1, max_iterations=1, test_results=None
+        )
+        self.workflow_responses = []
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_filename = f"multi_logs/{timestamp}_{workflow_name}.md"
+        os.makedirs("multi_logs", exist_ok=True)
+        self._initialize_workflow_log(log_filename, workflow, topic, workflow_name)
+
+        phases = workflow.get('phases', [])
+        wf_name = workflow.get('name', workflow_name)
+        print(f"\n🔄 ワークフロー '{wf_name}' を開始します")
+        print(f"📝 ログファイル: {log_filename}")
+        print(f"トピック: {topic}")
+        print("=" * 60)
+
+        _start = time.time()
+        results, _ = self._run_phases(
+            phases, topic,
+            log_filename=log_filename,
+            response_limit=workflow.get('response_limit', WORKFLOW_RESPONSE_LIMIT),
+            style=workflow.get('style', '簡潔'),
+            format_pref=workflow.get('format', '箇条書き推奨'),
+        )
+        total_elapsed = time.time() - _start
+
+        print("=" * 60)
+        print(f"✅ ワークフロー完了（実時間: {total_elapsed:.2f}秒）")
+
+        session_summary = self.token_tracker.get_session_summary()
+        self._finalize_workflow_log(log_filename, session_summary, total_elapsed=total_elapsed)
+        print(f"💾 ワークフローログが完成しました: {log_filename}")
+        print(f"💰 このセッションのコスト: ${session_summary['total_cost']:.4f}")
+
+        self._save_workflow_final_code(topic, workflow_name)
+        return results
+
     def execute_iterative_workflow(self, workflow_name, topic, max_iterations=5):
         """反復実行可能なワークフローを実行（条件分岐ループ）"""
         workflow = self._resolve_workflow(workflow_name, show_available=True)
@@ -686,6 +802,10 @@ class MultiRoleManager:
         workflow = self._resolve_workflow(workflow_name, show_available=True)
         if not workflow:
             return
+
+        # phases スキーマが定義されている場合は新エンジンに委譲
+        if 'phases' in workflow:
+            return self._execute_phases_workflow(workflow_name, workflow, topic)
 
         self.current_workflow_info = self._build_workflow_info(
             workflow_name, workflow, execution_mode='single',
@@ -1579,8 +1699,11 @@ class MultiRoleManager:
         """ワークフローログファイルのヘッダーを初期化"""
         workflow_title = workflow.get('name', workflow_name)
         workflow_description = workflow.get('description', '説明なし')
-        _steps = workflow.get('steps', []) + workflow.get('parallel_steps', [])
-        workflow_participants = [step['role'] for step in _steps]
+        if 'phases' in workflow:
+            workflow_participants = _collect_roles_from_phases(workflow['phases'], (self.organization_config or {}).get('workflows', {}))
+        else:
+            _steps = workflow.get('steps', []) + workflow.get('parallel_steps', [])
+            workflow_participants = [step['role'] for step in _steps]
 
         metadata = [
             "**実行モード**: ワークフロー",
@@ -1590,12 +1713,23 @@ class MultiRoleManager:
             f"**説明**: {workflow_description}",
             "**反復回数**: 1/1",
         ]
+
+        # フローチャートセクション（並列またはループを含む場合のみ図を、直列のみは一文）
+        phases = workflow.get('phases', [])
+        org_workflows = (self.organization_config or {}).get('workflows', {})
+        has_non_serial = any(p.get('type') != 'serial' for p in _iter_phases_flat(phases, org_workflows))
+        if has_non_serial:
+            mermaid_block = "```mermaid\n" + workflow_to_mermaid(workflow_name, workflow, org_workflows) + "\n```"
+            flow_section = f"\n## 🔀 フロー設計\n\n{mermaid_block}\n"
+        else:
+            flow_section = "\n## 🔀 フロー設計\n\n直列なので省略します。\n"
+
         header_content = self._build_log_header(
             f"ワークフローログ - {topic}",
             workflow_participants,
             metadata,
             heading_level=1,
-        ) + "\n## 📋 記録\n\n"
+        ) + flow_section + "\n## 📋 記録\n\n"
 
         try:
             with open(log_filename, 'w', encoding='utf-8') as f:
@@ -1876,6 +2010,8 @@ def parse_arguments():
                         help="Execute specific workflow (e.g., creative_brainstorm, innovation_challenge)")
     parser.add_argument("--topic", type=str,
                         help="Topic for workflow execution")
+    parser.add_argument("--mermaid", action="store_true",
+                        help="Print Mermaid flowchart for the specified workflow and exit")
     parser.add_argument("--scenario", type=str,
                         help="Start with a predefined scenario (e.g., debate, brainstorm, interview, auto_programming)")
     parser.add_argument("--config", type=str,
@@ -2012,6 +2148,137 @@ def setup_organization_from_config(role_manager, org_config):
         except Exception as e:
             print(f"❌ ロール '{role_config['name']}' の設定でエラーが発生しました: {e}")
 
+def _collect_roles_from_phases(phases, workflows=None):
+    """phases リストから登場するロール名を再帰的に収集する"""
+    roles = []
+    for phase in phases:
+        ptype = phase.get('type', 'serial')
+        if ptype in ('serial', 'parallel'):
+            for step in phase.get('steps', []):
+                roles.append(step['role'])
+        elif ptype == 'loop':
+            roles.extend(_collect_roles_from_phases(phase.get('phases', []), workflows))
+        elif ptype == 'call' and workflows:
+            sub_wf_name = phase.get('workflow')
+            if sub_wf_name and sub_wf_name in workflows:
+                roles.extend(_collect_roles_from_phases(workflows[sub_wf_name].get('phases', []), workflows))
+    return roles
+
+def _iter_phases_flat(phases, workflows=None):
+    """phases ツリーを再帰的に平坦化して全フェーズオブジェクトを yield する"""
+    for phase in phases:
+        yield phase
+        if phase.get('type') == 'loop':
+            yield from _iter_phases_flat(phase.get('phases', []), workflows)
+        elif phase.get('type') == 'call' and workflows:
+            sub_wf_name = phase.get('workflow')
+            if sub_wf_name and sub_wf_name in workflows:
+                yield from _iter_phases_flat(workflows[sub_wf_name].get('phases', []), workflows)
+
+def workflow_to_mermaid(workflow_name, workflow, org_workflows=None):
+    """ワークフロー設定を Mermaid フローチャート文字列に変換する"""
+    lines = ["flowchart TD"]
+    counter = [0]
+
+    def nid(prefix="N"):
+        counter[0] += 1
+        return f"{prefix}{counter[0]}"
+
+    def safe_label(text, max_len=28):
+        return text[:max_len].replace('"', "'").replace('\n', ' ')
+
+    rendering_calls = set()  # subgraph 展開時の循環防止
+
+    def render(phases, from_id):
+        cur = from_id
+        for phase in phases:
+            ptype = phase.get('type', 'serial')
+            if ptype == 'serial':
+                for step in phase.get('steps', []):
+                    n = nid()
+                    role = safe_label(step['role'])
+                    action = safe_label(step.get('action', ''))
+                    lines.append(f'    {n}["{role}\\n{action}"]')
+                    lines.append(f'    {cur} --> {n}')
+                    cur = n
+            elif ptype == 'parallel':
+                steps = phase.get('steps', [])
+                join = nid("J")
+                lines.append(f'    {join}[ ]')
+                for step in steps:
+                    n = nid()
+                    role = safe_label(step['role'])
+                    action = safe_label(step.get('action', ''))
+                    lines.append(f'    {n}["{role}\\n{action}"]')
+                    lines.append(f'    {cur} --> {n}')
+                    lines.append(f'    {n} --> {join}')
+                cur = join
+            elif ptype == 'loop':
+                max_it = phase.get('max_iterations', 3)
+                exit_c = safe_label(phase.get('exit_condition', '終了条件'))
+                ls = nid("L")
+                lines.append(f'    {ls}[[ループ MAX{max_it}回]]')
+                lines.append(f'    {cur} --> {ls}')
+                last = render(phase.get('phases', []), ls)
+                chk = nid("C")
+                lines.append(f'    {chk}{{"{exit_c}"}}')
+                lines.append(f'    {last} --> {chk}')
+                le = nid("LE")
+                lines.append(f'    {le}([ループ終了])')
+                lines.append(f'    {chk} -->|はい| {le}')
+                lines.append(f'    {chk} -->|いいえ| {ls}')
+                cur = le
+            elif ptype == 'call':
+                sub_wf_name = phase.get('workflow', '')
+                if org_workflows and sub_wf_name in org_workflows and sub_wf_name not in rendering_calls:
+                    # サブワークフローを subgraph として展開
+                    rendering_calls.add(sub_wf_name)
+                    sub_wf = org_workflows[sub_wf_name]
+                    sub_label = safe_label(sub_wf.get('name', sub_wf_name))
+                    sg = nid("SG")
+                    se = nid("SE")
+                    lines.append(f'    subgraph {sg} ["📞 {sub_label}"]')
+                    lines.append(f'    direction TD')
+                    lines.append(f'    {se}[ ]')
+                    sub_last = render(sub_wf.get('phases', []), se)
+                    lines.append(f'    end')
+                    lines.append(f'    {cur} --> {se}')
+                    rendering_calls.discard(sub_wf_name)
+                    cur = sub_last
+                else:
+                    # 循環呼び出しまたは未定義: 単一ノードにフォールバック
+                    if org_workflows and sub_wf_name in org_workflows:
+                        label = safe_label(org_workflows[sub_wf_name].get('name', sub_wf_name))
+                    else:
+                        label = safe_label(sub_wf_name)
+                    n = nid("CALL")
+                    lines.append(f'    {n}[["📞 {label}"]]')
+                    lines.append(f'    {cur} --> {n}')
+                    cur = n
+            else:
+                pass  # unknown type, skip
+        return cur
+
+    start = nid("S")
+    end = nid("E")
+    wf_title = safe_label(workflow.get('name', workflow_name), 35)
+    lines.append(f'    {start}([開始: {wf_title}])')
+
+    if 'phases' in workflow:
+        last = render(workflow['phases'], start)
+    else:
+        # レガシー schema でも動くように変換
+        legacy = []
+        if workflow.get('steps'):
+            legacy.append({'type': 'serial', 'steps': workflow['steps']})
+        if workflow.get('parallel_steps'):
+            legacy.append({'type': 'parallel', 'steps': workflow['parallel_steps']})
+        last = render(legacy, start)
+
+    lines.append(f'    {last} --> {end}')
+    lines.append(f'    {end}([終了])')
+    return "\n".join(lines)
+
 def execute_workflow(role_manager, org_config, workflow_name, topic):
     """ワークフローを実行（反復機能対応）"""
     if 'workflows' not in org_config or workflow_name not in org_config['workflows']:
@@ -2026,7 +2293,17 @@ def execute_workflow(role_manager, org_config, workflow_name, topic):
     workflow = org_config['workflows'][workflow_name]
     workflow_title = workflow.get('name', workflow_name)
     workflow_description = workflow.get('description', '')
-    
+
+    # phases スキーマが定義されている場合は RoleManager に直接委譲
+    if 'phases' in workflow:
+        print(f"\n🎭 ワークフロー実行: {workflow_title}")
+        if workflow_description:
+            print(f"📝 説明: {workflow_description}")
+        print(f"💬 トピック: {topic}")
+        print("=" * 60)
+        role_manager.execute_workflow(workflow_name, topic)
+        return
+
     # 反復ワークフローかどうかを判定
     is_iterative = workflow.get('max_iterations', 0) > 1 or workflow_name.endswith('_iterative')
     
@@ -2431,13 +2708,22 @@ def main():
             if not setup_scenario_roles_from_org(role_manager, org_config, args.scenario):
                 return  # シナリオ設定失敗時は終了
             # シナリオモードではメインループに入る
+        # Mermaidフローチャート出力（実行なし）
+        elif args.workflow and args.mermaid:
+            workflows = org_config.get('workflows', {})
+            if args.workflow not in workflows:
+                print(f"[ERROR] ワークフロー '{args.workflow}' が見つかりません。")
+                print("利用可能なワークフロー:", list(workflows.keys()))
+                return
+            print(workflow_to_mermaid(args.workflow, workflows[args.workflow], workflows))
+            return
         # ワークフロー実行が指定されている場合
         elif args.workflow and args.topic:
             print(f"🎯 ワークフロー '{args.workflow}' を実行しています...")
             execute_workflow(role_manager, org_config, args.workflow, args.topic)
             return
         elif args.workflow:
-            print("[ERROR] ワークフロー実行にはトピック (--topic) が必要です。")
+            print("[ERROR] ワークフロー実行にはトピック (--topic) が必要です。--mermaid でフローチャートのみ出力できます。")
             return
         
     else:

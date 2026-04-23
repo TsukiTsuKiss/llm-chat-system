@@ -10,6 +10,10 @@ import json
 import sys
 from pathlib import Path
 
+# Windows cp932 環境での絵文字出力対策
+if sys.stdout.encoding and sys.stdout.encoding.lower() in ('cp932', 'shift_jis', 'mbcs'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+
 def print_header(title):
     """テストセクションのヘッダーを表示"""
     print(f"\n{'='*50}")
@@ -208,6 +212,7 @@ def test_workflow_files():
                 has_description = 'description' in workflow_config
                 has_name = 'name' in workflow_config
                 has_steps = 'steps' in workflow_config
+                has_phases = 'phases' in workflow_config
                 
                 if has_description or has_name:
                     desc_field = 'description' if has_description else 'name'
@@ -216,18 +221,32 @@ def test_workflow_files():
                     print(f"      ❌ description または name フィールドなし")
                     return False
                 
-                if has_steps:
-                    print(f"      ✅ steps フィールドあり")
+                if has_phases:
+                    print(f"      ✅ phases フィールドあり")
+                    # ネストを含む全ステップ数をカウント
+                    def count_steps(phases_list):
+                        total = 0
+                        for p in phases_list:
+                            total += len(p.get('steps', []))
+                            if 'phases' in p:  # loop 内ネスト
+                                total += count_steps(p['phases'])
+                        return total
+                    total_steps = count_steps(workflow_config['phases'])
+                    if total_steps > 0:
+                        print(f"      📊 総ステップ数: {total_steps}")
+                    else:
+                        print("      ❌ ステップが空")
+                        return False
+                elif has_steps:
+                    print(f"      ✅ steps フィールドあり（旧形式）")
+                    steps = workflow_config.get('steps', [])
+                    if steps:
+                        print(f"      📊 ステップ数: {len(steps)}")
+                    else:
+                        print("      ❌ ステップが空")
+                        return False
                 else:
-                    print(f"      ❌ steps フィールドなし")
-                    return False
-                        
-                # ステップ数チェック
-                steps = workflow_config.get('steps', [])
-                if steps:
-                    print(f"      📊 ステップ数: {len(steps)}")
-                else:
-                    print("      ❌ ステップが空")
+                    print(f"      ❌ phases または steps フィールドなし")
                     return False
                     
         except Exception as e:
