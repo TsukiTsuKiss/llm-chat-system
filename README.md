@@ -95,6 +95,9 @@
 - 📖 **[メインガイド](docs/single-chat/README.md)** - 基本機能と設定
 - 🚨 **[エラーハンドリング](docs/single-chat/error-handling.md)** - API制限エラー対応機能
 
+### MyPedia
+- 🌐 **[MyPedia ガイド](docs/mypedia/README.md)** - Web Q&A の起動方法・引数・API仕様
+
 ## 🔧 統合管理ユーティリティ
 
 ### 1. モデルコスト管理（SQLite） - `model_costs_db.py`

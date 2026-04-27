@@ -52,16 +52,52 @@ HTML = """
 	button{padding:10px 14px;margin-top:8px;}
 	pre{white-space:pre-wrap;background:#f6f6f6;padding:12px;border-radius:8px;}
 	.term{color:blue;cursor:pointer;text-decoration:underline;background:#eef4ff;border-radius:3px;padding:0 2px;margin:0 1px;}
+	.help-link{float:right;font-size:13px;color:#555;text-decoration:none;margin-top:6px;}
+	.help-link:hover{color:#000;}
+	details{margin-top:32px;border:1px solid #ddd;border-radius:8px;padding:12px 16px;background:#fafafa;}
+	summary{cursor:pointer;font-weight:bold;font-size:15px;}
+	.help-body{margin-top:12px;font-size:14px;line-height:1.7;}
+	.help-body code{background:#eee;padding:1px 5px;border-radius:3px;font-size:13px;}
+	.help-body table{border-collapse:collapse;width:100%;}
+	.help-body th,.help-body td{border:1px solid #ccc;padding:5px 10px;text-align:left;font-size:13px;}
+	.help-body th{background:#f0f0f0;}
 </style>
 </head>
 <body>
-<h2>MyPedia - Q&A</h2>
-<textarea id="q" placeholder="例：ラズパイとは何ですか？"></textarea><br>
+<h2>MyPedia - Q&A <a class="help-link" href="/help" target="_blank">📖 ヘルプ（別タブ）</a></h2>
+<textarea id="q" placeholder="例：ラズパイとは何ですか？">かぐや姫の出した難題とは何だい？</textarea><br>
 <button onclick="ask()">Ask</button>
 <button id="backBtn" onclick="goBack()" disabled>戻る</button>
 <button id="forwardBtn" onclick="goForward()" disabled>進む</button>
+<label style="margin-left:16px;font-size:13px;">Temperature: <input type="range" id="temp" min="0" max="2" step="0.1" value="0" oninput="document.getElementById('tempVal').textContent=this.value" style="vertical-align:middle;"> <span id="tempVal">0</span></label>
 <div id="timing" style="margin-top:8px; font-size:14px;"></div>
 <pre id="a"></pre>
+
+<details>
+<summary>📖 ヘルプ</summary>
+<div class="help-body">
+<p>入力欄に質問を入れて <strong>Ask</strong> を押すと、LLM が回答します。</p>
+<h3>基本操作</h3>
+<table>
+<tr><th>操作</th><th>説明</th></tr>
+<tr><td>Ask</td><td>質問を送信して回答を表示</td></tr>
+<tr><td>青いリンク語句をクリック</td><td>その語句で自動再検索（ドリルダウン）</td></tr>
+<tr><td>戻る / 進む</td><td>閲覧履歴を前後に移動</td></tr>
+<tr><td>Temperature スライダー</td><td>LLM の出力のランダム性を調整（0=確定的・事実寄り、1〜2=創造的・多様）。既定値は 0。</td></tr>
+</table>
+<h3>リンク語句について</h3>
+<p>回答中に <code>[[語句]]</code> 形式で含まれた語句、および英単語・カタカナ語・漢字語句が自動でリンク化されます。クリックすると <code>「語句」とは何ですか？</code> を自動送信します。</p>
+<h3>起動コマンド例</h3>
+<table>
+<tr><th>コマンド</th><th>説明</th></tr>
+<tr><td><code>python3 MyPedia.py</code></td><td>Groq（既定）で起動</td></tr>
+<tr><td><code>python3 MyPedia.py -a Grok</code></td><td>Grok で起動</td></tr>
+<tr><td><code>python3 MyPedia.py -a Grok --model grok-3</code></td><td>モデル直接指定</td></tr>
+<tr><td><code>python3 MyPedia.py --port 8080</code></td><td>ポート変更</td></tr>
+</table>
+<p style="margin-top:10px"><a href="/help" target="_blank">詳細ドキュメントを別タブで開く →</a></p>
+</div>
+</details>
 
 <script>
 const historyStack = [];
@@ -217,7 +253,7 @@ async function ask(){
 		const res = await fetch("/ask", {
 			method:"POST",
 			headers: {"Content-Type":"application/json"},
-			body: JSON.stringify({question:q})
+			body: JSON.stringify({question:q, temperature:parseFloat(document.getElementById("temp").value)})
 		});
 
 		// 失敗時の表示を分かりやすく
@@ -260,11 +296,77 @@ async function ask(){
 
 class AskReq(BaseModel):
     question: str
+    temperature: float = 0.0
 
 
 @app.get("/", response_class=HTMLResponse)
 def index():
     return HTML
+
+
+@app.get("/help", response_class=HTMLResponse)
+def help_page():
+    doc_path = os.path.join(os.path.dirname(__file__), "docs", "mypedia", "README.md")
+    try:
+        md = open(doc_path, encoding="utf-8").read()
+    except FileNotFoundError:
+        md = "ドキュメントが見つかりません。"
+
+    # Markdown を簡易 HTML 変換
+    import html as _html
+    lines = md.split("\n")
+    body_lines = []
+    in_code = False
+    in_ul = False
+    for line in lines:
+        esc = _html.escape(line)
+        if esc.startswith("```"):
+            if in_ul:
+                body_lines.append("</ul>"); in_ul = False
+            if in_code:
+                body_lines.append("</code></pre>"); in_code = False
+            else:
+                body_lines.append("<pre><code>"); in_code = True
+        elif in_code:
+            body_lines.append(esc)
+        elif esc.startswith("### "):
+            if in_ul: body_lines.append("</ul>"); in_ul = False
+            body_lines.append(f"<h3>{esc[4:]}</h3>")
+        elif esc.startswith("## "):
+            if in_ul: body_lines.append("</ul>"); in_ul = False
+            body_lines.append(f"<h2>{esc[3:]}</h2>")
+        elif esc.startswith("# "):
+            if in_ul: body_lines.append("</ul>"); in_ul = False
+            body_lines.append(f"<h1>{esc[2:]}</h1>")
+        elif esc.startswith("- "):
+            if not in_ul: body_lines.append("<ul>"); in_ul = True
+            body_lines.append(f"<li>{esc[2:]}</li>")
+        elif esc == "":
+            if in_ul: body_lines.append("</ul>"); in_ul = False
+        else:
+            if in_ul: body_lines.append("</ul>"); in_ul = False
+            body_lines.append(f"<p>{esc}</p>")
+    if in_ul: body_lines.append("</ul>")
+    if in_code: body_lines.append("</code></pre>")
+
+    body = "\n".join(body_lines)
+    return f"""<!doctype html><html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MyPedia ヘルプ</title>
+<style>
+body{{font-family:system-ui,sans-serif;max-width:860px;margin:24px;line-height:1.6;}}
+h1{{margin:16px 0 8px;}}
+h2{{margin:14px 0 6px;}}
+h3{{margin:10px 0 4px;}}
+p{{margin:4px 0;}}
+ul{{margin:4px 0 4px 24px;padding:0;}}
+li{{margin:2px 0;}}
+pre{{background:#f4f4f4;padding:10px 12px;border-radius:6px;overflow-x:auto;white-space:pre-wrap;margin:6px 0;}}
+code{{background:#eee;padding:1px 5px;border-radius:3px;font-size:0.9em;}}
+</style></head><body>
+{body}
+<p style="margin-top:24px"><a href="/">&larr; MyPedia に戻る</a></p>
+</body></html>"""
 
 
 @app.post("/ping")
@@ -277,8 +379,9 @@ async def ask(req: AskReq):
     if INIT_ERROR:
         raise HTTPException(status_code=500, detail=f"LLM初期化エラー: {INIT_ERROR}")
 
-    prompt = f"""あなたは事実に基づいて回答するアシスタントです。
-不明な場合は推測せず「分かりません」と言ってください。
+    prompt = f"""あなたは知識豊富なアシスタントです。質問に対して分かりやすく答えてください。
+- 質問の内容を勝手に読み替えたり、関係ない話題にしないでください。
+- 確信がない情報には「〜と言われています」「〜の可能性があります」など留保を付けてください。
 
 出力形式を必ず守ってください。
 1. まず質問への回答本文を書く。
@@ -302,7 +405,11 @@ async def ask(req: AskReq):
 日本語で簡潔に答えてください。"""
 
     t0 = time.perf_counter()
-    response = await llm.ainvoke(prompt)
+    try:
+        response = await llm.bind(temperature=req.temperature).ainvoke(prompt)
+    except Exception:
+        # temperature 非対応モデルはそのまま呼ぶ
+        response = await llm.ainvoke(prompt)
     t1 = time.perf_counter()
 
     if isinstance(response, AIMessage):
