@@ -364,7 +364,7 @@ class MultiRoleManager:
         self.role_types[role_name] = role_type
         
         # アシスタントのインスタンスを作成
-        assistant_instance = self.load_assistant(assistant_name, model_name, self.use_fast)
+        assistant_instance = self.load_assistant(assistant_name, model_name, self.use_fast, system_prompt=system_prompt)
         
         # プロンプトテンプレートを作成
         prompt_template = self.create_role_prompt(system_prompt)
@@ -423,7 +423,7 @@ class MultiRoleManager:
             print(f"      システムプロンプト: {system_prompt[:100]}...")
             print()
     
-    def load_assistant(self, assistant_name, model_name, use_fast=False):
+    def load_assistant(self, assistant_name, model_name, use_fast=False, system_prompt=None):
         """アシスタントインスタンスを作成"""
         module_name = self.ai_assistants[assistant_name]['module']
         class_name = self.ai_assistants[assistant_name]['class']
@@ -439,6 +439,12 @@ class MultiRoleManager:
         # ChatTogetherクラスの場合のみ、nパラメータとmax_retriesを追加
         if class_name == 'ChatTogether':
             return AssistantClass(model=model_name, n=1, max_retries=3)
+        # ChatOpperAIはmodel_nameパラメータを使用し、instructionsにシステムプロンプトを渡す
+        elif class_name == 'ChatOpperAI':
+            kwargs = {'model_name': model_name}
+            if system_prompt:
+                kwargs['instructions'] = system_prompt
+            return AssistantClass(**kwargs)
         else:
             return AssistantClass(model=model_name)
     

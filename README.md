@@ -486,6 +486,21 @@ python tests/test_workflow_logging.py
 
 詳細は [`tests/README.md`](tests/README.md) を参照してください。
 
+## ⚡ パフォーマンス参考値
+
+MultiRoleChat での応答時間ベンチマーク（2026-04-27 / nokuru2組織 / 4ロール並列）
+
+| 構成 | R1（並列） | R2（並列） | R3（並列） | 備考 |
+|------|-----------|-----------|-----------|------|
+| Opper + `anthropic/claude-opus-4` | 22.7秒 | 33.4秒 | 265.0秒 | ラウンドが進むと遅延増加・タイムアウト疑い |
+| Opper + `groq/llama-3.3-70b-versatile` | 4.0秒 | 2.8秒 | 4.0秒 | 安定・最速 |
+| Groq直 + `openai/gpt-oss-120b` | 4.2秒 | 5.3秒 | 6.6秒 | 安定・実用的 |
+
+**ポイント:**
+- Groq系（直接・Opper経由ともに）は Anthropic系の約6〜80倍高速
+- Opper経由でもGroqモデルの速度は健在
+- Opper使用時はシステムプロンプトを `instructions` パラメータで渡す必要あり（LangChainの `SystemMessage` では無視される）
+
 ## 📄 ライセンス
 
 MIT License - 詳細は [LICENSE](LICENSE) ファイルを参照してください。

@@ -1,0 +1,311 @@
+{
+  "organization": "nokuru",
+  "demo_roles": [
+    {
+      "name": "ひなた",
+      "assistant": "Opper",
+      "model": "groq/llama-3.3-70b-versatile",
+      "system_prompt_file": "roles/hinata.txt"
+    },
+    {
+      "name": "さつき",
+      "assistant": "Opper",
+      "model": "groq/llama-3.3-70b-versatile",
+      "system_prompt_file": "roles/satsuki.txt"
+    },
+    {
+      "name": "ゆき（ゲスト）",
+      "assistant": "Opper",
+      "model": "groq/llama-3.3-70b-versatile",
+      "system_prompt_file": "roles/yuki.txt"
+    }
+  ],
+  "organization_roles": [
+    {
+      "name": "ひなた",
+      "assistant": "Opper",
+      "model": "groq/llama-3.3-70b-versatile",
+      "system_prompt_file": "roles/hinata.txt"
+    },
+    {
+      "name": "さつき",
+      "assistant": "Opper",
+      "model": "groq/llama-3.3-70b-versatile",
+      "system_prompt_file": "roles/satsuki.txt"
+    },
+    {
+      "name": "ゆき（ゲスト）",
+      "assistant": "Opper",
+      "model": "groq/llama-3.3-70b-versatile",
+      "system_prompt_file": "roles/yuki.txt"
+    },
+    {
+      "name": "かえで",
+      "assistant": "Opper",
+      "model": "groq/llama-3.3-70b-versatile",
+      "system_prompt_file": "roles/kaede.txt",
+      "role_type": "moderator"
+    }
+  ],
+  "workflows": {
+    "vote_base": {
+      "name": "投票（共通）",
+      "description": "かえでが案を提示し、全員賛成になるまで繰り返す汎用投票サブルーチン",
+      "phases": [
+        {
+          "type": "loop",
+          "max_iterations": 3,
+          "exit_condition": "全員賛成",
+          "phases": [
+            {
+              "type": "serial",
+              "steps": [
+                {
+                  "role": "かえで",
+                  "action": "直前の議論から最有力案を1つに絞り、全員に賛否を問う"
+                },
+                {
+                  "role": "ひなた",
+                  "action": "かえでの案に賛成か反対か、理由とともに元気よく答える"
+                },
+                {
+                  "role": "さつき",
+                  "action": "かえでの案に賛成か反対か、のんびりした一言で答える"
+                },
+                {
+                  "role": "ゆき（ゲスト）",
+                  "action": "かえでの案に実用面から短く答える。3人全員が賛成なら最後に「全員賛成」と必ず明記する"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "camp_with_vote": {
+      "name": "キャンプ議題→投票",
+      "description": "議論でアイデアを出した後、汎用投票サブルーチンで決定する",
+      "phases": [
+        {
+          "type": "parallel",
+          "steps": [
+            {
+              "role": "ひなた",
+              "action": "行きたいキャンプ地のアイデアを熱くプレゼンする"
+            },
+            {
+              "role": "さつき",
+              "action": "キャンプ飯の観点でオススメの場所を提案する"
+            },
+            {
+              "role": "ゆき（ゲスト）",
+              "action": "ソロ経験から穴場・実用的な候補地を提案する"
+            }
+          ]
+        },
+        {
+          "type": "call",
+          "workflow": "vote_base"
+        }
+      ]
+    },
+    "camp_planning": {
+      "name": "キャンプ計画",
+      "description": "春休みのキャンプ先・装備・食事をみんなで楽しく計画する",
+      "phases": [
+        {
+          "type": "serial",
+          "steps": [
+            {
+              "role": "ひなた",
+              "action": "候補のキャンプ地や日程の概要を提示し、議論の方向性を決める"
+            },
+            {
+              "role": "さつき",
+              "action": "食べたいキャンプ飯や行ってみたい場所を元気よく提案する"
+            },
+            {
+              "role": "ゆき（ゲスト）",
+              "action": "候補地の実態・装備・天候など実用的な情報を補足する"
+            },
+            {
+              "role": "かえで",
+              "action": "準備の手間・アクセス・温泉など現実的な視点でバランスを取る"
+            },
+            {
+              "role": "ひなた",
+              "action": "みんなの意見をまとめてキャンプ計画を決定する"
+            }
+          ]
+        }
+      ]
+    },
+    "camp_discussion": {
+      "name": "キャンプ談義",
+      "description": "キャンプにまつわるテーマについて自由に語り合う",
+      "phases": [
+        {
+          "type": "serial",
+          "steps": [
+            {
+              "role": "ひなた",
+              "action": "今日のテーマを発表して議論を始める"
+            },
+            {
+              "role": "さつき",
+              "action": "テーマについて自分の体験や思いを元気よく話す"
+            },
+            {
+              "role": "かえで",
+              "action": "のんびりした視点で一言添える"
+            },
+            {
+              "role": "ゆき（ゲスト）",
+              "action": "ソロキャンプ経験をもとに鋭い一言を添える"
+            },
+            {
+              "role": "ひなた",
+              "action": "話題を整理してみんなの気持ちをまとめる"
+            }
+          ]
+        }
+      ]
+    },
+    "camp_idea_parallel": {
+      "name": "キャンプアイデア出し（並列）",
+      "description": "テーマについてみんなが一斉にアイデアを出し、かえでがまとめる",
+      "phases": [
+        {
+          "type": "parallel",
+          "steps": [
+            {
+              "role": "ひなた",
+              "action": "テーマについて自分なりのアイデアや行きたい場所を自由に提案する"
+            },
+            {
+              "role": "さつき",
+              "action": "食べたいもの・やりたいことを元気よく提案する"
+            },
+            {
+              "role": "ゆき（ゲスト）",
+              "action": "ソロ経験をもとに実用的・穴場的な視点でアイデアを提案する"
+            }
+          ]
+        },
+        {
+          "type": "serial",
+          "steps": [
+            {
+              "role": "かえで",
+              "action": "3人の意見を整理してキャンプ計画の候補をまとめる"
+            }
+          ]
+        }
+      ]
+    },
+    "camp_planning_vote": {
+      "name": "キャンプ地決定会議（投票ループ）",
+      "description": "みんながアイデアを出して、全員が納得するまで投票を繰り返す",
+      "phases": [
+        {
+          "type": "parallel",
+          "steps": [
+            {
+              "role": "ひなた",
+              "action": "行きたいキャンプ地を1か所だけ熱くプレゼンする"
+            },
+            {
+              "role": "さつき",
+              "action": "キャンプ飯の観点でオススメの場所を1か所提案する"
+            },
+            {
+              "role": "ゆき（ゲスト）",
+              "action": "ソロ経験から穴場・実用的な候補地を1か所提案する"
+            }
+          ]
+        },
+        {
+          "type": "loop",
+          "max_iterations": 3,
+          "exit_condition": "全員賛成",
+          "phases": [
+            {
+              "type": "serial",
+              "steps": [
+                {
+                  "role": "かえで",
+                  "action": "3人の提案から1か所に絞って全員に賛否を問う"
+                },
+                {
+                  "role": "ひなた",
+                  "action": "かえでの提案に賛成か反対か、理由とともに元気よく答える"
+                },
+                {
+                  "role": "さつき",
+                  "action": "かえでの提案に賛成か反対か、のんびりした一言で答える"
+                },
+                {
+                  "role": "ゆき（ゲスト）",
+                  "action": "かえでの提案に賛成か反対か実用面から短く答える。3人全員が賛成なら最後に「全員賛成」と必ず明記する"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "solo_vs_group": {
+      "name": "ソロ派vsグループ派ディベート",
+      "description": "ソロキャンプとグループキャンプの魅力について本音で語り合う",
+      "phases": [
+        {
+          "type": "serial",
+          "steps": [
+            {
+              "role": "ひなた",
+              "action": "「ソロキャンプvsグループキャンプ、どっちが楽しい？」の議題を提示"
+            },
+            {
+              "role": "さつき",
+              "action": "グループキャンプの楽しさを熱く語る"
+            },
+            {
+              "role": "ゆき（ゲスト）",
+              "action": "ソロキャンプの魅力と自由さを静かに主張する"
+            },
+            {
+              "role": "かえで",
+              "action": "両方の良さをゆるく認めつつ現実的な一言を添える"
+            },
+            {
+              "role": "ひなた",
+              "action": "野クルらしい結論でまとめる"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "scenarios": {
+    "camp_brainstorm": [
+      {
+        "name": "ひなた",
+        "assistant": "Groq",
+        "model": "openai/gpt-oss-120b",
+        "system_prompt_file": "roles/hinata.txt"
+      },
+      {
+        "name": "ゆき（ゲスト）",
+        "assistant": "Groq",
+        "model": "openai/gpt-oss-20b",
+        "system_prompt_file": "roles/yuki.txt"
+      },
+      {
+        "name": "さつき",
+        "assistant": "Groq",
+        "model": "openai/gpt-oss-120b",
+        "system_prompt_file": "roles/satsuki.txt"
+      }
+    ]
+  }
+}

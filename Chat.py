@@ -459,6 +459,9 @@ def load_assistant(ai_assistants, ai_assistant, model_name):
     # ChatTogetherクラスの場合のみ、nパラメータとmax_retriesを追加
     if class_name == 'ChatTogether':
         return AssistantClass(model=model_name, n=1, max_retries=3)
+    # ChatOpperAIはmodel_nameパラメータを使用（他はmodel）
+    elif class_name == 'ChatOpperAI':
+        return AssistantClass(model_name=model_name)
     else:
         return AssistantClass(model=model_name)
 

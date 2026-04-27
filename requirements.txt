@@ -21,6 +21,7 @@ langchain-xai>=0.2.5           # Grok (grok-4-1-fast)
 langchain-groq>=0.3.8          # Groq (openai/gpt-oss-120b)
 langchain-mistralai>=0.2.12    # Mistral (mistral-large-2512)
 langchain-together>=0.3.1      # Together AI (Llama-3.3-70B-Instruct-Turbo)
+langchain-opperai>=0.0.1       # Opper AI (anthropic/claude-opus-4)
 
 # --- Web検索機能 ---
 requests>=2.31.0

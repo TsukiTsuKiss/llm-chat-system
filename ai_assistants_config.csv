@@ -6,3 +6,4 @@ Mistral,langchain_mistralai,ChatMistralAI,mistral-large-2512,ministral-14b-2512
 Together,langchain_together,ChatTogether,meta-llama/Llama-3.3-70B-Instruct-Turbo,meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo
 Anthropic,langchain_anthropic,ChatAnthropic,claude-opus-4-6,claude-sonnet-4-5
 Grok,langchain_xai,ChatXAI,grok-4.20,grok-3
+Opper,langchain_opperai,ChatOpperAI,anthropic/claude-opus-4,anthropic/claude-sonnet-4-5
