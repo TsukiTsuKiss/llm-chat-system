@@ -1,5 +1,5 @@
 # Chat - 最新版チャットボット（まとめ機能・複数行編集・包括的エラー対応）
-# Version: 8.1.2
+# Version: 8.2.0
 # Features: 
 # - まとめ機能: AIによる会話履歴の要約とファイル保存
 # - 複数行入力: 継続的な複数行モードと高度な編集機能
@@ -36,8 +36,8 @@ from langchain_core.messages import AIMessage, HumanMessage
 import argparse # argparseをインポート
 
 # Version information
-VERSION = "8.1.2"
-VERSION_DATE = "2026-03-24"
+VERSION = "8.2.0"
+VERSION_DATE = "2026-04-27"
 
 # AI Assistants configuration file
 AI_ASSISTANTS_CONFIG_FILE = "ai_assistants_config.csv"

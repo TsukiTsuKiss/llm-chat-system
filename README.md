@@ -71,6 +71,9 @@
 - ⚡ **トークン節約機能** - まとめエントリの履歴除外によるトークン消費削減
 - 🔧 **複数行編集** - 高度な行編集機能（もとい/ちゃいちゃい）
 
+**新機能 (v8.2.0):**
+- 🤖 **Opper.ai API対応** - Opper.aiプロバイダーを追加（`OPPER_API_KEY`で利用可能）
+
 **新機能 (v8.0.0):**
 - 🚨 **包括的API制限エラー対応** - 413/429/503/504エラーの自動検出・対応
 - 📏 **自動履歴削減** - 413エラー時の会話履歴自動削減とリトライ
@@ -184,6 +187,33 @@ python update_ai_config.py costs crawl all
 詳細は [コスト管理ドキュメント](docs/cost-management.md) を参照してください。
 
 ## 🚀 クイックスタート
+
+### 必要な準備
+
+```bash
+pip install langchain-openai langchain-anthropic langchain-google-genai langchain-groq langchain-together langchain-mistralai opperai
+```
+
+### 環境設定
+
+**⚠️ 重要: APIキーの設定**
+
+使用するプロバイダーに応じて環境変数を設定してください：
+
+```bash
+set OPENAI_API_KEY=your_openai_key
+set ANTHROPIC_API_KEY=your_anthropic_key
+set GOOGLE_API_KEY=your_google_key
+set GROQ_API_KEY=your_groq_key
+set TOGETHER_API_KEY=your_together_key
+set MISTRAL_API_KEY=your_mistral_key
+set OPPER_API_KEY=your_opper_key
+```
+
+**📝 注意事項:**
+- 使用するAIモデルに対応するAPIキーの設定が必要です
+- APIキーが設定されていない場合、認証エラーが発生します
+- 少なくとも1つのAPIキー（推奨：GROQ_API_KEY）を設定してください
 
 ### MultiRoleChat
 

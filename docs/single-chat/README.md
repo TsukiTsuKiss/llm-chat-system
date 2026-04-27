@@ -32,13 +32,13 @@
 ## 🌟 機能
 
 ### 🔧 主要コンポーネント
-- **Chat.py**: 複数モデル対応の高度なAI会話システム（v8.0.0）
+- **Chat.py**: 複数モデル対応の高度なAI会話システム（v8.2.0）
 - **ai_assistants_config.csv**: AIモデル設定ファイル
 - **update_ai_config.py**: AI設定更新用Pythonスクリプト
 - **update_ai_models.bat**: AI設定更新用バッチファイル（Windows）
 
 ### 🛠️ 主な機能
-- **複数プロバイダー対応**: ChatGPT、Claude、Gemini、Groq、Mistral、Together
+- **複数プロバイダー対応**: ChatGPT、Claude、Gemini、Groq、Mistral、Together、Opper.ai
 - **カスタムシステムメッセージ**: ファイル指定によるAIの振る舞い設定
 - **📋 まとめ機能**: AIによる会話履歴の自動要約とファイル保存
 - **💾 会話履歴管理**: CSVログとセッション復元機能
@@ -78,32 +78,6 @@
 - **視覚的エラー表示**: 絵文字とアイコンによる分かりやすい表示
 - **明確な対応策提示**: エラー種別に応じた具体的な解決策
 - **リアルタイムステータス**: 処理状況の可視化表示
-
-## 🚀 クイックスタート
-
-### 必要な準備
-```bash
-pip install langchain-openai langchain-anthropic langchain-google-genai langchain-groq langchain-together langchain-mistralai
-```
-
-### 環境設定
-
-**⚠️ 重要: APIキーの設定**
-
-環境変数としてAPIキーを設定してください：
-```bash
-set OPENAI_API_KEY=your_openai_key
-set ANTHROPIC_API_KEY=your_anthropic_key  
-set GOOGLE_API_KEY=your_google_key
-set GROQ_API_KEY=your_groq_key
-set TOGETHER_API_KEY=your_together_key
-set MISTRAL_API_KEY=your_mistral_key
-```
-
-**📝 注意事項:**
-- 使用するAIモデルに対応するAPIキーの設定が必要です
-- APIキーが設定されていない場合、認証エラーが発生します
-- 少なくとも1つのAPIキー（推奨：GROQ_API_KEY）を設定してください
 
 ## ⚠️ トラブルシューティング
 
@@ -333,6 +307,7 @@ python Chat.py -s teacher_mode.txt -a ChatGPT --fast
 - Together AI
 - Mistral
 - Grok (xAI)
+- Opper.ai
 
 ### 高度な機能
 
@@ -346,6 +321,7 @@ python Chat.py -s teacher_mode.txt -a ChatGPT --fast
 
 このプロジェクトは反復的なLLM開発の集大成を表しています：
 
+- **v8.2.0 (2026-04-27)**: Opper.ai API対応
 - **v8.0.0 (2025-08-18)**: 包括的API制限エラー対応とトークン節約機能の実装
 - **v7.0.0 (2025-07-26)**: まとめ機能と複数行編集機能の強化
 - **v6.x**: 高速モデル対応とプロバイダー拡張
@@ -353,7 +329,7 @@ python Chat.py -s teacher_mode.txt -a ChatGPT --fast
 - **18回の開発反復**: Chat1.pyからChat7.pyまでの完全な進化プロセス
 
 **最新版の特徴:**
-- **Chat.py**: すべての高度な機能を組み込んだ最新版（v8.0.0）
+- **Chat.py**: すべての高度な機能を組み込んだ最新版（v8.2.0）
 - **安定性**: 本番環境対応済みの堅牢なエラーハンドリング
 - **効率性**: トークン節約によるコスト最適化
 - **ユーザビリティ**: 自動エラー対応による中断のない会話体験
