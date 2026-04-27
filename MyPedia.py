@@ -21,18 +21,47 @@ INIT_ERROR = None
 AI_ASSISTANTS = {}
 AI_ASSISTANT = None
 MODEL = None
+FAST_MODE = False
 llm = None
+
+
+def _resolve_model(assistant_name: str, fast_mode: bool) -> str:
+    default_model = AI_ASSISTANTS[assistant_name]["model"]
+    if fast_mode and AI_ASSISTANTS[assistant_name].get("fast_model"):
+        default_model = AI_ASSISTANTS[assistant_name]["fast_model"]
+    return default_model
+
+
+def _reload_llm(assistant_name: str, fast_mode: bool, model_override: str | None = None) -> None:
+    global AI_ASSISTANT, MODEL, FAST_MODE, llm
+    if assistant_name not in AI_ASSISTANTS:
+        raise ValueError(f"無効なassistant: {assistant_name}")
+    default_model = _resolve_model(assistant_name, fast_mode)
+    MODEL = model_override or default_model
+    llm = load_assistant(AI_ASSISTANTS, assistant_name, MODEL)
+    AI_ASSISTANT = assistant_name
+    FAST_MODE = fast_mode
+
+
+def _build_assistant_options() -> list[dict[str, str]]:
+    options = []
+    for name, conf in AI_ASSISTANTS.items():
+        options.append(
+            {
+                "assistant": name,
+                "model": conf.get("model", ""),
+                "fast_model": conf.get("fast_model", ""),
+            }
+        )
+    return options
 
 try:
     AI_ASSISTANTS = load_ai_assistants_config()
     AI_ASSISTANT = os.getenv("MYPEDIA_ASSISTANT", DEFAULT_ASSISTANT)
     if AI_ASSISTANT not in AI_ASSISTANTS:
         raise ValueError(f"無効なMYPEDIA_ASSISTANT: {AI_ASSISTANT}. 利用可能: {', '.join(AI_ASSISTANTS.keys())}")
-    fast_mode = os.getenv("MYPEDIA_FAST", "false").lower() in {"1", "true", "yes", "on"}
-    default_model = AI_ASSISTANTS[AI_ASSISTANT]["model"]
-    if fast_mode and AI_ASSISTANTS[AI_ASSISTANT].get("fast_model"):
-        default_model = AI_ASSISTANTS[AI_ASSISTANT]["fast_model"]
-    MODEL = os.getenv("MYPEDIA_MODEL", default_model)
+    FAST_MODE = os.getenv("MYPEDIA_FAST", "false").lower() in {"1", "true", "yes", "on"}
+    MODEL = os.getenv("MYPEDIA_MODEL", _resolve_model(AI_ASSISTANT, FAST_MODE))
     llm = load_assistant(AI_ASSISTANTS, AI_ASSISTANT, MODEL)
     print(f"[INFO] MyPedia LLM: assistant={AI_ASSISTANT}, model={MODEL}")
 except Exception as e:
@@ -61,15 +90,33 @@ HTML = """
 	.help-body table{border-collapse:collapse;width:100%;}
 	.help-body th,.help-body td{border:1px solid #ccc;padding:5px 10px;text-align:left;font-size:13px;}
 	.help-body th{background:#f0f0f0;}
+    .settings-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0;}
+    .settings-row label{font-size:13px;}
+    .settings-row select{padding:4px 6px;}
+    .settings-row button{margin-top:0;padding:6px 10px;}
+    #llmStatus{font-size:12px;color:#444;}
+    #tempStatus{font-size:12px;color:#666;margin-left:6px;}
 </style>
 </head>
 <body>
 <h2>MyPedia - Q&A <a class="help-link" href="/help" target="_blank">📖 ヘルプ（別タブ）</a></h2>
+<div class="settings-row">
+<label>プロバイダ:
+<select id="assistantSel"></select>
+</label>
+<label>モード:
+<select id="modeSel">
+<option value="detail">詳細</option>
+<option value="fast">高速</option>
+</select>
+</label>
+<span id="llmStatus"></span>
+</div>
 <textarea id="q" placeholder="例：ラズパイとは何ですか？">かぐや姫の出した難題とは何だい？</textarea><br>
 <button onclick="ask()">Ask</button>
 <button id="backBtn" onclick="goBack()" disabled>戻る</button>
 <button id="forwardBtn" onclick="goForward()" disabled>進む</button>
-<label style="margin-left:16px;font-size:13px;">Temperature: <input type="range" id="temp" min="0" max="2" step="0.1" value="0" oninput="document.getElementById('tempVal').textContent=this.value" style="vertical-align:middle;"> <span id="tempVal">0</span></label>
+<label style="margin-left:16px;font-size:13px;">Temperature: <input type="range" id="temp" min="0" max="2" step="0.1" value="0" oninput="document.getElementById('tempVal').textContent=this.value" style="vertical-align:middle;"> <span id="tempVal">0</span></label><span id="tempStatus"></span>
 <div id="timing" style="margin-top:8px; font-size:14px;"></div>
 <pre id="a"></pre>
 
@@ -81,6 +128,7 @@ HTML = """
 <table>
 <tr><th>操作</th><th>説明</th></tr>
 <tr><td>Ask</td><td>質問を送信して回答を表示</td></tr>
+<tr><td>プロバイダ / モード</td><td>選択を変更すると LLM 設定が切り替わります（検索実行は Ask のみ）。</td></tr>
 <tr><td>青いリンク語句をクリック</td><td>その語句で自動再検索（ドリルダウン）</td></tr>
 <tr><td>戻る / 進む</td><td>閲覧履歴を前後に移動</td></tr>
 <tr><td>Temperature スライダー</td><td>LLM の出力のランダム性を調整（0=確定的・事実寄り、1〜2=創造的・多様）。既定値は 0。</td></tr>
@@ -103,6 +151,86 @@ HTML = """
 const historyStack = [];
 const forwardStack = [];
 let currentState = null;
+let assistantOptions = [];
+
+function modeLabel(mode){
+    return mode === "fast" ? "高速" : "詳細";
+}
+
+function findAssistantConfig(name){
+    return assistantOptions.find((x) => x.assistant === name);
+}
+
+function renderLlmStatus(assistant, mode){
+    const info = findAssistantConfig(assistant);
+    if (!info) return;
+    const model = mode === "fast" ? (info.fast_model || info.model) : info.model;
+    document.getElementById("llmStatus").textContent = `現在: ${assistant} / ${modeLabel(mode)} / ${model}`;
+}
+
+async function loadLlmSettings(){
+    try {
+        const res = await fetch("/settings");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        assistantOptions = data.options || [];
+
+        const sel = document.getElementById("assistantSel");
+        sel.innerHTML = "";
+        for (const opt of assistantOptions) {
+            const o = document.createElement("option");
+            o.value = opt.assistant;
+            o.textContent = opt.assistant;
+            sel.appendChild(o);
+        }
+        sel.value = data.current.assistant;
+
+        const modeSel = document.getElementById("modeSel");
+        modeSel.value = data.current.fast_mode ? "fast" : "detail";
+        renderLlmStatus(sel.value, modeSel.value);
+        sel.addEventListener("change", applyLlmSettings);
+        modeSel.addEventListener("change", applyLlmSettings);
+    } catch (e) {
+        document.getElementById("llmStatus").textContent = "LLM設定の読み込みに失敗";
+    }
+}
+
+async function applyLlmSettings(){
+    const assistant = document.getElementById("assistantSel").value;
+    const mode = document.getElementById("modeSel").value;
+    const status = document.getElementById("llmStatus");
+    status.textContent = "LLM設定を適用中...";
+    try {
+        const res = await fetch("/settings", {
+            method: "POST",
+            headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({assistant, mode})
+        });
+        if (!res.ok) {
+            const txt = await res.text();
+            throw new Error(txt || `HTTP ${res.status}`);
+        }
+        const data = await res.json();
+        renderLlmStatus(data.assistant, data.fast_mode ? "fast" : "detail");
+        // 設定変更後は同一クエリでも Ask できるよう、重複ガード状態をクリア
+        currentState = null;
+        status.textContent += " / 次の Ask から反映";
+    } catch (e) {
+        status.textContent = "LLM設定の適用に失敗";
+    }
+}
+
+document.addEventListener("DOMContentLoaded", loadLlmSettings);
+document.addEventListener("DOMContentLoaded", () => {
+    const temp = document.getElementById("temp");
+    if (!temp) return;
+    const tempStatus = document.getElementById("tempStatus");
+    // Temperature を変えたら同一クエリでも Ask できるようにする
+    temp.addEventListener("input", () => {
+        currentState = null;
+        if (tempStatus) tempStatus.textContent = "次のAskで反映";
+    });
+});
 
 // term クリックを拾う（HTMLにonclickを埋めないので壊れにくい）
 document.addEventListener("click", (e) => {
@@ -117,8 +245,14 @@ function updateNavButtons(){
 }
 
 function snapshotState(){
+    const tempEl = document.getElementById("temp");
+    const assistantEl = document.getElementById("assistantSel");
+    const modeEl = document.getElementById("modeSel");
     return {
         query: document.getElementById("q").value,
+        temperature: tempEl ? tempEl.value : "0",
+        assistant: assistantEl ? assistantEl.value : "",
+        mode: modeEl ? modeEl.value : "detail",
         answerHtml: document.getElementById("a").innerHTML,
         timingText: document.getElementById("timing").textContent,
     };
@@ -126,6 +260,12 @@ function snapshotState(){
 
 function restoreState(state){
     document.getElementById("q").value = state.query ?? "";
+    const tempEl = document.getElementById("temp");
+    if (tempEl && state.temperature != null) {
+        tempEl.value = state.temperature;
+        const tempVal = document.getElementById("tempVal");
+        if (tempVal) tempVal.textContent = state.temperature;
+    }
     document.getElementById("a").innerHTML = state.answerHtml ?? "";
     document.getElementById("timing").textContent = state.timingText ?? "";
     currentState = { ...state };
@@ -235,12 +375,23 @@ function linkify(escaped){
     return text;
 }
 
-async function ask(){
+async function ask(force=false){
 	const q = document.getElementById("q").value.trim();
+	const temp = document.getElementById("temp")?.value ?? "0";
+	const assistant = document.getElementById("assistantSel")?.value ?? "";
+	const mode = document.getElementById("modeSel")?.value ?? "detail";
+    const tempStatus = document.getElementById("tempStatus");
 	const pre = document.getElementById("a");
 	const timingEl = document.getElementById("timing");
 	if(!q) return;
-    if (currentState && currentState.query === q) return;
+    if (
+        !force &&
+        currentState &&
+        currentState.query === q &&
+        currentState.temperature === temp &&
+        currentState.assistant === assistant &&
+        currentState.mode === mode
+    ) return;
 
     const prevState = snapshotState();
     forwardStack.length = 0;
@@ -250,6 +401,7 @@ async function ask(){
 	timingEl.textContent = "送信中...";
 
 	try{
+        if (tempStatus) tempStatus.textContent = "";
 		const res = await fetch("/ask", {
 			method:"POST",
 			headers: {"Content-Type":"application/json"},
@@ -297,6 +449,12 @@ async function ask(){
 class AskReq(BaseModel):
     question: str
     temperature: float = 0.0
+
+
+class SettingsReq(BaseModel):
+    assistant: str
+    mode: str = "detail"
+    model: str | None = None
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -372,6 +530,37 @@ code{{background:#eee;padding:1px 5px;border-radius:3px;font-size:0.9em;}}
 @app.post("/ping")
 async def ping():
     return {"ok": True}
+
+
+@app.get("/settings")
+def get_settings():
+    if INIT_ERROR:
+        raise HTTPException(status_code=500, detail=f"LLM初期化エラー: {INIT_ERROR}")
+    return {
+        "current": {
+            "assistant": AI_ASSISTANT,
+            "model": MODEL,
+            "fast_mode": FAST_MODE,
+        },
+        "options": _build_assistant_options(),
+    }
+
+
+@app.post("/settings")
+def update_settings(req: SettingsReq):
+    global INIT_ERROR
+    try:
+        fast_mode = req.mode == "fast"
+        _reload_llm(req.assistant, fast_mode, req.model)
+        INIT_ERROR = None
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"LLM再設定エラー: {e}")
+    return {
+        "ok": True,
+        "assistant": AI_ASSISTANT,
+        "model": MODEL,
+        "fast_mode": FAST_MODE,
+    }
 
 
 @app.post("/ask")
@@ -508,10 +697,8 @@ if __name__ == "__main__":
         import MyPedia as _self
         _self.AI_ASSISTANTS = load_ai_assistants_config()
         _self.AI_ASSISTANT = os.environ.get("MYPEDIA_ASSISTANT", DEFAULT_ASSISTANT)
-        fast_mode = os.environ.get("MYPEDIA_FAST", "false").lower() in {"1", "true", "yes", "on"}
-        default_model = _self.AI_ASSISTANTS[_self.AI_ASSISTANT]["model"]
-        if fast_mode and _self.AI_ASSISTANTS[_self.AI_ASSISTANT].get("fast_model"):
-            default_model = _self.AI_ASSISTANTS[_self.AI_ASSISTANT]["fast_model"]
+        _self.FAST_MODE = os.environ.get("MYPEDIA_FAST", "false").lower() in {"1", "true", "yes", "on"}
+        default_model = _self._resolve_model(_self.AI_ASSISTANT, _self.FAST_MODE)
         _self.MODEL = os.environ.get("MYPEDIA_MODEL", default_model)
         _self.llm = load_assistant(_self.AI_ASSISTANTS, _self.AI_ASSISTANT, _self.MODEL)
         print(f"[INFO] MyPedia LLM 再設定: assistant={_self.AI_ASSISTANT}, model={_self.MODEL}")
