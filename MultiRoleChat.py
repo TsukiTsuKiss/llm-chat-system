@@ -39,8 +39,8 @@ import asyncio
 import concurrent.futures
 
 # Version information
-VERSION = "1.6.0"
-VERSION_DATE = "2026-04-23"
+VERSION = "1.6.1"
+VERSION_DATE = "2026-05-03"
 
 # Configuration files
 AI_ASSISTANTS_CONFIG_FILE = "ai_assistants_config.csv"
@@ -921,7 +921,7 @@ class MultiRoleManager:
         normalized_content = self._normalize_response_text(content)
         adjusted_content = self._adjust_embedded_headings(normalized_content, heading_level)
         action_block = f"**アクション**: {action}\n\n" if action else ""
-        separator = "\n---\n\n" if include_separator else "\n\n"
+        separator = "\n\n---\n\n" if include_separator else "\n\n"
         return f"{heading}\n\n{action_block}{adjusted_content}{separator}"
 
     def _execute_timed_response(self, key_name, key_value, responder, *responder_args, max_chars=None):
