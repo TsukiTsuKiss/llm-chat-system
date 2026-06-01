@@ -32,7 +32,6 @@ Thumbs.db
 util/
 !util/
 util/*
-!util/__init__.py
 !util/stream_render.py
 
 # 実験フォルダ (著作権のある質問データ含む)
