@@ -32,8 +32,9 @@
 ## 🌟 機能
 
 ### 🔧 主要コンポーネント
-- **Chat.py**: 複数モデル対応の高度なAI会話システム（v8.2.0）
+- **Chat.py**: 複数モデル対応の高度なAI会話システム（v8.3.0）
 - **ai_assistants_config.csv**: AIモデル設定ファイル
+- **chat_config.json**: ストリーム表示などの動作設定ファイル
 - **update_ai_config.py**: AI設定更新用Pythonスクリプト
 - **update_ai_models.bat**: AI設定更新用バッチファイル（Windows）
 
@@ -45,6 +46,8 @@
 - **🔄 高度なエラーハンドリング**: API制限エラーの自動対応とリトライ
 - **⚡ トークン節約機能**: まとめエントリの履歴除外によるトークン消費削減
 - **🔧 複数行編集**: 高度な行編集機能（もとい/ちゃいちゃい）
+- **🌊 ストリーム表示制御**: chunk/char/char-punct/batch/punct モード
+- **⚙️ 外部設定対応**: chat_config.json で表示挙動を管理
 - **📊 パフォーマンス監視**: 実行時間とログ記録
 
 ### 🚨 新機能 (v8.0.0) - 包括的API制限エラー対応
@@ -290,6 +293,7 @@ python Chat.py -s teacher_mode.txt -a ChatGPT --fast
 ```
 ├── Chat.py                 # メイン会話システム
 ├── ai_assistants_config.csv # AIモデル設定
+├── chat_config.json        # チャット動作設定
 ├── system_message.txt      # デフォルトシステムメッセージ
 ├── update_ai_config.py     # AI設定更新スクリプト
 ├── update_ai_models.bat    # AI設定更新バッチファイル
@@ -321,6 +325,7 @@ python Chat.py -s teacher_mode.txt -a ChatGPT --fast
 
 このプロジェクトは反復的なLLM開発の集大成を表しています：
 
+- **v8.3.0 (2026-06-02)**: ストリーム表示機能の拡張（char-punct/batch/punct）、chat_config.json 対応、ストリーム機能のモジュール化
 - **v8.2.0 (2026-04-27)**: Opper.ai API対応
 - **v8.0.0 (2025-08-18)**: 包括的API制限エラー対応とトークン節約機能の実装
 - **v7.0.0 (2025-07-26)**: まとめ機能と複数行編集機能の強化
@@ -329,10 +334,10 @@ python Chat.py -s teacher_mode.txt -a ChatGPT --fast
 - **18回の開発反復**: Chat1.pyからChat7.pyまでの完全な進化プロセス
 
 **最新版の特徴:**
-- **Chat.py**: すべての高度な機能を組み込んだ最新版（v8.2.0）
+- **Chat.py**: すべての高度な機能を組み込んだ最新版（v8.3.0）
 - **安定性**: 本番環境対応済みの堅牢なエラーハンドリング
 - **効率性**: トークン節約によるコスト最適化
-- **ユーザビリティ**: 自動エラー対応による中断のない会話体験
+- **ユーザビリティ**: 読みやすいストリーム表示と設定外部化による運用性向上
 
 ## 📄 ライセンス
 

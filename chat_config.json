@@ -1,0 +1,8 @@
+{
+  "stream": true,
+  "stream_render_mode": "char-punct",
+  "stream_char_delay_ms": 25.0,
+  "stream_punct_pause_ms": 500.0,
+  "stream_punct_chars": "、。！？）」』】〉》〕］｝\n",
+  "post_response_wait_ms": -1.0
+}
