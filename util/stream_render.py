@@ -220,3 +220,51 @@ def get_post_response_wait_seconds(args):
         base_ms = max(0.0, float(getattr(args, "stream_char_delay_ms", 0.0)))
         return (base_ms * 4.0) / 1000.0 if base_ms > 0 else 0.0
     return 0.0
+
+
+def render_status_text(
+    text,
+    stream_mode=False,
+    render_mode="chunk",
+    char_by_char=False,
+    char_delay_ms=0.0,
+    punct_pause_ms=220.0,
+    punct_chars=STREAM_PUNCT_CHARS_DEFAULT,
+    batch_chars=12,
+    batch_delay_ms=50.0,
+    leading_newline=True,
+):
+    """LLM本文以外の短いステータスメッセージを表示する。"""
+    if leading_newline:
+        print()
+
+    if not stream_mode:
+        print(text)
+        return
+
+    effective_mode = render_mode
+    if char_by_char:
+        effective_mode = "char"
+
+    if effective_mode == "chunk":
+        _render_stream_text(text, char_by_char=False, char_delay_ms=0.0)
+    elif effective_mode == "char":
+        _render_stream_text(text, char_by_char=True, char_delay_ms=char_delay_ms)
+    elif effective_mode == "char-punct":
+        _render_char_punct_stream_text(
+            text,
+            char_delay_ms=char_delay_ms,
+            punct_pause_ms=punct_pause_ms,
+            punctuations=punct_chars,
+        )
+    else:
+        _render_buffered_stream_text(
+            text,
+            render_mode=effective_mode,
+            batch_chars=batch_chars,
+            batch_delay_ms=batch_delay_ms,
+            punctuations=punct_chars,
+            force=True,
+        )
+
+    print()
