@@ -1,5 +1,5 @@
 # Chat - 最新版チャットボット（まとめ機能・複数行編集・包括的エラー対応）
-# Version: 8.3.1
+# Version: 8.3.2
 # Features: 
 # - まとめ機能: AIによる会話履歴の要約とファイル保存
 # - 複数行入力: 継続的な複数行モードと高度な編集機能
@@ -46,7 +46,7 @@ from util.stream_render import (
 )
 
 # Version information
-VERSION = "8.3.1"
+VERSION = "8.3.2"
 VERSION_DATE = "2026-06-03"
 
 # AI Assistants configuration file
@@ -300,7 +300,7 @@ def apply_chat_config_to_args(args, config):
         'confirm_model': ['--confirm-model'],
         'unified': ['--unified'],
         'ignore_log_model': ['--ignore-log-model'],
-        'stream': ['--stream'],
+        'stream': ['--stream', '--no-stream'],
         'stream_readable': ['--stream-readable'],
         'stream_char_by_char': ['--stream-char-by-char'],
         'stream_char_delay_ms': ['--stream-char-delay-ms'],
@@ -387,6 +387,8 @@ def parse_arguments(ai_assistants):
     # ストリーム出力
     parser.add_argument("--stream", action="store_true",
                         help="Stream assistant output token-by-token")
+    parser.add_argument("--no-stream", action="store_true",
+                        help="Disable stream output even when enabled by config")
     parser.add_argument("--stream-readable", action="store_true",
                         help="Use Japanese-readable stream preset (enables stream + char-punct with tuned delays)")
     parser.add_argument("--stream-char-by-char", action="store_true",
@@ -429,6 +431,10 @@ def parse_arguments(ai_assistants):
             args.stream_punct_pause_ms = 700.0
         if "--post-response-wait-ms" not in sys.argv:
             args.post_response_wait_ms = -1.0
+
+    # 明示的な無効化を最優先
+    if args.no_stream:
+        args.stream = False
 
     # 旧オプション互換: --stream-char-by-char が指定された場合は char モードを優先
     if args.stream_char_by_char and "--stream-render-mode" not in sys.argv:
