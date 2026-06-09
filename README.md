@@ -89,7 +89,7 @@
 ## 📚 ドキュメント
 
 ### MultiRoleChat
-- 📖 **[メインガイド](docs/multi-role-chat/README.md)** - 基本機能と使用方法
+- 📖 **[メインガイド](docs/multi-role-chat/README.md)** - 基本機能と使用方法（Web UI 含む）
 - ⚙️ **[設定ガイド](docs/multi-role-chat/configuration-guide.md)** - 組織設定・プロバイダー分散・エラー診断
 - 🔧 **[設定管理ガイド](docs/multi-role-chat/configuration-management.md)** - 設定ファイル管理・バージョン管理  
 - 🚨 **[トラブルシューティング](docs/multi-role-chat/troubleshooting.md)** - エラー解決・診断ツール
@@ -100,7 +100,7 @@
 
 ### Single Chat
 - 🚀 **[クイックスタート](docs/single-chat/quickstart.md)** - 高度なチャット機能の使用方法
-- 📖 **[メインガイド](docs/single-chat/README.md)** - 基本機能と設定
+- 📖 **[メインガイド](docs/single-chat/README.md)** - 基本機能と設定（Web UI 含む）
 - 🚨 **[エラーハンドリング](docs/single-chat/error-handling.md)** - API制限エラー対応機能
 
 ### MyPedia

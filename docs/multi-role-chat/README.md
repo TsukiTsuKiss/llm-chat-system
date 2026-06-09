@@ -875,7 +875,45 @@ meeting マーケター 分析官 企画 "市場参入戦略"
 
 ---
 
-## サポート
+## 🌐 Web UI (MultiRoleChatWeb.py v1.0.0)
+
+MultiRoleChatWeb.py は MultiRoleChat.py の Gradio ベース Web ラッパーです。
+
+### 起動方法
+
+```bash
+python MultiRoleChatWeb.py [--org ORG_NAME] [--port PORT] [--share]
+```
+
+| オプション | デフォルト | 説明 |
+|---|---|---|
+| `--org` | organizations/ 配下の最初の組織 | 初期表示する組織名 |
+| `--port` | 7861 | 待ち受けポート番号 |
+| `--share` | なし | Gradio 公開 URL を発行 |
+
+### 画面構成
+
+**「💬 チャット」タブ**
+
+- 左カラム（設定）: 組織・ロールセット・ワークフロー選択、ロール一覧表示、履歴クリア
+- 右カラム: マルチロールのスレッド表示チャット
+
+**「📄 ログ」タブ**
+
+- 左カラム: ログファイル一覧ドロップダウン（`multi_logs/*.md`）
+- 右カラム: 選択したログの Markdown 表示（Mermaid フロー図対応）
+
+### 機能
+
+- **組織切替**: `organizations/` 配下の組織を動的に選択
+- **ロールセット選択**: `demo_roles` / `organization_roles` / `roles` / `scenarios` を自動検出
+- **ワークフロー選択**: 組織設定のワークフローをドロップダウンで選択して実行
+- **並列実行**: `parallel` フェーズは threading で同時実行
+- **ログ自動保存**: 送信ごとに `multi_logs/{timestamp}_web.md` を生成
+
+---
+
+
 
 問題が発生した場合は、以下を確認してください：
 
@@ -883,6 +921,42 @@ meeting マーケター 分析官 企画 "市場参入戦略"
 2. API設定が正しい
 3. JSON設定ファイルの構文が正しい
 4. ロール名の一致
+
+## 🌐 Web UI (MultiRoleChatWeb.py v1.0.0)
+
+MultiRoleChatWeb.py は MultiRoleChat.py の Gradio ベース Web ラッパーです。
+
+### 起動方法
+
+```bash
+python MultiRoleChatWeb.py [--org ORG_NAME] [--port PORT] [--share]
+```
+
+| オプション | デフォルト | 説明 |
+|---|---|---|
+| `--org` | organizations/ 配下の最初の組織 | 初期表示する組織名 |
+| `--port` | 7861 | 待ち受けポート番号 |
+| `--share` | なし | Gradio 公開 URL を発行 |
+
+### 画面構成
+
+**「💬 チャット」タブ**
+
+- 左カラム（設定）: 組織・ロールセット・ワークフロー選択、ロール一覧表示、履歴クリア
+- 右カラム: マルチロールのスレッド表示チャット
+
+**「📄 ログ」タブ**
+
+- 左カラム: ログファイル一覧ドロップダウン（`multi_logs/*.md`）
+- 右カラム: 選択したログの Markdown 表示（Mermaid フロー図対応）
+
+### 機能
+
+- **組織切替**: `organizations/` 配下の組織を動的に選択
+- **ロールセット選択**: `demo_roles` / `organization_roles` / `roles` / `scenarios` を自動検出
+- **ワークフロー選択**: 組織設定のワークフローをドロップダウンで選択して実行
+- **並列実行**: `parallel` フェーズは threading で同時実行
+- **ログ自動保存**: 送信ごとに `multi_logs/{timestamp}_web.md` を生成
 
 ## ライセンス
 

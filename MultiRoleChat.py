@@ -21,18 +21,18 @@ try:
 except ImportError:
     CODE_SAVING_ENABLED = False
     print("[INFO] code_saver.py not found. Code saving disabled.")
-from langchain.prompts import (
+from langchain_core.prompts import (
     ChatPromptTemplate,
     SystemMessagePromptTemplate,
     HumanMessagePromptTemplate,
     MessagesPlaceholder
 )
-from langchain.schema.runnable import (
+from langchain_core.runnables import (
     RunnableLambda,
+    RunnablePassthrough,
     RunnableSequence,
-    RunnablePassthrough
 )
-from langchain.schema import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 import argparse
 from typing import Annotated
 import asyncio
@@ -988,30 +988,29 @@ class MultiRoleManager:
             else:
                 role_details.append(f"{name} (設定なし)")
 
-        detail_indent = chr(10).join([f"    {d}" for d in role_details])
+        detail_indent = chr(10).join([f"- {d}" for d in role_details])
 
-        lines = [
-            self._markdown_heading(heading_level, title),
-            "",
+        meta = [
             f"**生成ツール**: MultiRoleChat v{VERSION}",
             f"**開催日時**: {datetime.now().strftime('%Y年%m月%d日 %H:%M:%S')}",
             f"**組織**: {organization}",
         ] + metadata_lines + [
             f"**参加者**: {', '.join(participants)}",
-            f"**参加ロール詳細**: \n{detail_indent}",
-            "",
-            "---",
-            "",
+            f"**参加ロール詳細**:  \n{detail_indent}",
         ]
-        return "\n".join(lines)
+        return self._markdown_heading(heading_level, title) + "\n\n" + "  \n".join(meta) + "\n\n---\n\n"
 
     def _build_log_footer(self, session_summary, total_elapsed=None):
         """ログファイルの共通フッタ文字列を生成する（終了時刻・実行時間・コスト）"""
-        elapsed_line = f"\n**実時間**: {total_elapsed:.2f}秒" if total_elapsed is not None else ""
-        cost_line = (f"\n**推定コスト**: ${session_summary['total_cost']:.4f}"
-                     f"（入力 {session_summary['total_input_tokens']}tokens"
-                     f" / 出力 {session_summary['total_output_tokens']}tokens）")
-        return f"\n---\n\n**実行完了**: {datetime.now().strftime('%Y年%m月%d日 %H:%M:%S')}{elapsed_line}{cost_line}\n"
+        footer_lines = [f"**実行完了**: {datetime.now().strftime('%Y年%m月%d日 %H:%M:%S')}"]
+        if total_elapsed is not None:
+            footer_lines.append(f"**実時間**: {total_elapsed:.2f}秒")
+        footer_lines.append(
+            f"**推定コスト**: ${session_summary['total_cost']:.4f}"
+            f"（入力 {session_summary['total_input_tokens']}tokens"
+            f" / 出力 {session_summary['total_output_tokens']}tokens）"
+        )
+        return "\n---\n\n" + "  \n".join(footer_lines) + "\n"
 
     def _build_response_summary_table(self, meeting_log, log_times=None, response_times=None):
         """応答時間サマリー表を生成する（ログ付録用）"""

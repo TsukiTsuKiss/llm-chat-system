@@ -28,6 +28,7 @@ requests>=2.31.0
 beautifulsoup4>=4.12.0
 
 # --- 共通ユーティリティ ---
+gradio>=5.0.0                  # ChatWeb.py の Web UI
 pydantic>=2.7.4
 typing-extensions>=4.7.0
 
