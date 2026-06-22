@@ -605,7 +605,7 @@ def main():
 
     print(f"[INFO] MultiRoleChatWeb v{VERSION} 起動中...")
     demo = build_ui(default_org=args.org)
-    demo.launch(server_port=args.port, share=args.share, css=_build_css())
+    demo.launch(server_port=args.port, share=args.share, inbrowser=True, css=_build_css())
 
 
 if __name__ == "__main__":
