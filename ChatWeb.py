@@ -31,8 +31,8 @@ from langchain_core.messages import HumanMessage, AIMessage
 # Chat.py から LLM 接続ロジックを流用（MyPedia.py と同じ方式）
 from Chat import load_ai_assistants_config, load_assistant
 
-VERSION = "1.0.0"
-VERSION_DATE = "2026-06-09"
+VERSION = "1.1.0"
+VERSION_DATE = "2026-06-24"
 
 DEFAULT_ASSISTANT = os.getenv("CHATWEB_ASSISTANT", "OpenAI")
 DEFAULT_PORT = int(os.getenv("CHATWEB_PORT", "7860"))
@@ -55,10 +55,11 @@ def _load_system_message() -> str:
         return ""
 
 
-def _build_chain(assistant_name: str, system_message: str):
+def _build_chain(assistant_name: str, system_message: str, model_name: str | None = None):
     """LangChain チェーンを組み立てる。"""
-    llm = load_assistant(AI_ASSISTANTS, assistant_name,
-                         AI_ASSISTANTS[assistant_name]["model"])
+    cfg = AI_ASSISTANTS[assistant_name]
+    model = model_name if model_name else cfg["model"]
+    llm = load_assistant(AI_ASSISTANTS, assistant_name, model)
 
     prompt_messages = []
     if system_message.strip() and assistant_name not in ["Gemini"]:
@@ -87,6 +88,7 @@ def chat_fn(
     message: str,
     history: list,
     assistant_name: str,
+    model_name: str,
     system_message: str,
     session_id: str,
 ) -> Generator[str, None, None]:
@@ -100,7 +102,7 @@ def chat_fn(
         return
 
     try:
-        chain = _build_chain(assistant_name, system_message)
+        chain = _build_chain(assistant_name, system_message, model_name)
         lc_history = _get_history(session_id)
 
         response_text = ""
@@ -130,6 +132,12 @@ def build_ui() -> gr.Blocks:
     default_assistant = DEFAULT_ASSISTANT if DEFAULT_ASSISTANT in assistant_names else assistant_names[0]
     default_system = _load_system_message()
 
+    def _get_models(assistant_name: str) -> list[str]:
+        cfg = AI_ASSISTANTS.get(assistant_name, {})
+        return cfg.get("models") or ([cfg["model"]] if cfg.get("model") else [])
+
+    default_models = _get_models(default_assistant)
+
     css = """
     #main-chatbot {
         flex-grow: 1;
@@ -151,6 +159,11 @@ def build_ui() -> gr.Blocks:
                     choices=assistant_names,
                     value=default_assistant,
                     label="アシスタント",
+                )
+                model_dd = gr.Dropdown(
+                    choices=default_models,
+                    value=default_models[0] if default_models else None,
+                    label="モデル",
                 )
                 system_box = gr.Textbox(
                     value=default_system,
@@ -174,23 +187,34 @@ def build_ui() -> gr.Blocks:
                     )
                     send_btn = gr.Button("送信", variant="primary", scale=1)
 
+        # アシスタント切替時にモデル一覧を更新
+        def _update_models(assistant_name: str):
+            models = _get_models(assistant_name)
+            return gr.Dropdown(choices=models, value=models[0] if models else None)
+
+        assistant_dd.change(
+            _update_models,
+            inputs=[assistant_dd],
+            outputs=[model_dd],
+        )
+
         # 送信処理（Gradio 6.17 は messages 形式: dict のリスト）
-        def _submit(message, history, assistant, system, sid):
+        def _submit(message, history, assistant, model, system, sid):
             history = history or []
             history.append({"role": "user", "content": message})
             history.append({"role": "assistant", "content": ""})
-            for partial in chat_fn(message, history, assistant, system, sid):
+            for partial in chat_fn(message, history, assistant, model, system, sid):
                 history[-1] = {"role": "assistant", "content": partial}
                 yield "", history
 
         msg_box.submit(
             _submit,
-            inputs=[msg_box, chatbot, assistant_dd, system_box, session_id],
+            inputs=[msg_box, chatbot, assistant_dd, model_dd, system_box, session_id],
             outputs=[msg_box, chatbot],
         )
         send_btn.click(
             _submit,
-            inputs=[msg_box, chatbot, assistant_dd, system_box, session_id],
+            inputs=[msg_box, chatbot, assistant_dd, model_dd, system_box, session_id],
             outputs=[msg_box, chatbot],
         )
 

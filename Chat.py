@@ -1,5 +1,5 @@
 # Chat - 最新版チャットボット（まとめ機能・複数行編集・包括的エラー対応）
-# Version: 8.3.2
+# Version: 8.3.3
 # Features: 
 # - まとめ機能: AIによる会話履歴の要約とファイル保存
 # - 複数行入力: 継続的な複数行モードと高度な編集機能
@@ -46,11 +46,12 @@ from util.stream_render import (
 )
 
 # Version information
-VERSION = "8.3.2"
-VERSION_DATE = "2026-06-03"
+VERSION = "8.3.3"
+VERSION_DATE = "2026-06-24"
 
 # AI Assistants configuration file
 AI_ASSISTANTS_CONFIG_FILE = "ai_assistants_config.csv"
+AI_ASSISTANTS_CONFIG_JSON_FILE = "ai_assistants_config.json"
 CHAT_CONFIG_FILE = "chat_config.json"
 
 # Logs and summaries directories
@@ -235,29 +236,54 @@ class ConversationHistory:
         return total_chars
 
 def load_ai_assistants_config():
-    """CSVファイルからAI Assistants設定を読み込む"""
+    """AI Assistants設定を読み込む（JSON優先、なければCSVフォールバック）"""
     ai_assistants = {}
-    
+
+    # JSON 形式を優先して読み込む
+    if os.path.exists(AI_ASSISTANTS_CONFIG_JSON_FILE):
+        try:
+            with open(AI_ASSISTANTS_CONFIG_JSON_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            for assistant_name, cfg in data.items():
+                models = cfg.get('models', [])
+                ai_assistants[assistant_name] = {
+                    'module': cfg['module'],
+                    'class': cfg['class'],
+                    'models': models,
+                    'model': models[0] if models else '',
+                    'fast_model': models[1] if len(models) > 1 else '',
+                }
+            print(f"[INFO] AI Assistants設定を {AI_ASSISTANTS_CONFIG_JSON_FILE} から読み込みました。")
+            return ai_assistants
+        except Exception as e:
+            print(f"[WARNING] JSONファイルの読み込みに失敗しました: {e} — CSVにフォールバックします")
+            ai_assistants = {}
+
+    # CSV フォールバック
     if not os.path.exists(AI_ASSISTANTS_CONFIG_FILE):
         print(f"[ERROR] AI Assistants設定ファイル '{AI_ASSISTANTS_CONFIG_FILE}' が見つかりません。")
         return ai_assistants
-    
+
     try:
         with open(AI_ASSISTANTS_CONFIG_FILE, 'r', newline='', encoding='utf-8') as f:
             reader = csv.DictReader(f)
             for row in reader:
                 assistant_name = row['assistant_name']
+                model = row['model']
+                fast_model = row.get('fast_model', '').strip()
+                models = [m for m in [model, fast_model] if m]
                 ai_assistants[assistant_name] = {
                     'module': row['module'],
                     'class': row['class'],
-                    'model': row['model'],
-                    'fast_model': row.get('fast_model', '').strip()  # 空文字列の場合もある
+                    'models': models,
+                    'model': model,
+                    'fast_model': fast_model,
                 }
         print(f"[INFO] AI Assistants設定を {AI_ASSISTANTS_CONFIG_FILE} から読み込みました。")
     except Exception as e:
         print(f"[ERROR] AI Assistants設定ファイルの読み込みに失敗しました: {e}")
         return {}
-    
+
     return ai_assistants
 
 def _is_option_provided(option_names):

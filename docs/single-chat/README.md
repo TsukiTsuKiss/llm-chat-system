@@ -32,8 +32,9 @@
 ## 🌟 機能
 
 ### 🔧 主要コンポーネント
-- **Chat.py**: 複数モデル対応の高度なAI会話システム（v8.3.2）
-- **ai_assistants_config.csv**: AIモデル設定ファイル
+- **Chat.py**: 複数モデル対応の高度なAI会話システム（v8.3.3）
+- **ai_assistants_config.json**: AIモデル設定ファイル（JSON形式・複数モデル列挙対応）
+- **ai_assistants_config.csv**: AIモデル設定ファイル（旧形式・JSONがない場合のフォールバック）
 - **chat_config.json**: ストリーム表示などの動作設定ファイル
 - **update_ai_config.py**: AI設定更新用Pythonスクリプト
 - **update_ai_models.bat**: AI設定更新用バッチファイル（Windows）
@@ -329,7 +330,7 @@ python Chat.py -s teacher_mode.txt -a ChatGPT --fast
 - 読みやすさと速度を両立したい場合は、`chunk` または `batch` モードを推奨します。
 - CLI で即時にストリームを無効化したい場合は `--no-stream` を使用できます（設定ファイルより優先）。
 
-## 🌐 Web UI (ChatWeb.py v1.0.0)
+## 🌐 Web UI (ChatWeb.py v1.1.0)
 
 ChatWeb.py は Chat.py の Gradio ベース Web ラッパーです。ブラウザから Chat.py と同等のチャット機能を利用できます。
 
@@ -347,6 +348,7 @@ python ChatWeb.py [--port PORT] [--share]
 ### 機能
 
 - **アシスタント選択**: サイドバーのドロップダウンで AI プロバイダーを切替
+- **モデル選択**: アシスタント選択に連動して利用可能モデルをドロップダウン表示（ai_assistants_config.json の models リストに基づく）
 - **システムメッセージ**: テキストボックスで任意のシステムプロンプトを設定
 - **履歴クリア**: セッションをリセットして新しい会話を開始
 - **会話継続**: セッション内は履歴を保持してマルチターン対話が可能
@@ -357,6 +359,7 @@ python ChatWeb.py [--port PORT] [--share]
 
 このプロジェクトは反復的なLLM開発の集大成を表しています：
 
+- **v8.3.3 (2026-06-24)**: `ai_assistants_config.json` 対応（JSON優先・CSV フォールバック、models リストで複数モデル列挙可）。Opper-* を1エントリに統合。ChatWeb.py v1.1.0 でモデル選択ドロップダウン追加
 - **v8.3.2 (2026-06-03)**: `--no-stream` オプション追加。chat_config.json が `stream: true` でも CLI から明示的に無効化可能に改善
 - **v8.3.1 (2026-06-03)**: 実行時間表示を1行化し、ストリーム設定に追従した滑らかな表示に改善（末尾の読みにくさを軽減）
 - **v8.3.0 (2026-06-02)**: ストリーム表示機能の拡張（char-punct/batch/punct）、chat_config.json 対応、ストリーム機能のモジュール化
@@ -368,7 +371,7 @@ python ChatWeb.py [--port PORT] [--share]
 - **18回の開発反復**: Chat1.pyからChat7.pyまでの完全な進化プロセス
 
 **最新版の特徴:**
-- **Chat.py**: すべての高度な機能を組み込んだ最新版（v8.3.2）
+- **Chat.py**: すべての高度な機能を組み込んだ最新版（v8.3.3）
 - **安定性**: 本番環境対応済みの堅牢なエラーハンドリング
 - **効率性**: トークン節約によるコスト最適化
 - **ユーザビリティ**: 読みやすいストリーム表示と設定外部化による運用性向上
