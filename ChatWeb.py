@@ -378,7 +378,8 @@ def _preview_tree_item(value: str) -> str:
     return ""
 
 
-
+def build_ui() -> "gr.Blocks":
+    """Gradio UI を構築して返す。"""
     assistant_names = list(AI_ASSISTANTS.keys()) if AI_ASSISTANTS else [DEFAULT_ASSISTANT]
     default_assistant = DEFAULT_ASSISTANT if DEFAULT_ASSISTANT in assistant_names else assistant_names[0]
     default_system = _load_system_message()
@@ -424,10 +425,10 @@ def _preview_tree_item(value: str) -> str:
                 )
                 clear_btn = gr.Button("🗑️ 履歴をクリア", variant="secondary")
                 with gr.Row():
-                    load_log_btn = gr.Button("📂 ログ再開", size="sm")
+                    load_log_btn = gr.Button("📂 ログ・まとめ読込", size="sm")
                     load_summary_btn = gr.Button("📋 まとめ読込", size="sm")
 
-                # ─── ログ再開パネル ──────────────────────────────
+                # ─── ログ・まとめ読込パネル ──────────────────────────
                 with gr.Group(visible=False) as log_panel:
                     gr.Markdown("#### 📂 ログ・まとめを開く")
                     log_file_dd = gr.Dropdown(
