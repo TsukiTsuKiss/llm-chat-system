@@ -34,11 +34,15 @@ from Chat import (
     load_ai_assistants_config,
     load_assistant,
     load_history_from_csv,
+    is_summary_request,
+    is_zenn_summary_request,
+    create_conversation_summary,
+    save_summary_to_file,
     LOGS_DIR,
     SUMMARIES_DIR,
 )
 
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 VERSION_DATE = "2026-06-24"
 
 DEFAULT_ASSISTANT = os.getenv("CHATWEB_ASSISTANT", "OpenAI")
@@ -99,7 +103,7 @@ def chat_fn(
     system_message: str,
     session_id: str,
 ) -> Generator[str, None, None]:
-    """ストリーミングで回答を返すジェネレータ。"""
+    """ストリーミングで回答を返すジェネレータ。まとめ要求も処理する。"""
     if not message.strip():
         yield ""
         return
@@ -108,6 +112,66 @@ def chat_fn(
         yield f"[ERROR] アシスタント '{assistant_name}' が見つかりません。"
         return
 
+    # ─── まとめ要求検知 ───────────────────────────────────────────
+    zenn_mode = is_zenn_summary_request(message)
+    if zenn_mode or is_summary_request(message):
+        lc_history = _get_history(session_id)
+
+        # 履歴が空の場合はスキップ
+        if not lc_history:
+            yield "ℹ️ 会話履歴がまだありません。先に会話を始めてください。"
+            return
+
+        class _FakeHistory:
+            def get_messages(self):
+                return lc_history
+
+        history_text = create_conversation_summary(_FakeHistory())
+
+        if zenn_mode:
+            summary_prompt = (
+                f"以下の会話履歴を、Zenn記事の草稿としてまとめてください。\n"
+                f"読者はエンジニアを想定し、「です・ます」調で書いてください。\n"
+                f"構成は「## 見出し」を使って読みやすく整理してください。\n\n"
+                f"{history_text}\n\nZenn記事の草稿（タイトルは除く、本文のみ）を作成してください："
+            )
+        else:
+            summary_prompt = (
+                f"以下の会話履歴をまとめてください。\n\n{history_text}\n\n"
+                f"まとめる際は以下の点を心がけてください：\n"
+                f"- 重要なキーワードや概念は [[キーワード]] の形式で囲んでリンク化してください\n"
+                f"- #タグ も適切に付与してください\n\n上記の会話を簡潔にまとめてください："
+            )
+
+        try:
+            chain = _build_chain(assistant_name, system_message, model_name)
+            label = (
+                f"📰 Zenn草稿（{assistant_name}:{model_name}）:\n"
+                if zenn_mode
+                else f"📋 会話まとめ（{assistant_name}:{model_name}）:\n"
+            )
+            yield label
+            response_text = label
+            for chunk in chain.stream({"input": summary_prompt, "history": []}):
+                content = getattr(chunk, "content", "") or ""
+                if content:
+                    response_text += content
+                    yield response_text
+
+            # ファイル保存
+            summary_body = response_text[len(label):]
+            saved = save_summary_to_file(summary_body, assistant_name, model_name, zenn_mode=zenn_mode)
+            if saved:
+                notice = f"\n\n💾 `{saved}` に保存しました。"
+                response_text += notice
+                yield response_text
+
+            # まとめは履歴に含めない（トークン節約）
+        except Exception as e:
+            yield f"[ERROR] まとめ生成中にエラーが発生しました: {e}"
+        return
+
+    # ─── 通常の会話 ────────────────────────────────────────────
     try:
         chain = _build_chain(assistant_name, system_message, model_name)
         lc_history = _get_history(session_id)
