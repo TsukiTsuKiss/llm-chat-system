@@ -16,6 +16,7 @@ Chat.py の LLM 接続ロジックをそのまま流用し、
 from __future__ import annotations
 
 import os
+import re
 import argparse
 from typing import Generator
 
@@ -29,9 +30,15 @@ from langchain_core.prompts import (
 from langchain_core.messages import HumanMessage, AIMessage
 
 # Chat.py から LLM 接続ロジックを流用（MyPedia.py と同じ方式）
-from Chat import load_ai_assistants_config, load_assistant
+from Chat import (
+    load_ai_assistants_config,
+    load_assistant,
+    load_history_from_csv,
+    LOGS_DIR,
+    SUMMARIES_DIR,
+)
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 VERSION_DATE = "2026-06-24"
 
 DEFAULT_ASSISTANT = os.getenv("CHATWEB_ASSISTANT", "OpenAI")
@@ -127,6 +134,60 @@ def clear_history(session_id: str) -> tuple:
     return [], ""
 
 
+def _list_logs() -> list[str]:
+    """logs/ フォルダの CSV ファイル一覧（新しい順）"""
+    if not os.path.exists(LOGS_DIR):
+        return []
+    files = [f for f in os.listdir(LOGS_DIR) if f.endswith(".csv")]
+    files.sort(reverse=True)
+    return files
+
+
+def _list_summaries() -> list[str]:
+    """summaries/ フォルダの MD ファイル一覧（新しい順）"""
+    if not os.path.exists(SUMMARIES_DIR):
+        return []
+    files = [f for f in os.listdir(SUMMARIES_DIR) if f.endswith(".md")]
+    files.sort(reverse=True)
+    return files
+
+
+def _preview_log(filename: str) -> str:
+    """ログファイルの直近10件をプレビューテキストに変換"""
+    if not filename:
+        return ""
+    filepath = os.path.join(LOGS_DIR, filename)
+    messages, _, last_assistant, last_model = load_history_from_csv(filepath)
+    if not messages:
+        return "（会話履歴が空です）"
+    lines = [
+        f"アシスタント: {last_assistant}  /  モデル: {last_model}",
+        "─" * 40,
+    ]
+    for msg in messages[-10:]:
+        text = msg.content[:150].replace("\n", " ")
+        suffix = "..." if len(msg.content) > 150 else ""
+        if isinstance(msg, HumanMessage):
+            lines.append(f"👤 {text}{suffix}")
+        else:
+            lines.append(f"🤖 {text}{suffix}")
+    return "\n".join(lines)
+
+
+def _preview_summary(filename: str) -> str:
+    """まとめファイルの先頭800文字をプレビュー"""
+    if not filename:
+        return ""
+    filepath = os.path.join(SUMMARIES_DIR, filename)
+    try:
+        with open(filepath, encoding="utf-8") as f:
+            content = f.read()
+        content = re.sub(r'\[\[(.+?)\]\]', r'**\1**', content)
+        return content[:800] + ("..." if len(content) > 800 else "")
+    except Exception as e:
+        return f"読み込みエラー: {e}"
+
+
 def build_ui() -> gr.Blocks:
     assistant_names = list(AI_ASSISTANTS.keys()) if AI_ASSISTANTS else [DEFAULT_ASSISTANT]
     default_assistant = DEFAULT_ASSISTANT if DEFAULT_ASSISTANT in assistant_names else assistant_names[0]
@@ -172,6 +233,48 @@ def build_ui() -> gr.Blocks:
                     placeholder="AIへの役割・制約を記述...",
                 )
                 clear_btn = gr.Button("🗑️ 履歴をクリア", variant="secondary")
+                with gr.Row():
+                    load_log_btn = gr.Button("📂 ログ再開", size="sm")
+                    load_summary_btn = gr.Button("📋 まとめ読込", size="sm")
+
+                # ─── ログ読み込みパネル ──────────────────────────────
+                with gr.Group(visible=False) as log_panel:
+                    gr.Markdown("#### 📂 ログから会話を再開")
+                    log_file_dd = gr.Dropdown(
+                        choices=[],
+                        label="ログファイル（新しい順）",
+                        interactive=True,
+                    )
+                    log_preview_box = gr.Textbox(
+                        label="プレビュー（直近10件）",
+                        lines=10,
+                        interactive=False,
+                    )
+                    with gr.Row():
+                        log_confirm_btn = gr.Button("この会話を再開", variant="primary", size="sm")
+                        log_cancel_btn = gr.Button("閉じる", size="sm")
+
+                # ─── まとめ読み込みパネル ────────────────────────────
+                with gr.Group(visible=False) as summary_panel:
+                    gr.Markdown("#### 📋 まとめを読み込む")
+                    summary_file_dd = gr.Dropdown(
+                        choices=[],
+                        label="まとめファイル（新しい順）",
+                        interactive=True,
+                    )
+                    summary_preview_box = gr.Textbox(
+                        label="プレビュー",
+                        lines=10,
+                        interactive=False,
+                    )
+                    summary_mode_radio = gr.Radio(
+                        choices=["システムメッセージに追記", "会話履歴として注入"],
+                        value="システムメッセージに追記",
+                        label="読み込み方式",
+                    )
+                    with gr.Row():
+                        summary_confirm_btn = gr.Button("読み込む", variant="primary", size="sm")
+                        summary_cancel_btn = gr.Button("閉じる", size="sm")
 
             with gr.Column(scale=3):
                 chatbot = gr.Chatbot(
@@ -227,6 +330,100 @@ def build_ui() -> gr.Blocks:
             lambda sid: _history_store.pop(sid, None) or sid,
             inputs=[session_id],
             outputs=[session_id],
+        )
+
+        # ─── ログパネル コールバック ─────────────────────────────────
+        load_log_btn.click(
+            lambda: (gr.update(visible=True), gr.update(visible=False),
+                     gr.update(choices=_list_logs(), value=None), ""),
+            outputs=[log_panel, summary_panel, log_file_dd, log_preview_box],
+        )
+        log_cancel_btn.click(
+            lambda: gr.update(visible=False),
+            outputs=[log_panel],
+        )
+        log_file_dd.change(
+            _preview_log,
+            inputs=[log_file_dd],
+            outputs=[log_preview_box],
+        )
+
+        def _load_log_fn(filename: str, sid: str, current_assistant: str, current_model: str):
+            if not filename:
+                return gr.update(visible=False), [], current_assistant, gr.update()
+            filepath = os.path.join(LOGS_DIR, filename)
+            messages, _, last_assistant, last_model = load_history_from_csv(filepath)
+            _history_store[sid] = list(messages)
+            display = [
+                {"role": "user" if isinstance(m, HumanMessage) else "assistant", "content": m.content}
+                for m in messages
+            ]
+            new_assistant = (
+                last_assistant
+                if last_assistant and last_assistant in AI_ASSISTANTS
+                else current_assistant
+            )
+            new_models = _get_models(new_assistant)
+            new_model = (
+                last_model
+                if last_model and last_model in new_models
+                else (new_models[0] if new_models else current_model)
+            )
+            return (
+                gr.update(visible=False),
+                display,
+                new_assistant,
+                gr.update(choices=new_models, value=new_model),
+            )
+
+        log_confirm_btn.click(
+            _load_log_fn,
+            inputs=[log_file_dd, session_id, assistant_dd, model_dd],
+            outputs=[log_panel, chatbot, assistant_dd, model_dd],
+        )
+
+        # ─── まとめパネル コールバック ───────────────────────────────
+        load_summary_btn.click(
+            lambda: (gr.update(visible=False), gr.update(visible=True),
+                     gr.update(choices=_list_summaries(), value=None), ""),
+            outputs=[log_panel, summary_panel, summary_file_dd, summary_preview_box],
+        )
+        summary_cancel_btn.click(
+            lambda: gr.update(visible=False),
+            outputs=[summary_panel],
+        )
+        summary_file_dd.change(
+            _preview_summary,
+            inputs=[summary_file_dd],
+            outputs=[summary_preview_box],
+        )
+
+        def _load_summary_fn(filename: str, mode: str, system_msg: str, sid: str):
+            if not filename:
+                return gr.update(visible=False), system_msg, gr.update()
+            filepath = os.path.join(SUMMARIES_DIR, filename)
+            try:
+                with open(filepath, encoding="utf-8") as f:
+                    content = f.read()
+                content = re.sub(r'\[\[(.+?)\]\]', r'**\1**', content)
+            except Exception:
+                return gr.update(visible=False), system_msg, gr.update()
+            if mode == "システムメッセージに追記":
+                new_system = system_msg.rstrip() + f"\n\n---\n【過去の会話まとめ】\n{content}"
+                return gr.update(visible=False), new_system, gr.update()
+            else:  # 会話履歴として注入
+                history = _get_history(sid)
+                history.insert(0, AIMessage(content=f"【過去の会話まとめ】\n{content}"))
+                display = [
+                    {"role": "user" if isinstance(m, HumanMessage) else "assistant", "content": m.content}
+                    for m in history
+                ]
+                return gr.update(visible=False), system_msg, display
+
+        summary_confirm_btn.click(
+            _load_summary_fn,
+            inputs=[summary_file_dd, summary_mode_radio, system_box, session_id],
+            outputs=[summary_panel, system_box, chatbot],
         )
 
     return demo
