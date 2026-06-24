@@ -605,7 +605,18 @@ def main():
 
     print(f"[INFO] MultiRoleChatWeb v{VERSION} 起動中...")
     demo = build_ui(default_org=args.org)
-    demo.launch(server_port=args.port, share=args.share, inbrowser=True, css=_build_css())
+    demo.launch(server_port=args.port, share=args.share, inbrowser=True, css=_build_css(), prevent_thread_lock=True)
+    print("[INFO] サーバーが起動しました。終了するには q + Enter を押してください。")
+    try:
+        while True:
+            line = input()
+            if line.strip().lower() == "q":
+                break
+    except (KeyboardInterrupt, EOFError):
+        pass
+    finally:
+        demo.close()
+        print("[INFO] サーバーを停止しました。")
 
 
 if __name__ == "__main__":
