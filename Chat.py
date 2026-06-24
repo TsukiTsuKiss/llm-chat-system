@@ -645,14 +645,11 @@ def save_summary_to_file(summary_content, ai_assistant, model_name, zenn_mode=Fa
     """まとめ内容をFoam形式またはZenn草稿形式でファイルに保存"""
     try:
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        # ファイル名に親ログ名を埋め込む
-        log_stem = os.path.splitext(os.path.basename(log_filename))[0] if log_filename else ''
-        suffix = f"_from_{log_stem}" if log_stem else ''
         if zenn_mode:
             # Zenn articles フォルダに保存
             articles_dir = os.path.join(os.getcwd(), "articles")
             os.makedirs(articles_dir, exist_ok=True)
-            summary_filename = os.path.join(articles_dir, f"{timestamp}{suffix}.md")
+            summary_filename = os.path.join(articles_dir, f"{timestamp}.md")
             with open(summary_filename, 'w', encoding='utf-8') as f:
                 f.write(f"---\n")
                 f.write(f"title: \"（タイトルを入力してください）\"\n")
@@ -671,7 +668,7 @@ def save_summary_to_file(summary_content, ai_assistant, model_name, zenn_mode=Fa
         else:
             # 通常のsummariesフォルダに保存
             os.makedirs(SUMMARIES_DIR, exist_ok=True)
-            summary_filename = os.path.join(SUMMARIES_DIR, f"{timestamp}{suffix}.md")
+            summary_filename = os.path.join(SUMMARIES_DIR, f"{timestamp}.md")
             with open(summary_filename, 'w', encoding='utf-8') as f:
                 f.write(f"# Chat 会話まとめ {timestamp}\n\n")
                 f.write(f"- **作成日時**: {datetime.now().strftime('%Y年%m月%d日 %H:%M:%S')}\n")
