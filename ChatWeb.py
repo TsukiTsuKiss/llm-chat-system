@@ -512,14 +512,16 @@ def build_ui() -> "gr.Blocks":
         )
 
         # 履歴クリア
+        def _clear_session(sid):
+            _history_store.pop(sid, None)
+            _log_store.pop(sid, None)
+            _turn_store.pop(sid, None)
+            return []
+
         clear_btn.click(
-            lambda sid: ([], sid),
+            _clear_session,
             inputs=[session_id],
-            outputs=[chatbot, session_id],
-        ).then(
-            lambda sid: _history_store.pop(sid, None) or sid,
-            inputs=[session_id],
-            outputs=[session_id],
+            outputs=[chatbot],
         )
 
         # ─── ログパネル コールバック ─────────────────────────────────
