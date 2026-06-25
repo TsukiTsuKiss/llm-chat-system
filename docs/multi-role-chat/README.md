@@ -875,7 +875,7 @@ meeting マーケター 分析官 企画 "市場参入戦略"
 
 ---
 
-## 🌐 Web UI (MultiRoleChatWeb.py v1.0.0)
+## 🌐 Web UI (MultiRoleChatWeb.py v1.1.0)
 
 MultiRoleChatWeb.py は MultiRoleChat.py の Gradio ベース Web ラッパーです。
 
@@ -898,52 +898,12 @@ python MultiRoleChatWeb.py [--org ORG_NAME] [--port PORT] [--share]
 - 左カラム（設定）: 組織・ロールセット・ワークフロー選択、ロール一覧表示、履歴クリア
 - 右カラム: マルチロールのスレッド表示チャット
 
-**「📄 ログ」タブ**
+**「⚙️ 設定編集」タブ** 🆕 v1.1.0
 
-- 左カラム: ログファイル一覧ドロップダウン（`multi_logs/*.md`）
-- 右カラム: 選択したログの Markdown 表示（Mermaid フロー図対応）
-
-### 機能
-
-- **組織切替**: `organizations/` 配下の組織を動的に選択
-- **ロールセット選択**: `demo_roles` / `organization_roles` / `roles` / `scenarios` を自動検出
-- **ワークフロー選択**: 組織設定のワークフローをドロップダウンで選択して実行
-- **並列実行**: `parallel` フェーズは threading で同時実行
-- **ログ自動保存**: 送信ごとに `multi_logs/{timestamp}_web.md` を生成
-
----
-
-
-
-問題が発生した場合は、以下を確認してください：
-
-1. 全ての必要ファイルが存在する
-2. API設定が正しい
-3. JSON設定ファイルの構文が正しい
-4. ロール名の一致
-
-## 🌐 Web UI (MultiRoleChatWeb.py v1.0.0)
-
-MultiRoleChatWeb.py は MultiRoleChat.py の Gradio ベース Web ラッパーです。
-
-### 起動方法
-
-```bash
-python MultiRoleChatWeb.py [--org ORG_NAME] [--port PORT] [--share]
-```
-
-| オプション | デフォルト | 説明 |
-|---|---|---|
-| `--org` | organizations/ 配下の最初の組織 | 初期表示する組織名 |
-| `--port` | 7861 | 待ち受けポート番号 |
-| `--share` | なし | Gradio 公開 URL を発行 |
-
-### 画面構成
-
-**「💬 チャット」タブ**
-
-- 左カラム（設定）: 組織・ロールセット・ワークフロー選択、ロール一覧表示、履歴クリア
-- 右カラム: マルチロールのスレッド表示チャット
+- 左カラム: 組織一覧・新規組織作成
+- 右カラム（サブタブ）:
+  - **「👤 ロール編集」**: ロールセット選択 → ロール選択 → name / assistant / model / role_type の編集、システムプロンプト本文（`roles/*.txt`）の編集・保存、ロールの追加・削除
+  - **「🔄 ワークフロー編集」**: ワークフロー選択 → JSON テキストエリアで編集・保存、新規作成・削除
 
 **「📄 ログ」タブ**
 
@@ -957,6 +917,7 @@ python MultiRoleChatWeb.py [--org ORG_NAME] [--port PORT] [--share]
 - **ワークフロー選択**: 組織設定のワークフローをドロップダウンで選択して実行
 - **並列実行**: `parallel` フェーズは threading で同時実行
 - **ログ自動保存**: 送信ごとに `multi_logs/{timestamp}_web.md` を生成
+- **設定編集** 🆕 v1.1.0: ブラウザ上で組織・ロール・ワークフローを直接編集・保存
 
 ## ライセンス
 

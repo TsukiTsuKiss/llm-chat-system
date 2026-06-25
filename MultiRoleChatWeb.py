@@ -38,8 +38,8 @@ from MultiRoleChat import (
     setup_organization_from_config,
 )
 
-VERSION = "1.0.0"
-VERSION_DATE = "2026-06-09"
+VERSION = "1.1.0"
+VERSION_DATE = "2026-06-25"
 
 DEFAULT_ORG = os.getenv("MULTIROLECHATWEB_ORG", "")
 DEFAULT_PORT = int(os.getenv("MULTIROLECHATWEB_PORT", "7861"))
@@ -219,6 +219,219 @@ def _make_role_info_md(role_names: list[str], manager: MultiRoleManager) -> str:
     return "\n\n".join(lines)
 
 
+# --------------------------------------------------------------------------- #
+#  設定編集ヘルパー
+# --------------------------------------------------------------------------- #
+
+def _org_dir(org_name: str) -> str:
+    return os.path.join("organizations", org_name)
+
+
+def _config_path(org_name: str) -> str:
+    return os.path.join(_org_dir(org_name), "config.json")
+
+
+def _load_config_raw(org_name: str) -> dict:
+    """config.json を dict で返す。"""
+    import json
+    path = _config_path(org_name)
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _save_config_raw(org_name: str, data: dict) -> None:
+    """dict を config.json に保存する。"""
+    import json
+    path = _config_path(org_name)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def _list_role_set_keys(org_name: str) -> list[str]:
+    """config.json に存在するロールセットキー一覧を返す。"""
+    try:
+        data = _load_config_raw(org_name)
+    except Exception:
+        return []
+    return [k for k in ("demo_roles", "organization_roles", "roles") if k in data]
+
+
+def _get_roles_in_set(org_name: str, role_set_key: str) -> list[dict]:
+    """指定ロールセットのロールリストを返す。"""
+    try:
+        data = _load_config_raw(org_name)
+        return data.get(role_set_key, [])
+    except Exception:
+        return []
+
+
+def _read_system_prompt(org_name: str, prompt_file: str) -> str:
+    """roles/*.txt の内容を返す。prompt_file は config.json の値そのまま。"""
+    if not prompt_file:
+        return ""
+    path = os.path.join(_org_dir(org_name), prompt_file)
+    try:
+        with open(path, encoding="utf-8") as f:
+            return f.read()
+    except Exception:
+        return ""
+
+
+def _save_system_prompt(org_name: str, prompt_file: str, content: str) -> str:
+    """roles/*.txt に内容を保存する。ファイルが存在しない場合は作成する。"""
+    if not prompt_file:
+        return "❌ prompt_file が空です"
+    path = os.path.join(_org_dir(org_name), prompt_file)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
+    return f"✅ 保存しました: {prompt_file}"
+
+
+def _save_role(org_name: str, role_set_key: str, original_name: str,
+               name: str, assistant: str, model: str,
+               role_type: str, prompt_file: str, prompt_content: str) -> str:
+    """ロールのメタ情報をconfig.jsonに、プロンプト本文をtxtに保存する。"""
+    try:
+        data = _load_config_raw(org_name)
+    except Exception as e:
+        return f"❌ config.json 読み込みエラー: {e}"
+    roles = data.get(role_set_key, [])
+    # 対象ロールを検索して更新
+    found = False
+    for r in roles:
+        if r.get("name") == original_name:
+            r["name"] = name.strip()
+            r["assistant"] = assistant.strip()
+            r["model"] = model.strip()
+            if role_type.strip():
+                r["role_type"] = role_type.strip()
+            elif "role_type" in r:
+                del r["role_type"]
+            r["system_prompt_file"] = prompt_file.strip()
+            found = True
+            break
+    if not found:
+        # 新規ロール追加
+        new_role: dict = {
+            "name": name.strip(),
+            "assistant": assistant.strip(),
+            "model": model.strip(),
+            "system_prompt_file": prompt_file.strip(),
+        }
+        if role_type.strip():
+            new_role["role_type"] = role_type.strip()
+        roles.append(new_role)
+        data[role_set_key] = roles
+    _save_config_raw(org_name, data)
+    # プロンプト本文を保存
+    msg = _save_system_prompt(org_name, prompt_file.strip(), prompt_content)
+    return f"✅ ロール '{name}' を保存しました。{msg}"
+
+
+def _delete_role(org_name: str, role_set_key: str, role_name: str) -> str:
+    """指定ロールをconfig.jsonから削除する。"""
+    try:
+        data = _load_config_raw(org_name)
+    except Exception as e:
+        return f"❌ config.json 読み込みエラー: {e}"
+    roles = data.get(role_set_key, [])
+    before = len(roles)
+    data[role_set_key] = [r for r in roles if r.get("name") != role_name]
+    if len(data[role_set_key]) == before:
+        return f"❌ ロール '{role_name}' が見つかりません"
+    _save_config_raw(org_name, data)
+    return f"✅ ロール '{role_name}' を削除しました"
+
+
+def _list_workflow_keys(org_name: str) -> list[str]:
+    """config.json の workflows キー一覧を返す。"""
+    try:
+        data = _load_config_raw(org_name)
+        return list(data.get("workflows", {}).keys())
+    except Exception:
+        return []
+
+
+def _get_workflow_json(org_name: str, wf_key: str) -> str:
+    """指定ワークフローをJSON文字列で返す。"""
+    import json
+    try:
+        data = _load_config_raw(org_name)
+        wf = data.get("workflows", {}).get(wf_key, {})
+        return json.dumps(wf, ensure_ascii=False, indent=2)
+    except Exception as e:
+        return f"❌ {e}"
+
+
+def _save_workflow(org_name: str, wf_key: str, wf_json: str) -> str:
+    """JSONテキストをconfig.jsonのworkflowsに保存する。"""
+    import json
+    key = wf_key.strip()
+    if not key:
+        return "❌ ワークフローキーが空です"
+    try:
+        wf_data = json.loads(wf_json)
+    except json.JSONDecodeError as e:
+        return f"❌ JSON パースエラー: {e}"
+    try:
+        data = _load_config_raw(org_name)
+    except Exception as e:
+        return f"❌ config.json 読み込みエラー: {e}"
+    if "workflows" not in data:
+        data["workflows"] = {}
+    data["workflows"][key] = wf_data
+    _save_config_raw(org_name, data)
+    return f"✅ ワークフロー '{key}' を保存しました"
+
+
+def _delete_workflow(org_name: str, wf_key: str) -> str:
+    """指定ワークフローをconfig.jsonから削除する。"""
+    try:
+        data = _load_config_raw(org_name)
+    except Exception as e:
+        return f"❌ config.json 読み込みエラー: {e}"
+    if wf_key not in data.get("workflows", {}):
+        return f"❌ ワークフロー '{wf_key}' が見つかりません"
+    del data["workflows"][wf_key]
+    _save_config_raw(org_name, data)
+    return f"✅ ワークフロー '{wf_key}' を削除しました"
+
+
+def _create_organization(new_org_name: str) -> str:
+    """新規組織フォルダとconfig.jsonを作成する。"""
+    import json
+    name = new_org_name.strip()
+    if not name:
+        return "❌ 組織名が空です"
+    path = os.path.join("organizations", name)
+    if os.path.exists(path):
+        return f"❌ 組織 '{name}' はすでに存在します"
+    os.makedirs(os.path.join(path, "roles"), exist_ok=True)
+    initial = {
+        "organization": name,
+        "demo_roles": [],
+        "workflows": {},
+    }
+    with open(os.path.join(path, "config.json"), "w", encoding="utf-8") as f:
+        json.dump(initial, f, ensure_ascii=False, indent=2)
+    return f"✅ 組織 '{name}' を作成しました"
+
+
+def _list_assistants() -> list[str]:
+    """AI_ASSISTANTS のキー一覧を返す（モデル選択補助用）。"""
+    return sorted(AI_ASSISTANTS.keys())
+
+
+def _list_models_for_assistant(assistant_name: str) -> list[str]:
+    """指定アシスタントのモデル一覧を返す。"""
+    info = AI_ASSISTANTS.get(assistant_name, {})
+    models = info.get("models", [])
+    if isinstance(models, list):
+        return models
+    return []
+
+
 def _build_css() -> str:
     return "\n".join([
         "#thread-chatbot { height: calc(100vh - 240px) !important; overflow-y: auto; }",
@@ -228,6 +441,8 @@ def _build_css() -> str:
         "#log-viewer pre, #log-viewer code {"
         " background: #f5f5f5 !important; color: #111111 !important; border: 1px solid #ddd; }",
         "#log-viewer svg text { fill: #000000 !important; }",
+        # Gradio デフォルトフッター（API・Built with Gradio・設定）を非表示
+        ".gradio-container footer { display: none !important; }",
     ])
 
 
@@ -346,6 +561,105 @@ def build_ui(default_org: str = "") -> gr.Blocks:
                                 autofocus=True,
                             )
                             send_btn = gr.Button("送信", variant="primary", scale=1)
+
+            # ------------------------------------------------------------------ #
+            #  設定編集タブ
+            # ------------------------------------------------------------------ #
+            with gr.TabItem("⚙️ 設定編集"):
+                with gr.Row():
+                    # --- 左ペイン: 組織選択 ---
+                    with gr.Column(scale=1, min_width=220):
+                        gr.Markdown("### 🏢 組織")
+                        edit_org_dd = gr.Dropdown(
+                            choices=org_list,
+                            value=initial_org,
+                            label="組織を選択",
+                        )
+                        new_org_name = gr.Textbox(label="新規組織名", placeholder="フォルダ名（英数字）")
+                        create_org_btn = gr.Button("➕ 新規作成", variant="secondary")
+                        org_action_msg = gr.Markdown("")
+
+                    # --- 右ペイン: ロール編集 / ワークフロー編集 ---
+                    with gr.Column(scale=5):
+                        with gr.Tabs():
+                            # ---- ロール編集サブタブ ----
+                            with gr.TabItem("👤 ロール編集"):
+                                with gr.Row():
+                                    _initial_rs_keys = _list_role_set_keys(initial_org)
+                                    _initial_rs_val = _initial_rs_keys[0] if _initial_rs_keys else None
+                                    edit_roleset_dd = gr.Dropdown(
+                                        choices=_initial_rs_keys,
+                                        value=_initial_rs_val,
+                                        label="ロールセット",
+                                    )
+                                _initial_role_choices = [
+                                    r["name"] for r in _get_roles_in_set(initial_org, _initial_rs_val)
+                                ] if _initial_rs_val else []
+                                with gr.Row():
+                                    edit_role_dd = gr.Dropdown(
+                                        choices=_initial_role_choices,
+                                        value=None,
+                                        label="ロールを選択",
+                                        scale=4,
+                                    )
+                                    refresh_roles_btn = gr.Button("🔄", scale=1, min_width=50)
+                                    delete_role_btn = gr.Button("🗑️ 削除", variant="stop", scale=1)
+
+                                gr.Markdown("---")
+                                with gr.Row():
+                                    role_name_tb = gr.Textbox(label="name", scale=2)
+                                    role_assistant_dd = gr.Dropdown(
+                                        choices=_list_assistants(),
+                                        label="assistant",
+                                        scale=2,
+                                        allow_custom_value=True,
+                                    )
+                                with gr.Row():
+                                    role_model_tb = gr.Textbox(label="model", scale=3)
+                                    role_type_tb = gr.Textbox(label="role_type（任意）", scale=2)
+                                role_prompt_file_tb = gr.Textbox(
+                                    label="system_prompt_file（例: roles/hinata.txt）"
+                                )
+                                role_prompt_ta = gr.Textbox(
+                                    label="システムプロンプト本文",
+                                    lines=12,
+                                    max_lines=30,
+                                )
+                                with gr.Row():
+                                    save_role_btn = gr.Button("💾 保存", variant="primary")
+                                    new_role_btn = gr.Button("➕ 新規ロール", variant="secondary")
+                                role_save_msg = gr.Markdown("")
+
+                            # ---- ワークフロー編集サブタブ ----
+                            with gr.TabItem("🔄 ワークフロー編集"):
+                                with gr.Row():
+                                    edit_wf_dd = gr.Dropdown(
+                                        choices=_list_workflow_keys(initial_org),
+                                        value=None,
+                                        label="ワークフローを選択",
+                                        scale=4,
+                                    )
+                                    refresh_wf_btn = gr.Button("🔄", scale=1, min_width=50)
+                                    delete_wf_btn = gr.Button("🗑️ 削除", variant="stop", scale=1)
+                                with gr.Row():
+                                    new_wf_key_tb = gr.Textbox(
+                                        label="新規キー名（英数字）",
+                                        placeholder="例: my_workflow",
+                                        scale=3,
+                                    )
+                                    new_wf_btn = gr.Button("➕ 新規作成", variant="secondary", scale=1)
+                                wf_key_display = gr.Textbox(
+                                    label="編集中のキー",
+                                    interactive=False,
+                                )
+                                wf_json_ta = gr.Textbox(
+                                    label="ワークフロー JSON",
+                                    lines=20,
+                                    max_lines=40,
+                                )
+                                with gr.Row():
+                                    save_wf_btn = gr.Button("💾 保存", variant="primary")
+                                wf_save_msg = gr.Markdown("")
 
             with gr.TabItem("📄 ログ"):
                 with gr.Row():
@@ -585,6 +899,225 @@ def build_ui(default_org: str = "") -> gr.Blocks:
             lambda: gr.update(choices=_list_log_files()),
             inputs=[],
             outputs=[log_list],
+        )
+
+        # ------------------------------------------------------------------ #
+        #  設定編集タブ イベントハンドラ
+        # ------------------------------------------------------------------ #
+
+        # --- 組織切替（編集タブ用） ---
+        def on_edit_org_change(org_name: str):
+            rs_keys = _list_role_set_keys(org_name)
+            rs_val = rs_keys[0] if rs_keys else None
+            role_choices = [r["name"] for r in _get_roles_in_set(org_name, rs_val)] if rs_val else []
+            wf_keys = _list_workflow_keys(org_name)
+            return (
+                gr.update(choices=rs_keys, value=rs_val),
+                gr.update(choices=role_choices, value=None),
+                gr.update(choices=wf_keys, value=None),
+                "", "", "", "", "", "", "",
+            )
+
+        edit_org_dd.change(
+            on_edit_org_change,
+            inputs=[edit_org_dd],
+            outputs=[
+                edit_roleset_dd, edit_role_dd, edit_wf_dd,
+                role_name_tb, role_assistant_dd, role_model_tb,
+                role_type_tb, role_prompt_file_tb, role_prompt_ta, role_save_msg,
+            ],
+        )
+
+        # --- 組織新規作成 ---
+        def on_create_org(new_name: str):
+            msg = _create_organization(new_name)
+            orgs = _list_organizations()
+            return gr.update(choices=orgs), gr.update(choices=orgs), msg, ""
+
+        create_org_btn.click(
+            on_create_org,
+            inputs=[new_org_name],
+            outputs=[org_dd, edit_org_dd, org_action_msg, new_org_name],
+        )
+
+        # --- ロールセット切替 ---
+        def on_edit_roleset_change(org_name: str, rs_key: str):
+            roles = _get_roles_in_set(org_name, rs_key) if rs_key else []
+            choices = [r["name"] for r in roles]
+            return gr.update(choices=choices, value=None), "", "", "", "", "", ""
+
+        edit_roleset_dd.change(
+            on_edit_roleset_change,
+            inputs=[edit_org_dd, edit_roleset_dd],
+            outputs=[
+                edit_role_dd,
+                role_name_tb, role_assistant_dd, role_model_tb,
+                role_type_tb, role_prompt_file_tb, role_prompt_ta,
+            ],
+        )
+
+        # --- ロール選択 ---
+        def on_edit_role_change(org_name: str, rs_key: str, role_name: str):
+            if not role_name or not rs_key:
+                return "", "", "", "", "", ""
+            roles = _get_roles_in_set(org_name, rs_key)
+            role = next((r for r in roles if r.get("name") == role_name), None)
+            if not role:
+                return role_name, "", "", "", "", ""
+            prompt_file = role.get("system_prompt_file", "")
+            prompt_content = _read_system_prompt(org_name, prompt_file)
+            return (
+                role.get("name", ""),
+                role.get("assistant", ""),
+                role.get("model", ""),
+                role.get("role_type", ""),
+                prompt_file,
+                prompt_content,
+            )
+
+        edit_role_dd.change(
+            on_edit_role_change,
+            inputs=[edit_org_dd, edit_roleset_dd, edit_role_dd],
+            outputs=[
+                role_name_tb, role_assistant_dd, role_model_tb,
+                role_type_tb, role_prompt_file_tb, role_prompt_ta,
+            ],
+        )
+
+        # --- ロール一覧更新 ---
+        def on_refresh_roles(org_name: str, rs_key: str):
+            roles = _get_roles_in_set(org_name, rs_key) if rs_key else []
+            return gr.update(choices=[r["name"] for r in roles], value=None)
+
+        refresh_roles_btn.click(
+            on_refresh_roles,
+            inputs=[edit_org_dd, edit_roleset_dd],
+            outputs=[edit_role_dd],
+        )
+
+        # --- ロール保存 ---
+        def on_save_role(org_name, rs_key, original_name,
+                         name, assistant, model, role_type,
+                         prompt_file, prompt_content):
+            if not rs_key:
+                return "❌ ロールセットが未選択です", gr.update()
+            msg = _save_role(
+                org_name, rs_key, original_name,
+                name, assistant, model, role_type, prompt_file, prompt_content,
+            )
+            roles = _get_roles_in_set(org_name, rs_key)
+            return msg, gr.update(choices=[r["name"] for r in roles], value=name.strip())
+
+        save_role_btn.click(
+            on_save_role,
+            inputs=[
+                edit_org_dd, edit_roleset_dd, edit_role_dd,
+                role_name_tb, role_assistant_dd, role_model_tb,
+                role_type_tb, role_prompt_file_tb, role_prompt_ta,
+            ],
+            outputs=[role_save_msg, edit_role_dd],
+        )
+
+        # --- 新規ロール（フォームをクリア） ---
+        def on_new_role(org_name: str, rs_key: str):
+            # 新規作成用: prompt_file のデフォルトパスを自動提案
+            return None, "", "", "", "", f"roles/new_role.txt", ""
+
+        new_role_btn.click(
+            on_new_role,
+            inputs=[edit_org_dd, edit_roleset_dd],
+            outputs=[
+                edit_role_dd,
+                role_name_tb, role_assistant_dd, role_model_tb,
+                role_type_tb, role_prompt_file_tb, role_prompt_ta,
+            ],
+        )
+
+        # --- ロール削除 ---
+        def on_delete_role(org_name: str, rs_key: str, role_name: str):
+            if not role_name:
+                return "❌ ロールが未選択です", gr.update()
+            msg = _delete_role(org_name, rs_key, role_name)
+            roles = _get_roles_in_set(org_name, rs_key)
+            return msg, gr.update(choices=[r["name"] for r in roles], value=None)
+
+        delete_role_btn.click(
+            on_delete_role,
+            inputs=[edit_org_dd, edit_roleset_dd, edit_role_dd],
+            outputs=[role_save_msg, edit_role_dd],
+        )
+
+        # --- ワークフロー選択 ---
+        def on_edit_wf_change(org_name: str, wf_key: str):
+            if not wf_key:
+                return "", ""
+            return wf_key, _get_workflow_json(org_name, wf_key)
+
+        edit_wf_dd.change(
+            on_edit_wf_change,
+            inputs=[edit_org_dd, edit_wf_dd],
+            outputs=[wf_key_display, wf_json_ta],
+        )
+
+        # --- ワークフロー一覧更新 ---
+        def on_refresh_wf(org_name: str):
+            return gr.update(choices=_list_workflow_keys(org_name), value=None)
+
+        refresh_wf_btn.click(
+            on_refresh_wf,
+            inputs=[edit_org_dd],
+            outputs=[edit_wf_dd],
+        )
+
+        # --- ワークフロー保存 ---
+        def on_save_wf(org_name: str, wf_key: str, wf_json: str):
+            if not wf_key:
+                return "❌ ワークフローキーが未選択/未入力です", gr.update()
+            msg = _save_workflow(org_name, wf_key, wf_json)
+            return msg, gr.update(choices=_list_workflow_keys(org_name), value=wf_key)
+
+        save_wf_btn.click(
+            on_save_wf,
+            inputs=[edit_org_dd, wf_key_display, wf_json_ta],
+            outputs=[wf_save_msg, edit_wf_dd],
+        )
+
+        # --- 新規ワークフロー作成 ---
+        def on_new_wf(org_name: str, new_key: str):
+            import json
+            key = new_key.strip()
+            if not key:
+                return "❌ キー名が空です", gr.update(), "", ""
+            template = json.dumps({
+                "name": key,
+                "description": "",
+                "phases": [
+                    {
+                        "type": "serial",
+                        "steps": [{"role": "ロール名", "action": "アクション説明"}],
+                    }
+                ],
+            }, ensure_ascii=False, indent=2)
+            msg = _save_workflow(org_name, key, template)
+            return msg, gr.update(choices=_list_workflow_keys(org_name), value=key), key, template
+
+        new_wf_btn.click(
+            on_new_wf,
+            inputs=[edit_org_dd, new_wf_key_tb],
+            outputs=[wf_save_msg, edit_wf_dd, wf_key_display, wf_json_ta],
+        )
+
+        # --- ワークフロー削除 ---
+        def on_delete_wf(org_name: str, wf_key: str):
+            if not wf_key:
+                return "❌ ワークフローが未選択です", gr.update()
+            msg = _delete_workflow(org_name, wf_key)
+            return msg, gr.update(choices=_list_workflow_keys(org_name), value=None)
+
+        delete_wf_btn.click(
+            on_delete_wf,
+            inputs=[edit_org_dd, edit_wf_dd],
+            outputs=[wf_save_msg, edit_wf_dd],
         )
 
     return demo
