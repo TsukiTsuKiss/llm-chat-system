@@ -47,12 +47,23 @@ from Chat import (
     SUMMARIES_DIR,
 )
 
-VERSION = "1.4.0"
-VERSION_DATE = "2026-06-24"
+VERSION = "1.5.0"
+VERSION_DATE = "2026-06-28"
 
 DEFAULT_ASSISTANT = os.getenv("CHATWEB_ASSISTANT", "OpenAI")
 DEFAULT_PORT = int(os.getenv("CHATWEB_PORT", "7860"))
 SYSTEM_MESSAGE_FILE = "system_message.txt"
+
+SUPPORTED_TEXT_EXTENSIONS = {
+    ".txt", ".md", ".markdown", ".py", ".js", ".ts", ".tsx", ".jsx",
+    ".java", ".go", ".rs", ".c", ".cpp", ".h", ".hpp", ".cs", ".php",
+    ".rb", ".swift", ".kt", ".scala", ".sql", ".json", ".yaml", ".yml",
+    ".toml", ".ini", ".cfg", ".csv", ".xml", ".html", ".css", ".sh",
+    ".bat", ".ps1", ".env", ".log",
+}
+MAX_UPLOAD_FILES = 5
+MAX_FILE_SIZE_BYTES = 256 * 1024
+MAX_TOTAL_CHARS = 80000
 
 # --- 初期化 ---
 AI_ASSISTANTS: dict = {}
@@ -116,6 +127,76 @@ def _load_system_message() -> str:
             return f.read().strip()
     except FileNotFoundError:
         return ""
+
+
+def _normalize_uploaded_files(uploaded_files) -> list[str]:
+    if not uploaded_files:
+        return []
+    if isinstance(uploaded_files, str):
+        return [uploaded_files]
+    return [p for p in uploaded_files if isinstance(p, str)]
+
+
+def _build_uploaded_context(uploaded_files) -> tuple[str, str]:
+    """アップロードファイルを会話入力へ注入するための文字列を生成する。"""
+    paths = _normalize_uploaded_files(uploaded_files)
+    if not paths:
+        return "", ""
+
+    notes: list[str] = []
+    used_blocks: list[str] = []
+    total_chars = 0
+
+    for idx, path in enumerate(paths[:MAX_UPLOAD_FILES], start=1):
+        name = os.path.basename(path)
+        ext = os.path.splitext(name)[1].lower()
+        if ext and ext not in SUPPORTED_TEXT_EXTENSIONS:
+            notes.append(f"- {name}: 未対応拡張子のためスキップ")
+            continue
+
+        try:
+            size = os.path.getsize(path)
+            if size > MAX_FILE_SIZE_BYTES:
+                notes.append(f"- {name}: サイズ超過のためスキップ ({size} bytes)")
+                continue
+
+            with open(path, "r", encoding="utf-8", errors="replace") as f:
+                content = f.read()
+        except Exception as e:
+            notes.append(f"- {name}: 読み込み失敗 ({e})")
+            continue
+
+        remain = MAX_TOTAL_CHARS - total_chars
+        if remain <= 0:
+            notes.append("- 文字数上限に到達したため以降は省略")
+            break
+
+        truncated = False
+        if len(content) > remain:
+            content = content[:remain]
+            truncated = True
+
+        total_chars += len(content)
+        if truncated:
+            notes.append(f"- {name}: 末尾を切り詰めて取り込み")
+
+        used_blocks.append(
+            f"### File {idx}: {name}\n"
+            f"```text\n{content}\n```"
+        )
+
+    if not used_blocks:
+        info = "\n".join(notes) if notes else ""
+        return "", info
+
+    context = (
+        "\n\n[Uploaded Files Context]\n"
+        "以下はユーザーがアップロードしたファイル内容です。"
+        "必要に応じて参照し、質問に関連する範囲を優先して回答してください。\n\n"
+        + "\n\n".join(used_blocks)
+    )
+    info = "\n".join(notes)
+    return context, info
 
 
 def _build_chain(assistant_name: str, system_message: str, model_name: str | None = None):
@@ -192,6 +273,7 @@ def chat_fn(
     system_message: str,
     session_id: str,
     use_stream: bool,
+    prompt_override: str | None = None,
 ) -> Generator[str, None, None]:
     """ストリーミングで回答を返すジェネレータ。まとめ要求も処理する。"""
     if not message.strip():
@@ -201,6 +283,8 @@ def chat_fn(
     if assistant_name not in AI_ASSISTANTS:
         yield f"[ERROR] アシスタント '{assistant_name}' が見つかりません。"
         return
+
+    prompt_input = prompt_override if prompt_override is not None else message
 
     # ─── まとめ要求検知 ───────────────────────────────────────────
     zenn_mode = is_zenn_summary_request(message)
@@ -286,13 +370,13 @@ def chat_fn(
         start_time = time.time()
         if use_stream:
             response_text = ""
-            for chunk in chain.stream({"input": message, "history": lc_history}):
+            for chunk in chain.stream({"input": prompt_input, "history": lc_history}):
                 content = getattr(chunk, "content", "") or ""
                 if content:
                     response_text += content
                     yield response_text
         else:
-            response = chain.invoke({"input": message, "history": lc_history})
+            response = chain.invoke({"input": prompt_input, "history": lc_history})
             content = getattr(response, "content", "") or ""
             if isinstance(content, list):
                 content = " ".join(str(item) for item in content)
@@ -489,6 +573,11 @@ def build_ui() -> "gr.Blocks":
                     lines=6,
                     placeholder="AIへの役割・制約を記述...",
                 )
+                upload_files = gr.File(
+                    label="ファイルを会話に取り込む（テキスト系）",
+                    file_count="multiple",
+                    type="filepath",
+                )
                 stream_cb = gr.Checkbox(
                     label="ストリーミング表示",
                     value=DEFAULT_STREAM,
@@ -563,23 +652,42 @@ def build_ui() -> "gr.Blocks":
         )
 
         # 送信処理（Gradio 6.17 は messages 形式: dict のリスト）
-        def _submit(message, history, assistant, model, system, use_stream, sid):
+        def _submit(message, history, assistant, model, system, files, use_stream, sid):
             history = history or []
-            history.append({"role": "user", "content": message})
+            context_text, notes = _build_uploaded_context(files)
+            user_display = message
+            if _normalize_uploaded_files(files):
+                names = [os.path.basename(p) for p in _normalize_uploaded_files(files)]
+                user_display = f"{message}\n\n📎 添付: {', '.join(names)}"
+                if notes:
+                    user_display += f"\n\n{notes}"
+
+            prompt_message = f"{message}{context_text}" if context_text else message
+
+            history.append({"role": "user", "content": user_display})
             history.append({"role": "assistant", "content": ""})
-            for partial in chat_fn(message, history, assistant, model, system, sid, use_stream):
+            for partial in chat_fn(
+                message,
+                history,
+                assistant,
+                model,
+                system,
+                sid,
+                use_stream,
+                prompt_override=prompt_message,
+            ):
                 history[-1] = {"role": "assistant", "content": partial}
-                yield "", history
+                yield "", history, None
 
         msg_box.submit(
             _submit,
-            inputs=[msg_box, chatbot, assistant_dd, model_dd, system_box, stream_cb, session_id],
-            outputs=[msg_box, chatbot],
+            inputs=[msg_box, chatbot, assistant_dd, model_dd, system_box, upload_files, stream_cb, session_id],
+            outputs=[msg_box, chatbot, upload_files],
         )
         send_btn.click(
             _submit,
-            inputs=[msg_box, chatbot, assistant_dd, model_dd, system_box, stream_cb, session_id],
-            outputs=[msg_box, chatbot],
+            inputs=[msg_box, chatbot, assistant_dd, model_dd, system_box, upload_files, stream_cb, session_id],
+            outputs=[msg_box, chatbot, upload_files],
         )
 
         # 履歴クリア

@@ -875,7 +875,7 @@ meeting マーケター 分析官 企画 "市場参入戦略"
 
 ---
 
-## 🌐 Web UI (MultiRoleChatWeb.py v1.1.0)
+## 🌐 Web UI (MultiRoleChatWeb.py v1.2.0)
 
 MultiRoleChatWeb.py は MultiRoleChat.py の Gradio ベース Web ラッパーです。
 
@@ -915,6 +915,7 @@ python MultiRoleChatWeb.py [--org ORG_NAME] [--port PORT] [--share]
 - **組織切替**: `organizations/` 配下の組織を動的に選択
 - **ロールセット選択**: `demo_roles` / `organization_roles` / `roles` / `scenarios` を自動検出
 - **ワークフロー選択**: 組織設定のワークフローをドロップダウンで選択して実行
+- **ファイル取り込み（会話注入型）**: テキスト系ファイルを複数アップロードし、送信時に内容を会話入力へ注入して解析可能（転送保存はしない）
 - **ストリーミング表示トグル**: ON/OFF を UI で切替可能。初期値は組織 `config.json` の `web.stream` → `ui.stream` → `stream` の順で参照し、未設定時は ON
 - **並列実行**: `parallel` フェーズは threading で同時実行
 - **ログ自動保存**: 送信ごとに `multi_logs/{timestamp}_web.md` を生成

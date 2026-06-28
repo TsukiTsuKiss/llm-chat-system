@@ -38,11 +38,22 @@ from MultiRoleChat import (
     setup_organization_from_config,
 )
 
-VERSION = "1.1.0"
-VERSION_DATE = "2026-06-25"
+VERSION = "1.2.0"
+VERSION_DATE = "2026-06-28"
 
 DEFAULT_ORG = os.getenv("MULTIROLECHATWEB_ORG", "")
 DEFAULT_PORT = int(os.getenv("MULTIROLECHATWEB_PORT", "7861"))
+
+SUPPORTED_TEXT_EXTENSIONS = {
+    ".txt", ".md", ".markdown", ".py", ".js", ".ts", ".tsx", ".jsx",
+    ".java", ".go", ".rs", ".c", ".cpp", ".h", ".hpp", ".cs", ".php",
+    ".rb", ".swift", ".kt", ".scala", ".sql", ".json", ".yaml", ".yml",
+    ".toml", ".ini", ".cfg", ".csv", ".xml", ".html", ".css", ".sh",
+    ".bat", ".ps1", ".env", ".log",
+}
+MAX_UPLOAD_FILES = 5
+MAX_FILE_SIZE_BYTES = 256 * 1024
+MAX_TOTAL_CHARS = 80000
 
 # 最大ロール数（Gradio はビルド時に Component 数を固定するため上限を設ける）
 MAX_ROLES = 16
@@ -188,6 +199,78 @@ def _stream_default_from_org_config(org_config: dict | None) -> bool:
 
     b = _to_bool(org_config.get("stream"))
     return b if b is not None else True
+
+
+def _normalize_uploaded_files(uploaded_files) -> list[str]:
+    if not uploaded_files:
+        return []
+    if isinstance(uploaded_files, str):
+        return [uploaded_files]
+    return [p for p in uploaded_files if isinstance(p, str)]
+
+
+def _build_uploaded_context(uploaded_files) -> tuple[str, str, list[str]]:
+    """アップロードファイルを会話入力へ注入するための文字列を生成する。"""
+    paths = _normalize_uploaded_files(uploaded_files)
+    if not paths:
+        return "", "", []
+
+    notes: list[str] = []
+    used_blocks: list[str] = []
+    used_names: list[str] = []
+    total_chars = 0
+
+    for idx, path in enumerate(paths[:MAX_UPLOAD_FILES], start=1):
+        name = os.path.basename(path)
+        ext = os.path.splitext(name)[1].lower()
+        if ext and ext not in SUPPORTED_TEXT_EXTENSIONS:
+            notes.append(f"- {name}: 未対応拡張子のためスキップ")
+            continue
+
+        try:
+            size = os.path.getsize(path)
+            if size > MAX_FILE_SIZE_BYTES:
+                notes.append(f"- {name}: サイズ超過のためスキップ ({size} bytes)")
+                continue
+
+            with open(path, "r", encoding="utf-8", errors="replace") as f:
+                content = f.read()
+        except Exception as e:
+            notes.append(f"- {name}: 読み込み失敗 ({e})")
+            continue
+
+        remain = MAX_TOTAL_CHARS - total_chars
+        if remain <= 0:
+            notes.append("- 文字数上限に到達したため以降は省略")
+            break
+
+        truncated = False
+        if len(content) > remain:
+            content = content[:remain]
+            truncated = True
+
+        total_chars += len(content)
+        if truncated:
+            notes.append(f"- {name}: 末尾を切り詰めて取り込み")
+
+        used_names.append(name)
+        used_blocks.append(
+            f"### File {idx}: {name}\n"
+            f"```text\n{content}\n```"
+        )
+
+    if not used_blocks:
+        info = "\n".join(notes) if notes else ""
+        return "", info, []
+
+    context = (
+        "\n\n[Uploaded Files Context]\n"
+        "以下はユーザーがアップロードしたファイル内容です。"
+        "必要に応じて参照し、質問に関連する範囲を優先して回答してください。\n\n"
+        + "\n\n".join(used_blocks)
+    )
+    info = "\n".join(notes)
+    return context, info, used_names
 
 
 def _build_role_chain(role_info: dict):
@@ -587,6 +670,11 @@ def build_ui(default_org: str = "") -> gr.Blocks:
                             value=initial_wf_choices[0] if initial_wf_choices else "",
                             label="ワークフロー",
                         )
+                        upload_files = gr.File(
+                            label="ファイルを会話に取り込む（テキスト系）",
+                            file_count="multiple",
+                            type="filepath",
+                        )
                         stream_cb = gr.Checkbox(
                             label="ストリーミング表示",
                             value=initial_stream,
@@ -777,14 +865,26 @@ def build_ui(default_org: str = "") -> gr.Blocks:
             outputs=[role_info_md, workflow_dd, chatbot],
         )
 
-        def on_submit(message, chat_val, org_name, role_set, workflow_choice, use_stream, session_id_val):
+        def on_submit(message, chat_val, org_name, role_set, workflow_choice, files, use_stream, session_id_val):
             """メッセージを送信し、ワークフローに従って各ロールの回答を単一スレッドに追加する。
             serial: ストリーミングON時は逐次表示、OFF時は一括表示。
             parallel: 全ロールをスレッド並列実行、完了後に一括表示。
             """
-            if not message.strip():
+            raw_message = (message or "").strip()
+            file_context, file_notes, used_file_names = _build_uploaded_context(files)
+            if not raw_message and used_file_names:
+                raw_message = "添付ファイルの内容を要約してください。"
+
+            if not raw_message:
                 yield "", chat_val
                 return
+
+            prompt_input = f"{raw_message}{file_context}" if file_context else raw_message
+            user_display = raw_message
+            if used_file_names:
+                user_display += f"\n\n📎 添付: {', '.join(used_file_names)}"
+            if file_notes:
+                user_display += f"\n\n{file_notes}"
 
             try:
                 sess = _get_session(session_id_val, org_name, role_set)
@@ -809,11 +909,11 @@ def build_ui(default_org: str = "") -> gr.Blocks:
                 "description": f"Web UI からの送信 ({role_set})",
                 "phases": phases,
             }
-            manager._initialize_workflow_log(log_filename, pseudo_workflow, message, wf_key)
+            manager._initialize_workflow_log(log_filename, pseudo_workflow, user_display, wf_key)
             session_start = time.time()
             step_num = [1]  # mutable counter for nested functions
 
-            chat_val = (chat_val or []) + [{"role": "user", "content": message}]
+            chat_val = (chat_val or []) + [{"role": "user", "content": user_display}]
             yield "", chat_val
 
             for phase in phases:
@@ -837,16 +937,16 @@ def build_ui(default_org: str = "") -> gr.Blocks:
                             lc_hist = histories[role_name]
                             if use_stream:
                                 text = ""
-                                for chunk in chain.stream({"input": message, "history": lc_hist}):
+                                for chunk in chain.stream({"input": prompt_input, "history": lc_hist}):
                                     text += getattr(chunk, "content", "") or ""
                             else:
-                                response = chain.invoke({"input": message, "history": lc_hist})
+                                response = chain.invoke({"input": prompt_input, "history": lc_hist})
                                 content = getattr(response, "content", "") or ""
                                 if isinstance(content, list):
                                     content = " ".join(str(item) for item in content)
                                 text = str(content)
                             results[role_name] = text
-                            lc_hist.append(HumanMessage(content=message))
+                            lc_hist.append(HumanMessage(content=raw_message))
                             lc_hist.append(AIMessage(content=text))
                         except Exception as ex:
                             errors_par[role_name] = str(ex)
@@ -903,14 +1003,14 @@ def build_ui(default_org: str = "") -> gr.Blocks:
 
                             if use_stream:
                                 chat_val[-1] = {"role": "assistant", "content": f"{label}\n\n"}
-                                for chunk in chain.stream({"input": message, "history": lc_history}):
+                                for chunk in chain.stream({"input": prompt_input, "history": lc_history}):
                                     content = getattr(chunk, "content", "") or ""
                                     if content:
                                         response_text += content
                                         chat_val[-1] = {"role": "assistant", "content": f"{label}\n\n{response_text}"}
                                         yield "", chat_val
                             else:
-                                response = chain.invoke({"input": message, "history": lc_history})
+                                response = chain.invoke({"input": prompt_input, "history": lc_history})
                                 content = getattr(response, "content", "") or ""
                                 if isinstance(content, list):
                                     content = " ".join(str(item) for item in content)
@@ -918,7 +1018,7 @@ def build_ui(default_org: str = "") -> gr.Blocks:
                                 chat_val[-1] = {"role": "assistant", "content": f"{label}\n\n{response_text}"}
                                 yield "", chat_val
 
-                            lc_history.append(HumanMessage(content=message))
+                            lc_history.append(HumanMessage(content=raw_message))
                             lc_history.append(AIMessage(content=response_text))
 
                         except Exception as e:
@@ -939,8 +1039,8 @@ def build_ui(default_org: str = "") -> gr.Blocks:
             )
             yield "", chat_val
 
-        msg_box.submit(on_submit, inputs=[msg_box, chatbot, org_dd, roleset_dd, workflow_dd, stream_cb, session_id], outputs=[msg_box, chatbot])
-        send_btn.click(on_submit, inputs=[msg_box, chatbot, org_dd, roleset_dd, workflow_dd, stream_cb, session_id], outputs=[msg_box, chatbot])
+        msg_box.submit(on_submit, inputs=[msg_box, chatbot, org_dd, roleset_dd, workflow_dd, upload_files, stream_cb, session_id], outputs=[msg_box, chatbot])
+        send_btn.click(on_submit, inputs=[msg_box, chatbot, org_dd, roleset_dd, workflow_dd, upload_files, stream_cb, session_id], outputs=[msg_box, chatbot])
 
         def on_clear(org_name: str, role_set: str, sid: str):
             """履歴を全クリアする。"""
