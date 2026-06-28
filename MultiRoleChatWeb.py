@@ -147,6 +147,49 @@ def _roleset_choices(sets: list[str]) -> list[tuple[str, str]]:
     return [(_roleset_label(k), k) for k in sets]
 
 
+def _to_bool(value) -> bool | None:
+    """設定値を bool に変換する。変換不能なら None。"""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        v = value.strip().lower()
+        if v in ("1", "true", "on", "yes", "y"):
+            return True
+        if v in ("0", "false", "off", "no", "n"):
+            return False
+    return None
+
+
+def _stream_default_from_org_config(org_config: dict | None) -> bool:
+    """ストリーミング表示の初期値を組織設定から取得する。
+
+    優先順:
+    1) web.stream
+    2) ui.stream
+    3) stream
+    未設定または不正値は True。
+    """
+    if not isinstance(org_config, dict):
+        return True
+
+    web_cfg = org_config.get("web")
+    if isinstance(web_cfg, dict):
+        b = _to_bool(web_cfg.get("stream"))
+        if b is not None:
+            return b
+
+    ui_cfg = org_config.get("ui")
+    if isinstance(ui_cfg, dict):
+        b = _to_bool(ui_cfg.get("stream"))
+        if b is not None:
+            return b
+
+    b = _to_bool(org_config.get("stream"))
+    return b if b is not None else True
+
+
 def _build_role_chain(role_info: dict):
     """ロール情報から LangChain チェーンを構築する（履歴は呼び出し元で管理）。"""
     llm = role_info["instance"]
@@ -512,6 +555,7 @@ def build_ui(default_org: str = "") -> gr.Blocks:
     initial_manager, initial_role_names = _load_org(initial_org)
     initial_role_sets = _list_role_sets(initial_manager.organization_config)
     initial_role_set = initial_role_sets[0] if initial_role_sets else ""
+    initial_stream = _stream_default_from_org_config(initial_manager.organization_config)
 
     css = _build_css()
 
@@ -542,6 +586,11 @@ def build_ui(default_org: str = "") -> gr.Blocks:
                             choices=initial_wf_choices,
                             value=initial_wf_choices[0] if initial_wf_choices else "",
                             label="ワークフロー",
+                        )
+                        stream_cb = gr.Checkbox(
+                            label="ストリーミング表示",
+                            value=initial_stream,
+                            info="未設定時はON。organizations/*/config.json の stream 設定で初期値を上書きできます。",
                         )
                         role_info_md = gr.Markdown(
                             _make_role_info_md(initial_role_names, initial_manager)
@@ -696,10 +745,12 @@ def build_ui(default_org: str = "") -> gr.Blocks:
                 return f"❌ {e}", gr.update(), gr.update(), []
             info = _make_role_info_md(role_names, manager)
             wf_choices = _workflow_choices(manager.organization_config)
+            stream_default = _stream_default_from_org_config(manager.organization_config)
             return (
                 info,
                 gr.update(choices=_roleset_choices(rs_choices), value=rs_value),
                 gr.update(choices=wf_choices, value=wf_choices[0] if wf_choices else ""),
+                gr.update(value=stream_default),
                 [],
             )
 
@@ -718,7 +769,7 @@ def build_ui(default_org: str = "") -> gr.Blocks:
         org_dd.change(
             on_org_change,
             inputs=[org_dd, session_id],
-            outputs=[role_info_md, roleset_dd, workflow_dd, chatbot],
+            outputs=[role_info_md, roleset_dd, workflow_dd, stream_cb, chatbot],
         )
         roleset_dd.change(
             on_roleset_change,
@@ -726,9 +777,9 @@ def build_ui(default_org: str = "") -> gr.Blocks:
             outputs=[role_info_md, workflow_dd, chatbot],
         )
 
-        def on_submit(message, chat_val, org_name, role_set, workflow_choice, session_id_val):
+        def on_submit(message, chat_val, org_name, role_set, workflow_choice, use_stream, session_id_val):
             """メッセージを送信し、ワークフローに従って各ロールの回答を単一スレッドに追加する。
-            serial: 1件ずつストリーミング。
+            serial: ストリーミングON時は逐次表示、OFF時は一括表示。
             parallel: 全ロールをスレッド並列実行、完了後に一括表示。
             """
             if not message.strip():
@@ -784,9 +835,16 @@ def build_ui(default_org: str = "") -> gr.Blocks:
                             ri = manager.active_roles[role_name]
                             chain = _build_chain(ri)
                             lc_hist = histories[role_name]
-                            text = ""
-                            for chunk in chain.stream({"input": message, "history": lc_hist}):
-                                text += getattr(chunk, "content", "") or ""
+                            if use_stream:
+                                text = ""
+                                for chunk in chain.stream({"input": message, "history": lc_hist}):
+                                    text += getattr(chunk, "content", "") or ""
+                            else:
+                                response = chain.invoke({"input": message, "history": lc_hist})
+                                content = getattr(response, "content", "") or ""
+                                if isinstance(content, list):
+                                    content = " ".join(str(item) for item in content)
+                                text = str(content)
                             results[role_name] = text
                             lc_hist.append(HumanMessage(content=message))
                             lc_hist.append(AIMessage(content=text))
@@ -843,13 +901,22 @@ def build_ui(default_org: str = "") -> gr.Blocks:
                             chain = _build_role_chain(role_info)
                             lc_history = histories[role_name]
 
-                            chat_val[-1] = {"role": "assistant", "content": f"{label}\n\n"}
-                            for chunk in chain.stream({"input": message, "history": lc_history}):
-                                content = getattr(chunk, "content", "") or ""
-                                if content:
-                                    response_text += content
-                                    chat_val[-1] = {"role": "assistant", "content": f"{label}\n\n{response_text}"}
-                                    yield "", chat_val
+                            if use_stream:
+                                chat_val[-1] = {"role": "assistant", "content": f"{label}\n\n"}
+                                for chunk in chain.stream({"input": message, "history": lc_history}):
+                                    content = getattr(chunk, "content", "") or ""
+                                    if content:
+                                        response_text += content
+                                        chat_val[-1] = {"role": "assistant", "content": f"{label}\n\n{response_text}"}
+                                        yield "", chat_val
+                            else:
+                                response = chain.invoke({"input": message, "history": lc_history})
+                                content = getattr(response, "content", "") or ""
+                                if isinstance(content, list):
+                                    content = " ".join(str(item) for item in content)
+                                response_text = str(content)
+                                chat_val[-1] = {"role": "assistant", "content": f"{label}\n\n{response_text}"}
+                                yield "", chat_val
 
                             lc_history.append(HumanMessage(content=message))
                             lc_history.append(AIMessage(content=response_text))
@@ -872,8 +939,8 @@ def build_ui(default_org: str = "") -> gr.Blocks:
             )
             yield "", chat_val
 
-        msg_box.submit(on_submit, inputs=[msg_box, chatbot, org_dd, roleset_dd, workflow_dd, session_id], outputs=[msg_box, chatbot])
-        send_btn.click(on_submit, inputs=[msg_box, chatbot, org_dd, roleset_dd, workflow_dd, session_id], outputs=[msg_box, chatbot])
+        msg_box.submit(on_submit, inputs=[msg_box, chatbot, org_dd, roleset_dd, workflow_dd, stream_cb, session_id], outputs=[msg_box, chatbot])
+        send_btn.click(on_submit, inputs=[msg_box, chatbot, org_dd, roleset_dd, workflow_dd, stream_cb, session_id], outputs=[msg_box, chatbot])
 
         def on_clear(org_name: str, role_set: str, sid: str):
             """履歴を全クリアする。"""

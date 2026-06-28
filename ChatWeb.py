@@ -34,7 +34,9 @@ from langchain_core.messages import HumanMessage, AIMessage
 
 # Chat.py から LLM 接続ロジックを流用（MyPedia.py と同じ方式）
 from Chat import (
+    CHAT_CONFIG_FILE,
     load_ai_assistants_config,
+    load_chat_config,
     load_assistant,
     load_history_from_csv,
     is_summary_request,
@@ -59,6 +61,53 @@ try:
     print(f"[INFO] ChatWeb: {len(AI_ASSISTANTS)} アシスタントを読み込みました")
 except Exception as e:
     print(f"[ERROR] アシスタント設定の読み込みに失敗: {e}")
+
+
+def _to_bool(value) -> bool | None:
+    """設定値を bool に変換する。変換不能なら None。"""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        v = value.strip().lower()
+        if v in ("1", "true", "on", "yes", "y"):
+            return True
+        if v in ("0", "false", "off", "no", "n"):
+            return False
+    return None
+
+
+def _stream_default_from_chat_config() -> bool:
+    """chat_config.json からストリーミング既定値を取得する。
+
+    優先順:
+    1) web.stream
+    2) ui.stream
+    3) stream
+    設定が無い場合は True。
+    """
+    config = load_chat_config(CHAT_CONFIG_FILE, config_explicit=False)
+    if not isinstance(config, dict):
+        return True
+
+    web_cfg = config.get("web")
+    if isinstance(web_cfg, dict):
+        b = _to_bool(web_cfg.get("stream"))
+        if b is not None:
+            return b
+
+    ui_cfg = config.get("ui")
+    if isinstance(ui_cfg, dict):
+        b = _to_bool(ui_cfg.get("stream"))
+        if b is not None:
+            return b
+
+    b = _to_bool(config.get("stream"))
+    return b if b is not None else True
+
+
+DEFAULT_STREAM = _stream_default_from_chat_config()
 
 
 def _load_system_message() -> str:
@@ -142,6 +191,7 @@ def chat_fn(
     model_name: str,
     system_message: str,
     session_id: str,
+    use_stream: bool,
 ) -> Generator[str, None, None]:
     """ストリーミングで回答を返すジェネレータ。まとめ要求も処理する。"""
     if not message.strip():
@@ -192,11 +242,19 @@ def chat_fn(
             )
             yield label
             response_text = label
-            for chunk in chain.stream({"input": summary_prompt, "history": []}):
-                content = getattr(chunk, "content", "") or ""
-                if content:
-                    response_text += content
-                    yield response_text
+            if use_stream:
+                for chunk in chain.stream({"input": summary_prompt, "history": []}):
+                    content = getattr(chunk, "content", "") or ""
+                    if content:
+                        response_text += content
+                        yield response_text
+            else:
+                response = chain.invoke({"input": summary_prompt, "history": []})
+                content = getattr(response, "content", "") or ""
+                if isinstance(content, list):
+                    content = " ".join(str(item) for item in content)
+                response_text += str(content)
+                yield response_text
 
             # ファイル保存（ログファイル名を埋め込む）
             summary_body = response_text[len(label):]
@@ -226,12 +284,20 @@ def chat_fn(
         lc_history = _get_history(session_id)
 
         start_time = time.time()
-        response_text = ""
-        for chunk in chain.stream({"input": message, "history": lc_history}):
-            content = getattr(chunk, "content", "") or ""
-            if content:
-                response_text += content
-                yield response_text
+        if use_stream:
+            response_text = ""
+            for chunk in chain.stream({"input": message, "history": lc_history}):
+                content = getattr(chunk, "content", "") or ""
+                if content:
+                    response_text += content
+                    yield response_text
+        else:
+            response = chain.invoke({"input": message, "history": lc_history})
+            content = getattr(response, "content", "") or ""
+            if isinstance(content, list):
+                content = " ".join(str(item) for item in content)
+            response_text = str(content)
+            yield response_text
 
         exec_time = round(time.time() - start_time, 3)
         # 履歴に追加
@@ -423,6 +489,11 @@ def build_ui() -> "gr.Blocks":
                     lines=6,
                     placeholder="AIへの役割・制約を記述...",
                 )
+                stream_cb = gr.Checkbox(
+                    label="ストリーミング表示",
+                    value=DEFAULT_STREAM,
+                    info="chat_config.json の web.stream / ui.stream / stream があれば優先。未設定時はON。",
+                )
                 clear_btn = gr.Button("🗑️ 履歴をクリア", variant="secondary")
                 with gr.Row():
                     load_log_btn = gr.Button("📂 ログ・まとめ読込", size="sm")
@@ -492,22 +563,22 @@ def build_ui() -> "gr.Blocks":
         )
 
         # 送信処理（Gradio 6.17 は messages 形式: dict のリスト）
-        def _submit(message, history, assistant, model, system, sid):
+        def _submit(message, history, assistant, model, system, use_stream, sid):
             history = history or []
             history.append({"role": "user", "content": message})
             history.append({"role": "assistant", "content": ""})
-            for partial in chat_fn(message, history, assistant, model, system, sid):
+            for partial in chat_fn(message, history, assistant, model, system, sid, use_stream):
                 history[-1] = {"role": "assistant", "content": partial}
                 yield "", history
 
         msg_box.submit(
             _submit,
-            inputs=[msg_box, chatbot, assistant_dd, model_dd, system_box, session_id],
+            inputs=[msg_box, chatbot, assistant_dd, model_dd, system_box, stream_cb, session_id],
             outputs=[msg_box, chatbot],
         )
         send_btn.click(
             _submit,
-            inputs=[msg_box, chatbot, assistant_dd, model_dd, system_box, session_id],
+            inputs=[msg_box, chatbot, assistant_dd, model_dd, system_box, stream_cb, session_id],
             outputs=[msg_box, chatbot],
         )
 

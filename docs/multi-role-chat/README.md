@@ -915,6 +915,7 @@ python MultiRoleChatWeb.py [--org ORG_NAME] [--port PORT] [--share]
 - **組織切替**: `organizations/` 配下の組織を動的に選択
 - **ロールセット選択**: `demo_roles` / `organization_roles` / `roles` / `scenarios` を自動検出
 - **ワークフロー選択**: 組織設定のワークフローをドロップダウンで選択して実行
+- **ストリーミング表示トグル**: ON/OFF を UI で切替可能。初期値は組織 `config.json` の `web.stream` → `ui.stream` → `stream` の順で参照し、未設定時は ON
 - **並列実行**: `parallel` フェーズは threading で同時実行
 - **ログ自動保存**: 送信ごとに `multi_logs/{timestamp}_web.md` を生成
 - **設定編集** 🆕 v1.1.0: ブラウザ上で組織・ロール・ワークフローを直接編集・保存
