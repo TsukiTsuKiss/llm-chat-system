@@ -187,6 +187,25 @@ def _build_role_chain(role_info: dict, temperature: float | None = None):
     return prompt | llm
 
 
+def _is_temperature_unsupported_error(exc: Exception) -> bool:
+    """temperature 非対応エラーかを判定する。"""
+    text = str(exc).lower()
+    return (
+        "temperature" in text
+        and any(
+            k in text
+            for k in (
+                "deprecated",
+                "not supported",
+                "unsupported",
+                "does not support",
+                "only the default",
+                "invalid_request_error",
+            )
+        )
+    )
+
+
 def _list_log_files() -> list[str]:
     """multi_logs/ 配下の .md ファイルを新しい順に返す。"""
     log_dir = "multi_logs"
@@ -846,18 +865,37 @@ def build_ui(default_org: str = "") -> gr.Blocks:
                         t0 = time.time()
                         try:
                             ri = manager.active_roles[role_name]
-                            chain = _build_chain(ri, temperature)
                             lc_hist = histories[role_name]
-                            if use_stream:
-                                text = ""
-                                for chunk in chain.stream({"input": prompt_input, "history": lc_hist}):
-                                    text += getattr(chunk, "content", "") or ""
-                            else:
-                                response = chain.invoke({"input": prompt_input, "history": lc_hist})
-                                content = getattr(response, "content", "") or ""
-                                if isinstance(content, list):
-                                    content = " ".join(str(item) for item in content)
-                                text = str(content)
+
+                            effective_temperature = temperature
+                            try:
+                                chain = _build_chain(ri, effective_temperature)
+                                if use_stream:
+                                    text = ""
+                                    for chunk in chain.stream({"input": prompt_input, "history": lc_hist}):
+                                        text += getattr(chunk, "content", "") or ""
+                                else:
+                                    response = chain.invoke({"input": prompt_input, "history": lc_hist})
+                                    content = getattr(response, "content", "") or ""
+                                    if isinstance(content, list):
+                                        content = " ".join(str(item) for item in content)
+                                    text = str(content)
+                            except Exception as first_e:
+                                if effective_temperature is None or not _is_temperature_unsupported_error(first_e):
+                                    raise
+                                # 温度非対応モデル向けに 1 回だけフォールバック
+                                chain = _build_chain(ri, None)
+                                if use_stream:
+                                    text = ""
+                                    for chunk in chain.stream({"input": prompt_input, "history": lc_hist}):
+                                        text += getattr(chunk, "content", "") or ""
+                                else:
+                                    response = chain.invoke({"input": prompt_input, "history": lc_hist})
+                                    content = getattr(response, "content", "") or ""
+                                    if isinstance(content, list):
+                                        content = " ".join(str(item) for item in content)
+                                    text = str(content)
+
                             results[role_name] = text
                             lc_hist.append(HumanMessage(content=raw_message))
                             lc_hist.append(AIMessage(content=text))
@@ -911,25 +949,49 @@ def build_ui(default_org: str = "") -> gr.Blocks:
                         t0 = time.time()
                         try:
                             role_info = manager.active_roles[role_name]
-                            chain = _build_role_chain(role_info, temperature)
                             lc_history = histories[role_name]
 
-                            if use_stream:
-                                chat_val[-1] = {"role": "assistant", "content": f"{label}\n\n"}
-                                for chunk in chain.stream({"input": prompt_input, "history": lc_history}):
-                                    content = getattr(chunk, "content", "") or ""
-                                    if content:
-                                        response_text += content
-                                        chat_val[-1] = {"role": "assistant", "content": f"{label}\n\n{response_text}"}
-                                        yield "", chat_val
-                            else:
-                                response = chain.invoke({"input": prompt_input, "history": lc_history})
-                                content = getattr(response, "content", "") or ""
-                                if isinstance(content, list):
-                                    content = " ".join(str(item) for item in content)
-                                response_text = str(content)
-                                chat_val[-1] = {"role": "assistant", "content": f"{label}\n\n{response_text}"}
-                                yield "", chat_val
+                            effective_temperature = temperature
+                            try:
+                                chain = _build_role_chain(role_info, effective_temperature)
+                                if use_stream:
+                                    chat_val[-1] = {"role": "assistant", "content": f"{label}\n\n"}
+                                    for chunk in chain.stream({"input": prompt_input, "history": lc_history}):
+                                        content = getattr(chunk, "content", "") or ""
+                                        if content:
+                                            response_text += content
+                                            chat_val[-1] = {"role": "assistant", "content": f"{label}\n\n{response_text}"}
+                                            yield "", chat_val
+                                else:
+                                    response = chain.invoke({"input": prompt_input, "history": lc_history})
+                                    content = getattr(response, "content", "") or ""
+                                    if isinstance(content, list):
+                                        content = " ".join(str(item) for item in content)
+                                    response_text = str(content)
+                                    chat_val[-1] = {"role": "assistant", "content": f"{label}\n\n{response_text}"}
+                                    yield "", chat_val
+                            except Exception as first_e:
+                                if effective_temperature is None or not _is_temperature_unsupported_error(first_e):
+                                    raise
+                                # 温度非対応モデル向けに 1 回だけフォールバック
+                                chain = _build_role_chain(role_info, None)
+                                response_text = ""
+                                if use_stream:
+                                    chat_val[-1] = {"role": "assistant", "content": f"{label}\n\n"}
+                                    for chunk in chain.stream({"input": prompt_input, "history": lc_history}):
+                                        content = getattr(chunk, "content", "") or ""
+                                        if content:
+                                            response_text += content
+                                            chat_val[-1] = {"role": "assistant", "content": f"{label}\n\n{response_text}"}
+                                            yield "", chat_val
+                                else:
+                                    response = chain.invoke({"input": prompt_input, "history": lc_history})
+                                    content = getattr(response, "content", "") or ""
+                                    if isinstance(content, list):
+                                        content = " ".join(str(item) for item in content)
+                                    response_text = str(content)
+                                    chat_val[-1] = {"role": "assistant", "content": f"{label}\n\n{response_text}"}
+                                    yield "", chat_val
 
                             lc_history.append(HumanMessage(content=raw_message))
                             lc_history.append(AIMessage(content=response_text))
