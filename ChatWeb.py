@@ -94,6 +94,67 @@ def _temperature_default_from_chat_config() -> float:
 DEFAULT_TEMPERATURE = _temperature_default_from_chat_config()
 
 
+_ASSISTANT_CLASS_API_KEYS: dict[str, tuple[str, ...]] = {
+    "ChatOpenAI": ("OPENAI_API_KEY",),
+    "ChatGoogleGenerativeAI": ("GOOGLE_API_KEY", "GEMINI_API_KEY"),
+    "ChatAnthropic": ("ANTHROPIC_API_KEY",),
+    "ChatGroq": ("GROQ_API_KEY",),
+    "ChatMistralAI": ("MISTRAL_API_KEY",),
+    "ChatTogether": ("TOGETHER_API_KEY",),
+    "ChatXAI": ("XAI_API_KEY",),
+    "ChatOpperAI": ("OPPER_API_KEY",),
+}
+
+
+def _assistant_required_api_keys(assistant_name: str) -> tuple[str, ...]:
+    """アシスタントに必要なAPIキー候補を返す。"""
+    cfg = AI_ASSISTANTS.get(assistant_name, {})
+    class_name = cfg.get("class", "")
+    module_name = cfg.get("module", "")
+    if class_name in _ASSISTANT_CLASS_API_KEYS:
+        return _ASSISTANT_CLASS_API_KEYS[class_name]
+
+    # 設定に class が無い/未対応のときは module 名から推定する。
+    if "openai" in module_name:
+        return ("OPENAI_API_KEY",)
+    if "google" in module_name or "gemini" in module_name:
+        return ("GOOGLE_API_KEY", "GEMINI_API_KEY")
+    if "anthropic" in module_name:
+        return ("ANTHROPIC_API_KEY",)
+    if "groq" in module_name:
+        return ("GROQ_API_KEY",)
+    if "mistral" in module_name:
+        return ("MISTRAL_API_KEY",)
+    if "together" in module_name:
+        return ("TOGETHER_API_KEY",)
+    if "xai" in module_name:
+        return ("XAI_API_KEY",)
+    if "opper" in module_name:
+        return ("OPPER_API_KEY",)
+    return ()
+
+
+def _is_assistant_available(assistant_name: str) -> bool:
+    """必要APIキーが存在する場合のみ True。キー不要アシスタントは常に True。"""
+    required_keys = _assistant_required_api_keys(assistant_name)
+    if not required_keys:
+        return True
+    return any(bool(os.getenv(k, "").strip()) for k in required_keys)
+
+
+def _assistant_dropdown_data(assistant_names: list[str]) -> tuple[list[tuple[str, str]], list[str]]:
+    """Dropdown表示用の選択肢と、有効なアシスタント一覧を返す。"""
+    choices: list[tuple[str, str]] = []
+    available: list[str] = []
+    for name in assistant_names:
+        enabled = _is_assistant_available(name)
+        label = name if enabled else f"{name} (APIキー未設定)"
+        choices.append((label, name))
+        if enabled:
+            available.append(name)
+    return choices, available
+
+
 def _load_system_message() -> str:
     try:
         with open(SYSTEM_MESSAGE_FILE, encoding="utf-8") as f:
@@ -130,6 +191,36 @@ def _build_chain(
     ]
     prompt = ChatPromptTemplate.from_messages(prompt_messages)
     return prompt | llm
+
+
+def _is_temperature_deprecated_error(exc: Exception) -> bool:
+    """temperature 非対応/廃止エラーかどうかを判定する。"""
+    text = str(exc).lower()
+    return (
+        "temperature" in text
+        and any(k in text for k in ("deprecated", "not supported", "unsupported", "invalid_request_error"))
+    )
+
+
+def _content_to_text(content) -> str:
+    """LLM 応答 content を安全に文字列化する。"""
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, dict):
+        # Anthropic などの block 形式: text のみ表示対象にする
+        block_type = str(content.get("type", "")).lower()
+        if block_type in ("thinking", "redacted_thinking"):
+            return ""
+        text = content.get("text")
+        if isinstance(text, str):
+            return text
+        return ""
+    if isinstance(content, list):
+        # list 内の辞書メタデータは除外し、可視テキストのみ連結する
+        return "".join(_content_to_text(item) for item in content)
+    return str(content)
 
 
 # セッションごとの履歴を保持するストア（list[HumanMessage | AIMessage]）
@@ -199,6 +290,9 @@ def chat_fn(
         yield f"[ERROR] アシスタント '{assistant_name}' が見つかりません。"
         return
 
+    # モデルが temperature を受け付けない場合は1回だけ自動フォールバックする。
+    effective_temperature: float | None = temperature
+
     prompt_input = prompt_override if prompt_override is not None else message
 
     # ─── まとめ要求検知 ───────────────────────────────────────────
@@ -233,7 +327,7 @@ def chat_fn(
             )
 
         try:
-            chain = _build_chain(assistant_name, system_message, model_name, temperature)
+            chain = _build_chain(assistant_name, system_message, model_name, effective_temperature)
             label = (
                 f"📰 Zenn草稿（{assistant_name}:{model_name}）:\n"
                 if zenn_mode
@@ -241,19 +335,40 @@ def chat_fn(
             )
             yield label
             response_text = label
-            if use_stream:
-                for chunk in chain.stream({"input": summary_prompt, "history": []}):
-                    content = getattr(chunk, "content", "") or ""
-                    if content:
-                        response_text += content
-                        yield response_text
-            else:
-                response = chain.invoke({"input": summary_prompt, "history": []})
-                content = getattr(response, "content", "") or ""
-                if isinstance(content, list):
-                    content = " ".join(str(item) for item in content)
-                response_text += str(content)
-                yield response_text
+            try:
+                if use_stream:
+                    for chunk in chain.stream({"input": summary_prompt, "history": []}):
+                        content = _content_to_text(getattr(chunk, "content", ""))
+                        if content:
+                            response_text += content
+                            yield response_text
+                else:
+                    response = chain.invoke({"input": summary_prompt, "history": []})
+                    content = getattr(response, "content", "") or ""
+                    if isinstance(content, list):
+                        content = " ".join(str(item) for item in content)
+                    response_text += str(content)
+                    yield response_text
+            except Exception as first_e:
+                if effective_temperature is None or not _is_temperature_deprecated_error(first_e):
+                    raise
+                # temperature 非対応モデル向けの自動フォールバック
+                effective_temperature = None
+                chain = _build_chain(assistant_name, system_message, model_name, effective_temperature)
+                response_text = label
+                if use_stream:
+                    for chunk in chain.stream({"input": summary_prompt, "history": []}):
+                        content = _content_to_text(getattr(chunk, "content", ""))
+                        if content:
+                            response_text += content
+                            yield response_text
+                else:
+                    response = chain.invoke({"input": summary_prompt, "history": []})
+                    content = getattr(response, "content", "") or ""
+                    if isinstance(content, list):
+                        content = " ".join(str(item) for item in content)
+                    response_text += str(content)
+                    yield response_text
 
             # ファイル保存（ログファイル名を埋め込む）
             summary_body = response_text[len(label):]
@@ -279,24 +394,46 @@ def chat_fn(
     # ユーザー行をログに記録
     _write_log(session_id, 'User', message, '', assistant_name, model_name)
     try:
-        chain = _build_chain(assistant_name, system_message, model_name, temperature)
+        chain = _build_chain(assistant_name, system_message, model_name, effective_temperature)
         lc_history = _get_history(session_id)
 
         start_time = time.time()
-        if use_stream:
-            response_text = ""
-            for chunk in chain.stream({"input": prompt_input, "history": lc_history}):
-                content = getattr(chunk, "content", "") or ""
-                if content:
-                    response_text += content
-                    yield response_text
-        else:
-            response = chain.invoke({"input": prompt_input, "history": lc_history})
-            content = getattr(response, "content", "") or ""
-            if isinstance(content, list):
-                content = " ".join(str(item) for item in content)
-            response_text = str(content)
-            yield response_text
+        try:
+            if use_stream:
+                response_text = ""
+                for chunk in chain.stream({"input": prompt_input, "history": lc_history}):
+                    content = _content_to_text(getattr(chunk, "content", ""))
+                    if content:
+                        response_text += content
+                        yield response_text
+            else:
+                response = chain.invoke({"input": prompt_input, "history": lc_history})
+                content = getattr(response, "content", "") or ""
+                if isinstance(content, list):
+                    content = " ".join(str(item) for item in content)
+                response_text = str(content)
+                yield response_text
+        except Exception as first_e:
+            if effective_temperature is None or not _is_temperature_deprecated_error(first_e):
+                raise
+            # temperature 非対応モデル向けの自動フォールバック
+            effective_temperature = None
+            chain = _build_chain(assistant_name, system_message, model_name, effective_temperature)
+            start_time = time.time()
+            if use_stream:
+                response_text = ""
+                for chunk in chain.stream({"input": prompt_input, "history": lc_history}):
+                    content = _content_to_text(getattr(chunk, "content", ""))
+                    if content:
+                        response_text += content
+                        yield response_text
+            else:
+                response = chain.invoke({"input": prompt_input, "history": lc_history})
+                content = getattr(response, "content", "") or ""
+                if isinstance(content, list):
+                    content = " ".join(str(item) for item in content)
+                response_text = str(content)
+                yield response_text
 
         exec_time = round(time.time() - start_time, 3)
         # 履歴に追加
@@ -446,7 +583,13 @@ def _preview_tree_item(value: str) -> str:
 def build_ui() -> "gr.Blocks":
     """Gradio UI を構築して返す。"""
     assistant_names = list(AI_ASSISTANTS.keys()) if AI_ASSISTANTS else [DEFAULT_ASSISTANT]
-    default_assistant = DEFAULT_ASSISTANT if DEFAULT_ASSISTANT in assistant_names else assistant_names[0]
+    assistant_choices, available_assistants = _assistant_dropdown_data(assistant_names)
+    if DEFAULT_ASSISTANT in available_assistants:
+        default_assistant = DEFAULT_ASSISTANT
+    elif available_assistants:
+        default_assistant = available_assistants[0]
+    else:
+        default_assistant = assistant_names[0]
     default_system = _load_system_message()
 
     def _get_models(assistant_name: str) -> list[str]:
@@ -462,21 +605,34 @@ def build_ui() -> "gr.Blocks":
         height: calc(100vh - 220px) !important;
         overflow-y: auto;
     }
+
+    #assistant-dd .choices__list--dropdown .choices__item:has(span[title*="APIキー未設定"]) {
+        color: #9ca3af !important;
+        background: #f3f4f6 !important;
+        pointer-events: none;
+    }
+
+    #assistant-status {
+        min-height: 1.2em;
+    }
     """
     with gr.Blocks(title="ChatWeb", fill_height=True, css=css) as demo:
         gr.Markdown("# 💬 ChatWeb")
 
         # セッションIDを状態として保持（タブごとに独立）
         session_id = gr.State(lambda: __import__("uuid").uuid4().hex)
+        last_valid_assistant = gr.State(default_assistant)
 
         with gr.Row():
             with gr.Column(scale=1, min_width=220):
                 gr.Markdown("### ⚙️ 設定")
                 assistant_dd = gr.Dropdown(
-                    choices=assistant_names,
+                    choices=assistant_choices,
                     value=default_assistant,
                     label="アシスタント",
+                    elem_id="assistant-dd",
                 )
+                assistant_status = gr.Markdown("", elem_id="assistant-status")
                 model_dd = gr.Dropdown(
                     choices=default_models,
                     value=default_models[0] if default_models else None,
@@ -564,14 +720,22 @@ def build_ui() -> "gr.Blocks":
                     send_btn = gr.Button("送信", variant="primary", scale=1)
 
         # アシスタント切替時にモデル一覧を更新
-        def _update_models(assistant_name: str):
-            models = _get_models(assistant_name)
-            return gr.Dropdown(choices=models, value=models[0] if models else None)
+        def _update_models(assistant_name: str, current_valid_assistant: str):
+            if _is_assistant_available(assistant_name):
+                models = _get_models(assistant_name)
+                return "", gr.update(value=assistant_name), gr.update(choices=models, value=models[0] if models else None), assistant_name
+
+            fallback = current_valid_assistant if _is_assistant_available(current_valid_assistant) else default_assistant
+            models = _get_models(fallback)
+            required = _assistant_required_api_keys(assistant_name)
+            req_text = " / ".join(required) if required else "必要なAPIキー"
+            msg = f"<span style='color:#9ca3af;'>⚠️ {assistant_name} は APIキー未設定のため選択できません（{req_text}）。</span>"
+            return msg, gr.update(value=fallback), gr.update(choices=models, value=models[0] if models else None), fallback
 
         assistant_dd.change(
             _update_models,
-            inputs=[assistant_dd],
-            outputs=[model_dd],
+            inputs=[assistant_dd, last_valid_assistant],
+            outputs=[assistant_status, assistant_dd, model_dd, last_valid_assistant],
         )
 
         # 送信処理（Gradio 6.17 は messages 形式: dict のリスト）
@@ -659,7 +823,7 @@ def build_ui() -> "gr.Blocks":
                     for m in messages
                 ]
                 new_assistant = (
-                    last_assistant if last_assistant and last_assistant in AI_ASSISTANTS
+                    last_assistant if last_assistant and last_assistant in AI_ASSISTANTS and _is_assistant_available(last_assistant)
                     else current_assistant
                 )
                 new_models = _get_models(new_assistant)
