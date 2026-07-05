@@ -389,4 +389,4 @@ python test_config.py <設定ファイル名>
 
 ---
 
-*このガイドは MultiRoleChat v1.0.0 に基づいています*
+*このガイドは MultiRoleChat v1.6.1 に基づいています*

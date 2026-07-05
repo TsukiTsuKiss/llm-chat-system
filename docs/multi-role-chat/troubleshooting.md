@@ -310,4 +310,4 @@ cp multi_role_config_tech_startup.json.backup.20250813_232000 multi_role_config_
 
 ---
 
-*このガイドは MultiRoleChat v1.0.0 に基づいています*
+*このガイドは MultiRoleChat v1.6.1 に基づいています*

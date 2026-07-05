@@ -927,4 +927,4 @@ python MultiRoleChatWeb.py [--org ORG_NAME] [--port PORT] [--share]
 
 ---
 
-**MultiRoleChat v1.0.0** - 高度なAI協働システム
+**MultiRoleChat v1.6.1** - 高度なAI協働システム
