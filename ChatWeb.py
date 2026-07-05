@@ -50,10 +50,11 @@ from web_input_utils import (
     build_uploaded_context,
     normalize_uploaded_files,
     stream_default_from_config,
+    temperature_default_from_config,
 )
 
-VERSION = "1.5.0"
-VERSION_DATE = "2026-06-28"
+VERSION = "1.6.0"
+VERSION_DATE = "2026-07-05"
 
 DEFAULT_ASSISTANT = os.getenv("CHATWEB_ASSISTANT", "OpenAI")
 DEFAULT_PORT = int(os.getenv("CHATWEB_PORT", "7860"))
@@ -84,6 +85,15 @@ def _stream_default_from_chat_config() -> bool:
 DEFAULT_STREAM = _stream_default_from_chat_config()
 
 
+def _temperature_default_from_chat_config() -> float:
+    """chat_config.json から temperature の既定値を取得する。"""
+    config = load_chat_config(CHAT_CONFIG_FILE, config_explicit=False)
+    return temperature_default_from_config(config, default_value=0.7)
+
+
+DEFAULT_TEMPERATURE = _temperature_default_from_chat_config()
+
+
 def _load_system_message() -> str:
     try:
         with open(SYSTEM_MESSAGE_FILE, encoding="utf-8") as f:
@@ -92,11 +102,22 @@ def _load_system_message() -> str:
         return ""
 
 
-def _build_chain(assistant_name: str, system_message: str, model_name: str | None = None):
+def _build_chain(
+    assistant_name: str,
+    system_message: str,
+    model_name: str | None = None,
+    temperature: float | None = None,
+):
     """LangChain チェーンを組み立てる。"""
     cfg = AI_ASSISTANTS[assistant_name]
     model = model_name if model_name else cfg["model"]
     llm = load_assistant(AI_ASSISTANTS, assistant_name, model)
+    if temperature is not None:
+        # モデル実装ごとに差異があるため、bind が使える場合のみ適用する。
+        try:
+            llm = llm.bind(temperature=float(temperature))
+        except Exception:
+            pass
 
     prompt_messages = []
     if system_message.strip() and assistant_name not in ["Gemini"]:
@@ -166,6 +187,7 @@ def chat_fn(
     system_message: str,
     session_id: str,
     use_stream: bool,
+    temperature: float,
     prompt_override: str | None = None,
 ) -> Generator[str, None, None]:
     """ストリーミングで回答を返すジェネレータ。まとめ要求も処理する。"""
@@ -211,7 +233,7 @@ def chat_fn(
             )
 
         try:
-            chain = _build_chain(assistant_name, system_message, model_name)
+            chain = _build_chain(assistant_name, system_message, model_name, temperature)
             label = (
                 f"📰 Zenn草稿（{assistant_name}:{model_name}）:\n"
                 if zenn_mode
@@ -257,7 +279,7 @@ def chat_fn(
     # ユーザー行をログに記録
     _write_log(session_id, 'User', message, '', assistant_name, model_name)
     try:
-        chain = _build_chain(assistant_name, system_message, model_name)
+        chain = _build_chain(assistant_name, system_message, model_name, temperature)
         lc_history = _get_history(session_id)
 
         start_time = time.time()
@@ -476,6 +498,14 @@ def build_ui() -> "gr.Blocks":
                     value=DEFAULT_STREAM,
                     info="chat_config.json の web.stream / ui.stream / stream があれば優先。未設定時はON。",
                 )
+                temperature_slider = gr.Slider(
+                    minimum=0.0,
+                    maximum=2.0,
+                    step=0.1,
+                    value=DEFAULT_TEMPERATURE,
+                    label="Temperature",
+                    info="回答のランダム性（低: 安定 / 高: 多様）。chat_config.json の web.temperature / ui.temperature / temperature が既定値。",
+                )
                 clear_btn = gr.Button("🗑️ 履歴をクリア", variant="secondary")
                 with gr.Row():
                     load_log_btn = gr.Button("📂 ログ・まとめ読込", size="sm")
@@ -545,7 +575,7 @@ def build_ui() -> "gr.Blocks":
         )
 
         # 送信処理（Gradio 6.17 は messages 形式: dict のリスト）
-        def _submit(message, history, assistant, model, system, files, use_stream, sid):
+        def _submit(message, history, assistant, model, system, files, use_stream, temperature, sid):
             history = history or []
             context_text, notes, used_names = build_uploaded_context(files)
             user_display = message
@@ -568,6 +598,7 @@ def build_ui() -> "gr.Blocks":
                 system,
                 sid,
                 use_stream,
+                temperature,
                 prompt_override=prompt_message,
             ):
                 history[-1] = {"role": "assistant", "content": partial}
@@ -575,12 +606,12 @@ def build_ui() -> "gr.Blocks":
 
         msg_box.submit(
             _submit,
-            inputs=[msg_box, chatbot, assistant_dd, model_dd, system_box, upload_files, stream_cb, session_id],
+            inputs=[msg_box, chatbot, assistant_dd, model_dd, system_box, upload_files, stream_cb, temperature_slider, session_id],
             outputs=[msg_box, chatbot, upload_files],
         )
         send_btn.click(
             _submit,
-            inputs=[msg_box, chatbot, assistant_dd, model_dd, system_box, upload_files, stream_cb, session_id],
+            inputs=[msg_box, chatbot, assistant_dd, model_dd, system_box, upload_files, stream_cb, temperature_slider, session_id],
             outputs=[msg_box, chatbot, upload_files],
         )
 

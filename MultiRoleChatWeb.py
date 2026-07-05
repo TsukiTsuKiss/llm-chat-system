@@ -40,10 +40,11 @@ from MultiRoleChat import (
 from web_input_utils import (
     build_uploaded_context,
     stream_default_from_config,
+    temperature_default_from_config,
 )
 
-VERSION = "1.2.0"
-VERSION_DATE = "2026-06-28"
+VERSION = "1.3.0"
+VERSION_DATE = "2026-07-05"
 
 DEFAULT_ORG = os.getenv("MULTIROLECHATWEB_ORG", "")
 DEFAULT_PORT = int(os.getenv("MULTIROLECHATWEB_PORT", "7861"))
@@ -163,9 +164,20 @@ def _stream_default_from_org_config(org_config: dict | None) -> bool:
     return stream_default_from_config(org_config, default_value=True)
 
 
-def _build_role_chain(role_info: dict):
+def _temperature_default_from_org_config(org_config: dict | None) -> float:
+    """temperature の初期値を組織設定から取得する。"""
+    return temperature_default_from_config(org_config, default_value=0.7)
+
+
+def _build_role_chain(role_info: dict, temperature: float | None = None):
     """ロール情報から LangChain チェーンを構築する（履歴は呼び出し元で管理）。"""
     llm = role_info["instance"]
+    if temperature is not None:
+        # 一時対応として全ロール共通温度を bind で適用する。
+        try:
+            llm = llm.bind(temperature=float(temperature))
+        except Exception:
+            pass
     system_prompt = role_info["system_prompt"]
     prompt = ChatPromptTemplate.from_messages([
         SystemMessagePromptTemplate.from_template(system_prompt),
@@ -529,6 +541,7 @@ def build_ui(default_org: str = "") -> gr.Blocks:
     initial_role_sets = _list_role_sets(initial_manager.organization_config)
     initial_role_set = initial_role_sets[0] if initial_role_sets else ""
     initial_stream = _stream_default_from_org_config(initial_manager.organization_config)
+    initial_temperature = _temperature_default_from_org_config(initial_manager.organization_config)
 
     css = _build_css()
 
@@ -569,6 +582,14 @@ def build_ui(default_org: str = "") -> gr.Blocks:
                             label="ストリーミング表示",
                             value=initial_stream,
                             info="未設定時はON。organizations/*/config.json の stream 設定で初期値を上書きできます。",
+                        )
+                        temperature_slider = gr.Slider(
+                            minimum=0.0,
+                            maximum=2.0,
+                            step=0.1,
+                            value=initial_temperature,
+                            label="Temperature（全体）",
+                            info="一時対応: 全ロール共通の温度。将来的にロール個別設定へ拡張予定。",
                         )
                         role_info_md = gr.Markdown(
                             _make_role_info_md(initial_role_names, initial_manager)
@@ -724,11 +745,13 @@ def build_ui(default_org: str = "") -> gr.Blocks:
             info = _make_role_info_md(role_names, manager)
             wf_choices = _workflow_choices(manager.organization_config)
             stream_default = _stream_default_from_org_config(manager.organization_config)
+            temperature_default = _temperature_default_from_org_config(manager.organization_config)
             return (
                 info,
                 gr.update(choices=_roleset_choices(rs_choices), value=rs_value),
                 gr.update(choices=wf_choices, value=wf_choices[0] if wf_choices else ""),
                 gr.update(value=stream_default),
+                gr.update(value=temperature_default),
                 [],
             )
 
@@ -747,7 +770,7 @@ def build_ui(default_org: str = "") -> gr.Blocks:
         org_dd.change(
             on_org_change,
             inputs=[org_dd, session_id],
-            outputs=[role_info_md, roleset_dd, workflow_dd, stream_cb, chatbot],
+            outputs=[role_info_md, roleset_dd, workflow_dd, stream_cb, temperature_slider, chatbot],
         )
         roleset_dd.change(
             on_roleset_change,
@@ -755,7 +778,7 @@ def build_ui(default_org: str = "") -> gr.Blocks:
             outputs=[role_info_md, workflow_dd, chatbot],
         )
 
-        def on_submit(message, chat_val, org_name, role_set, workflow_choice, files, use_stream, session_id_val):
+        def on_submit(message, chat_val, org_name, role_set, workflow_choice, files, use_stream, temperature, session_id_val):
             """メッセージを送信し、ワークフローに従って各ロールの回答を単一スレッドに追加する。
             serial: ストリーミングON時は逐次表示、OFF時は一括表示。
             parallel: 全ロールをスレッド並列実行、完了後に一括表示。
@@ -823,7 +846,7 @@ def build_ui(default_org: str = "") -> gr.Blocks:
                         t0 = time.time()
                         try:
                             ri = manager.active_roles[role_name]
-                            chain = _build_chain(ri)
+                            chain = _build_chain(ri, temperature)
                             lc_hist = histories[role_name]
                             if use_stream:
                                 text = ""
@@ -888,7 +911,7 @@ def build_ui(default_org: str = "") -> gr.Blocks:
                         t0 = time.time()
                         try:
                             role_info = manager.active_roles[role_name]
-                            chain = _build_role_chain(role_info)
+                            chain = _build_role_chain(role_info, temperature)
                             lc_history = histories[role_name]
 
                             if use_stream:
@@ -929,8 +952,8 @@ def build_ui(default_org: str = "") -> gr.Blocks:
             )
             yield "", chat_val
 
-        msg_box.submit(on_submit, inputs=[msg_box, chatbot, org_dd, roleset_dd, workflow_dd, upload_files, stream_cb, session_id], outputs=[msg_box, chatbot])
-        send_btn.click(on_submit, inputs=[msg_box, chatbot, org_dd, roleset_dd, workflow_dd, upload_files, stream_cb, session_id], outputs=[msg_box, chatbot])
+        msg_box.submit(on_submit, inputs=[msg_box, chatbot, org_dd, roleset_dd, workflow_dd, upload_files, stream_cb, temperature_slider, session_id], outputs=[msg_box, chatbot])
+        send_btn.click(on_submit, inputs=[msg_box, chatbot, org_dd, roleset_dd, workflow_dd, upload_files, stream_cb, temperature_slider, session_id], outputs=[msg_box, chatbot])
 
         def on_clear(org_name: str, role_set: str, sid: str):
             """履歴を全クリアする。"""

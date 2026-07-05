@@ -52,6 +52,40 @@ def stream_default_from_config(config: dict | None, default_value: bool = True) 
     return b if b is not None else default_value
 
 
+def temperature_default_from_config(config: dict | None, default_value: float = 0.7) -> float:
+    """config から temperature の初期値を解決する（web.temperature > ui.temperature > temperature）。"""
+    if not isinstance(config, dict):
+        return default_value
+
+    def _to_temperature(value) -> float | None:
+        if isinstance(value, bool):
+            return None
+        try:
+            t = float(value)
+        except (TypeError, ValueError):
+            return None
+        if t < 0.0:
+            return 0.0
+        if t > 2.0:
+            return 2.0
+        return t
+
+    web_cfg = config.get("web")
+    if isinstance(web_cfg, dict):
+        t = _to_temperature(web_cfg.get("temperature"))
+        if t is not None:
+            return t
+
+    ui_cfg = config.get("ui")
+    if isinstance(ui_cfg, dict):
+        t = _to_temperature(ui_cfg.get("temperature"))
+        if t is not None:
+            return t
+
+    t = _to_temperature(config.get("temperature"))
+    return t if t is not None else default_value
+
+
 def normalize_uploaded_files(uploaded_files) -> list[str]:
     if not uploaded_files:
         return []
