@@ -1,0 +1,46 @@
+{
+  "name": "開発",
+  "description": "実装→レビュー→judge ループ。成果物は sandbox に抽出。",
+  "slots": {
+    "implementer": {
+      "description": "実装担当",
+      "count": "1+"
+    },
+    "reviewer": {
+      "description": "レビュー・合否判定担当",
+      "count": "1"
+    }
+  },
+  "phases": [
+    {
+      "type": "loop",
+      "max_iterations": 5,
+      "exit": {
+        "type": "judge",
+        "slot": "reviewer",
+        "criteria": "要件を満たし、pytest で実行可能なテストが揃っていること。軽微な改善提案や環境差の懸念だけが残る場合は終了してよい"
+      },
+      "phases": [
+        {
+          "type": "serial",
+          "steps": [
+            {
+              "slot": "implementer",
+              "action": "要件に沿った完成コードを毎回すべて出力する（差分のみ不可）。各ファイルの直前にバッククォートでパス（例: `hello.py`）を1行書き、続けてコードブロック。テストは tests/test_*.py を必ず含める。基本レイアウトはルートのモジュール + tests/ とし、反復中にパス構成を変えない。文字数制限より完成度を優先する"
+            }
+          ]
+        },
+        {
+          "type": "serial",
+          "steps": [
+            {
+              "slot": "reviewer",
+              "action": "実装をレビューする。コードブロックは書かない（指摘は箇条書きのみ）。確認観点: 要件充足、テストの有無と主要ケース、import/実行可能性。ブロッカーは最大3件。軽微・任意の改善は別枠で列挙し、全体を200文字程度に要約する"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+

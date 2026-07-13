@@ -46,12 +46,24 @@ class MockAssistant:
         *,
         stream: bool,
         on_chunk: Callable[[str], None] | None = None,
+        action: str = "",
     ) -> InvokeResult:
         if os.environ.get("STUDIO_MOCK_INJECT_TEMP_ERROR") == "1" and not cls._temp_error_used:
             cls._temp_error_used = True
             raise MockTemperatureError("temperature is not supported for mock model")
 
-        text = f"MOCK:{talent_id}:step{step_number}"
+        marker = os.environ.get("STUDIO_MOCK_MARKER")
+        if marker and ("集約" in action or "判断" in action):
+            text = f"MOCK:{talent_id}:step{step_number} {marker}了"
+        elif os.environ.get("STUDIO_MOCK_JUDGE_EXIT") == "1" and "【判定】" in action:
+            text = "【判定】終了\nMOCK: judge OK"
+        elif os.environ.get("STUDIO_MOCK_EMIT_CODE") == "1":
+            text = (
+                f'MOCK:{talent_id}:step{step_number}\n'
+                "ファイル名: hello.py\n```python\nprint('hello')\n```"
+            )
+        else:
+            text = f"MOCK:{talent_id}:step{step_number}"
         if stream and on_chunk:
             for ch in text:
                 on_chunk(ch)
@@ -219,10 +231,11 @@ def invoke_mock_step(
     history: ConversationHistory,
     user_message: str,
     on_chunk: Callable[[str], None] | None = None,
+    action: str = "",
 ) -> InvokeResult:
     for attempt in range(2):
         try:
-            result = MockAssistant.invoke(talent_id, step_number, stream=stream, on_chunk=on_chunk)
+            result = MockAssistant.invoke(talent_id, step_number, stream=stream, on_chunk=on_chunk, action=action)
             history.add_message(HumanMessage(content=user_message))
             history.add_message(AIMessage(content=result.text))
             return result

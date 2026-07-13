@@ -10,6 +10,7 @@ from typing import Any
 from studio.bindings import validate_workflow_binding_talent_refs, validate_workflow_bindings
 from studio.schema_validate import load_json_file, validate_schema_document
 from studio.validation import StudioError, StudioValidationError, ValidationReport
+from studio.workflow_validate import validate_workflow_structure
 
 RESERVED_ASSISTANTS = frozenset({"human", "mock"})
 AI_ASSISTANTS_FILE = "ai_assistants_config.json"
@@ -232,6 +233,8 @@ def load_workflow(workflow_id: str, root: Path, report: ValidationReport) -> dic
     if data is None:
         return None
     validate_schema_document(data, "workflow", f"workflows/{workflow_id}.json", report)
+    if data is not None:
+        validate_workflow_structure(workflow_id, data, report)
     return data
 
 

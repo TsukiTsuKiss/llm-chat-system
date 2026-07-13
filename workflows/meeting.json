@@ -1,0 +1,53 @@
+{
+  "name": "会議（モデレーター付き）",
+  "description": "モデレーターが論点整理し、メンバーが意見を出し、結論が出るまで反復する",
+  "slots": {
+    "moderator": {
+      "description": "進行役。論点整理と結論判定を行う",
+      "count": "1"
+    },
+    "member": {
+      "description": "議論参加者",
+      "count": "1+"
+    }
+  },
+  "phases": [
+    {
+      "type": "serial",
+      "steps": [
+        {
+          "slot": "moderator",
+          "action": "議題を確認し、論点を3つ以内で提示する"
+        }
+      ]
+    },
+    {
+      "type": "loop",
+      "max_iterations": 3,
+      "exit": {
+        "type": "marker",
+        "marker": "【結論】"
+      },
+      "phases": [
+        {
+          "type": "parallel",
+          "steps": [
+            {
+              "slot": "member",
+              "action": "論点に対する意見と根拠を述べる"
+            }
+          ]
+        },
+        {
+          "type": "serial",
+          "steps": [
+            {
+              "slot": "moderator",
+              "action": "意見を集約し、合意可能かを判断する。不足があれば追加論点を提示する"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

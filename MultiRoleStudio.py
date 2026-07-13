@@ -12,8 +12,9 @@ from studio.bindings import org_has_human_talent, workflow_participating_talent_
 from studio.engine import EngineEvent, SessionEngine, collect_events
 from studio.loader import load_session_context, read_attachment_files
 from studio.validation import StudioError, StudioValidationError
+from studio.workflow_validate import workflow_has_user_exit
 
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 
 
 def print_event(event: EngineEvent, *, use_stream: bool) -> None:
@@ -24,7 +25,19 @@ def print_event(event: EngineEvent, *, use_stream: bool) -> None:
         print(f"組織: {p['org']} / {wf}")
     elif event.type == "phase_start" and not event.payload.get("phase_end"):
         phase_type = event.payload.get("phase_type", "serial")
-        print(f"\n--- phase: {phase_type} ---")
+        iteration = event.payload.get("iteration")
+        suffix = f" (反復 {iteration})" if iteration else ""
+        print(f"\n--- phase: {phase_type}{suffix} ---")
+    elif event.type == "loop_check":
+        p = event.payload
+        print(
+            f"\n[loop] 反復 {p['iteration']}: {p['exit_type']} → {p['result']}"
+        )
+    elif event.type == "await_choice":
+        p = event.payload
+        print(f"\n{p.get('prompt', '続けますか？')} (y=続行 / n=終了)")
+        raw = input("> ").strip().lower()
+        event.payload["_response"] = "exit" if raw in {"n", "no", "exit", "終了"} else "continue"
     elif event.type == "step_start":
         p = event.payload
         print(f"\n--- {p['display_name']} ---")
@@ -55,11 +68,16 @@ def print_event(event: EngineEvent, *, use_stream: bool) -> None:
             f"\n=== session end === total_elapsed={p['total_elapsed']:.1f}s "
             f"total_cost=${p['total_cost']:.6f}"
         )
+        if p.get("artifact_dir"):
+            print(f"成果物: {p['artifact_dir']}")
 
 
 def drive_interactive_responder(event: EngineEvent) -> str | None:
     if event.type == "await_text":
         return input("> ")
+    if event.type == "await_choice":
+        raw = input("> ").strip().lower()
+        return "exit" if raw in {"n", "no", "exit", "終了"} else "continue"
     return None
 
 
@@ -76,6 +94,21 @@ def validate_batch_mode(ctx, topic: str | None) -> None:
                     target="--topic",
                     message=(
                         f"ワークフロー '{wf_label}' は human 参加を含むため"
+                        " --topic による無人実行はできません"
+                    ),
+                )
+            ]
+        )
+
+    if ctx.workflow and workflow_has_user_exit(ctx.workflow):
+        wf_label = ctx.workflow_id or "ワークフロー"
+        raise StudioValidationError(
+            [
+                StudioError(
+                    code="E402",
+                    target="--topic",
+                    message=(
+                        f"ワークフロー '{wf_label}' は exit.type \"user\" を含むため"
                         " --topic による無人実行はできません"
                     ),
                 )
@@ -141,8 +174,12 @@ def run_interactive(args: argparse.Namespace) -> int:
         event = next(gen)
         while True:
             print_event(event, use_stream=use_stream)
-            if event.type == "await_text":
-                reply = input("> ")
+            if event.type in ("await_text", "await_choice"):
+                if event.type == "await_text":
+                    reply = input("> ")
+                else:
+                    raw = input("> ").strip().lower()
+                    reply = "exit" if raw in {"n", "no", "exit", "終了"} else "continue"
                 try:
                     event = gen.send(reply)
                 except StopIteration:

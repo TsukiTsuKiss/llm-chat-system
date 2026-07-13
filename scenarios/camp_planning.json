@@ -1,0 +1,8 @@
+{
+  "organization": "nokuru",
+  "workflow": "discussion",
+  "talent_ids": ["hinata", "satsuki"],
+  "generation": {
+    "temperature": 0.65
+  }
+}

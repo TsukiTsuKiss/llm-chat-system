@@ -72,9 +72,10 @@
 **開発チーム通信欄:** [handoff/current.md](handoff/current.md)（Composer ↔ Copilot ↔ オーナー。使い方は [handoff/README.md](handoff/README.md)）
 
 **Phase 1（1 人 CLI）:** 直接送信、`mock` / 実 LLM、JSONL ログ  
-**Phase 2（複数人）:** `serial` / `parallel` ワークフロー、`discussion` / `quiz`、`human`（parallel では AI 先行→human 入力）
+**Phase 2（複数人）:** `serial` / `parallel` ワークフロー、`discussion` / `quiz`、`human`（parallel では AI 先行→human 入力）  
+**Phase 3（進行制御）:** `loop` + `exit`（marker / judge / user）、`meeting` / `dev`、成果物抽出（`sandbox/`）
 
-**未実装:** `loop` / meeting、Web UI、議事録 など（design.md 9章）
+**未実装:** Web UI、議事録、Git 連携 など（design.md 9章）
 
 #### セットアップ
 
@@ -97,6 +98,11 @@ python MultiRoleStudio.py --org solo --topic "テスト" --stream off   # バッ
 python MultiRoleStudio.py --org trio                           # 直接送信（全員 serial）
 python MultiRoleStudio.py --org trio --workflow discussion --topic "議題" --stream off
 python MultiRoleStudio.py --org trio --workflow quiz --topic "日本の首都は？" --stream off
+
+# --- Phase 3: 会議・開発（nokuru）---
+cp organizations/nokuru/model_mapping.example.json organizations/nokuru/model_mapping.json
+python MultiRoleStudio.py --org nokuru --workflow meeting --topic "秋キャンプの行き先" --stream off
+python MultiRoleStudio.py --org nokuru --workflow dev --topic "hello 関数" --stream off
 #   quiz: 出題(serial) → 全員回答(parallel) → 採点(serial)
 
 # --- テスト（API キー不要）---
@@ -106,7 +112,7 @@ python -m pytest tests/parity/ -v
 | オプション | 説明 |
 |---|---|
 | `--org` | 組織 ID（`solo`, `trio` 等） |
-| `--workflow` | 省略時は**直接送信**。`discussion` / `quiz` |
+| `--workflow` | 省略時は**直接送信**。`discussion` / `quiz` / `meeting` / `dev` |
 | `--topic` | 指定時は**バッチ**（1 発完走）。省略時は対話（`q` で終了） |
 | `--stream off` | ストリーミング OFF（推奨: 速度比較・ログ確認） |
 
@@ -520,6 +526,13 @@ sandbox/session_20250814_141337/
 ## 🔄 更新履歴
 
 ## 📈 バージョン履歴
+
+### MultiRoleStudio Phase 3 (2026-07-13)
+- 🆕 **loop フェーズ** — `exit`: marker / judge / user、`loop_check` イベント
+- 🆕 **workflows/** — `meeting.json`, `dev.json`
+- 🆕 **成果物抽出** — `studio/artifacts.py` → `sandbox/session_<id>/`
+- 🆕 **nokuru サンプル** — hinata/satsuki/kaede + `scenarios/camp_planning.json`
+- 🆕 **パリティ試験** — Phase 3 向け 6 件追加（計 26 件）
 
 ### MultiRoleStudio Phase 2 (2026-07-13)
 - 🆕 **serial / parallel** — ワークフロー実行エンジン、`studio/bindings.py`

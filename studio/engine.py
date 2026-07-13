@@ -1,4 +1,4 @@
-"""Workflow execution engine (Phase 2: direct send + serial / parallel)."""
+"""Workflow execution engine (Phase 3: serial / parallel / loop)."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 from studio.assistants import invoke_llm_step, invoke_mock_step
 from studio.bindings import build_direct_bindings, build_direct_workflow, expand_step_to_talents
-from studio.history import RoleHistories
+from studio.history import ConversationHistory, RoleHistories
 from studio.loader import SessionContext
 from studio.logging import SessionLogger, StepMetrics
 from studio.prompts import build_system_prompt, build_user_message
@@ -126,37 +126,13 @@ class SessionEngine:
         workflow, bindings = self._resolve_workflow()
         turn_prior: list[tuple[str, str]] = []
 
-        for phase in workflow.get("phases") or []:
-            phase_type = phase.get("type")
-            yield EngineEvent("phase_start", {"phase_type": phase_type, "iteration": None})
-
-            if phase_type == "serial":
-                yield from self._run_serial_phase(
-                    state, user_text, phase, bindings, turn_prior
-                )
-            elif phase_type == "parallel":
-                yield from self._run_parallel_phase(
-                    state, user_text, phase, bindings, turn_prior
-                )
-            elif phase_type == "loop":
-                raise StudioValidationError(
-                    [
-                        StudioError(
-                            code="E402",
-                            target="workflow",
-                            message="loop フェーズは Phase 3 で実装予定です",
-                        )
-                    ]
-                )
-            else:
-                yield EngineEvent(
-                    "step_error",
-                    {
-                        "talent_id": "",
-                        "error": f"未対応のフェーズ種別: {phase_type}",
-                        "retry": False,
-                    },
-                )
+        yield from self._run_phases(
+            workflow.get("phases") or [],
+            state,
+            user_text,
+            bindings,
+            turn_prior,
+        )
 
         state.logger.log_state_snapshot(
             {
@@ -172,7 +148,75 @@ class SessionEngine:
         talent_ids = list(self.ctx.org.get("talent_ids") or [])
         return build_direct_workflow(talent_ids), build_direct_bindings(talent_ids)
 
-    def _run_serial_phase(
+    def _run_phases(
+        self,
+        phases: list[dict[str, Any]],
+        state: EngineState,
+        user_text: str,
+        bindings: dict[str, list[str]],
+        turn_prior: list[tuple[str, str]],
+        *,
+        loop_phase: dict[str, Any] | None = None,
+        iteration: int | None = None,
+    ) -> Iterator[EngineEvent]:
+        marker_target: tuple[str, str] | None = None
+        marker_text: str | None = None
+        if loop_phase and (loop_phase.get("exit") or {}).get("type") == "marker":
+            marker_text = loop_phase["exit"].get("marker")
+            marker_target = self._loop_marker_target(loop_phase, bindings)
+
+        for phase in phases:
+            phase_type = phase.get("type")
+            if phase_type == "loop":
+                yield from self._run_loop_phase(
+                    state, user_text, phase, bindings, turn_prior
+                )
+                continue
+
+            yield EngineEvent(
+                "phase_start",
+                {"phase_type": phase_type, "iteration": iteration},
+            )
+
+            if phase_type == "serial":
+                yield from self._run_serial_phase(
+                    state,
+                    user_text,
+                    phase,
+                    bindings,
+                    turn_prior,
+                    marker_target=marker_target,
+                    marker_text=marker_text,
+                )
+            elif phase_type == "parallel":
+                yield from self._run_parallel_phase(
+                    state, user_text, phase, bindings, turn_prior
+                )
+            else:
+                yield EngineEvent(
+                    "step_error",
+                    {
+                        "talent_id": "",
+                        "error": f"未対応のフェーズ種別: {phase_type}",
+                        "retry": False,
+                    },
+                )
+
+    def _loop_marker_target(
+        self,
+        loop_phase: dict[str, Any],
+        bindings: dict[str, list[str]],
+    ) -> tuple[str, str] | None:
+        inner = loop_phase.get("phases") or []
+        if not inner or inner[-1].get("type") != "serial":
+            return None
+        steps = inner[-1].get("steps") or []
+        if not steps:
+            return None
+        expanded = expand_step_to_talents(steps[-1], bindings)
+        return expanded[-1] if expanded else None
+
+    def _run_loop_phase(
         self,
         state: EngineState,
         user_text: str,
@@ -180,9 +224,236 @@ class SessionEngine:
         bindings: dict[str, list[str]],
         turn_prior: list[tuple[str, str]],
     ) -> Iterator[EngineEvent]:
+        exit_cfg = phase.get("exit") or {}
+        exit_type = exit_cfg.get("type")
+        max_iter = phase.get("max_iterations", 999999 if exit_type == "user" else 1)
+        inner_phases = phase.get("phases") or []
+
+        for iteration in range(1, max_iter + 1):
+            iter_start_len = len(turn_prior)
+            yield EngineEvent(
+                "phase_start",
+                {"phase_type": "loop", "iteration": iteration},
+            )
+            yield from self._run_phases(
+                inner_phases,
+                state,
+                user_text,
+                bindings,
+                turn_prior,
+                loop_phase=phase,
+                iteration=iteration,
+            )
+
+            last_text = turn_prior[-1][1] if len(turn_prior) > iter_start_len else ""
+            should_exit = False
+            reason = ""
+
+            if exit_type == "marker":
+                marker = exit_cfg.get("marker", "")
+                should_exit = bool(marker and marker in last_text)
+                reason = f"marker '{marker}' {'detected' if should_exit else 'not found'}"
+            elif exit_type == "judge":
+                outcome = yield from self._run_judge_step(
+                    state,
+                    user_text,
+                    exit_cfg.get("slot", ""),
+                    exit_cfg.get("criteria", ""),
+                    bindings,
+                    turn_prior,
+                )
+                should_exit = "【判定】終了" in (outcome.text if outcome else "")
+                reason = outcome.text if outcome else ""
+            elif exit_type == "user":
+                prompt = exit_cfg.get("prompt", "続けますか？")
+                choice = yield EngineEvent(
+                    "await_choice",
+                    {
+                        "prompt": prompt,
+                        "choices": ["continue", "exit"],
+                    },
+                )
+                should_exit = choice == "exit"
+                reason = f"user chose {choice}"
+            else:
+                should_exit = iteration >= max_iter
+                reason = "max_iterations reached"
+
+            yield EngineEvent(
+                "loop_check",
+                {
+                    "iteration": iteration,
+                    "exit_type": exit_type or "max_iterations",
+                    "result": "exit" if should_exit else "continue",
+                    "reason": reason,
+                },
+            )
+            if should_exit:
+                break
+            if exit_type != "user" and iteration >= max_iter:
+                break
+
+    def _run_judge_step(
+        self,
+        state: EngineState,
+        user_text: str,
+        slot: str,
+        criteria: str,
+        bindings: dict[str, list[str]],
+        turn_prior: list[tuple[str, str]],
+    ) -> Iterator[EngineEvent, None, StepOutcome | None]:
+        talent_ids = bindings.get(slot, [])
+        if not talent_ids:
+            return None
+        talent_id = talent_ids[0]
+        action = (
+            f"終了条件: {criteria}\n\n"
+            "出力は必ず「【判定】継続」または「【判定】終了」で始め、理由を続けてください。"
+        )
+        ephemeral = ConversationHistory()
+        talent = self.ctx.talents.get(talent_id, {})
+        mapping = self.ctx.model_mapping.get(talent_id, {})
+        assistant = mapping.get("assistant", "")
+        display_name = talent.get("name", talent_id)
+
+        state.step_number += 1
+        yield EngineEvent(
+            "step_start",
+            {"talent_id": talent_id, "display_name": display_name, "action": action, "judge": True},
+        )
+
+        system_prompt = build_system_prompt(
+            talent, self.ctx.org, self.ctx.org_id, talent_id
+        )
+        user_message = build_user_message(
+            user_text,
+            action=action,
+            attachment_context=state.attachment_context,
+            prior_responses=turn_prior or None,
+        )
+
+        try:
+            if assistant == "mock":
+                result = invoke_mock_step(
+                    talent_id,
+                    state.step_number,
+                    stream=False,
+                    history=ephemeral,
+                    user_message=user_message,
+                    action=action,
+                )
+            elif assistant == "human":
+                briefing = system_prompt
+                response = yield EngineEvent(
+                    "await_text",
+                    {
+                        "talent_id": talent_id,
+                        "display_name": display_name,
+                        "action": action,
+                        "briefing": briefing,
+                        "judge": True,
+                    },
+                )
+                text = str(response or "").strip()
+                result = InvokeResultShim(text, stream=False)
+            else:
+                model = mapping.get("model", "")
+                assistant_cfg = self.ctx.assistants[assistant]
+                result = invoke_llm_step(
+                    assistant_name=assistant,
+                    assistant_cfg=assistant_cfg,
+                    model=model,
+                    system_prompt=system_prompt,
+                    user_message=user_message,
+                    history=ephemeral,
+                    temperature=state.temperature,
+                    stream=False,
+                    costs=state.logger.costs,
+                )
+        except Exception as exc:
+            yield EngineEvent(
+                "step_error",
+                {"talent_id": talent_id, "error": str(exc), "retry": False},
+            )
+            return None
+
+        metrics = StepMetrics(
+            talent_id=talent_id,
+            assistant=assistant,
+            model=mapping.get("model"),
+            action=action,
+            text=result.text,
+            stream=False,
+            elapsed=result.elapsed,
+            tokens_in=result.tokens_in,
+            tokens_out=result.tokens_out,
+            tokens_source=result.tokens_source,
+            cost=result.cost,
+        )
+        state.logger.log_step(metrics)
+        yield EngineEvent(
+            "step_done",
+            {
+                "talent_id": talent_id,
+                "assistant": assistant,
+                "model": mapping.get("model"),
+                "text": result.text,
+                "elapsed": result.elapsed,
+                "tokens": {
+                    "in": result.tokens_in,
+                    "out": result.tokens_out,
+                    "source": result.tokens_source,
+                },
+                "cost": result.cost,
+                "stream": False,
+                "judge": True,
+            },
+        )
+        return StepOutcome(
+            talent_id=talent_id,
+            assistant=assistant,
+            model=mapping.get("model"),
+            action=action,
+            text=result.text,
+            stream=False,
+            elapsed=result.elapsed,
+            tokens_in=result.tokens_in,
+            tokens_out=result.tokens_out,
+            tokens_source=result.tokens_source,
+            cost=result.cost,
+        )
+
+    def _inject_marker_action(
+        self,
+        talent_id: str,
+        action: str,
+        marker_target: tuple[str, str] | None,
+        marker_text: str | None,
+    ) -> str:
+        if not marker_target or not marker_text:
+            return action
+        if (talent_id, action) != marker_target:
+            return action
+        return (
+            f"{action}\n\n"
+            f"（終了条件）合意・結論に至った場合は応答に「{marker_text}」を含めてください。"
+        )
+
+    def _run_serial_phase(
+        self,
+        state: EngineState,
+        user_text: str,
+        phase: dict[str, Any],
+        bindings: dict[str, list[str]],
+        turn_prior: list[tuple[str, str]],
+        *,
+        marker_target: tuple[str, str] | None = None,
+        marker_text: str | None = None,
+    ) -> Iterator[EngineEvent]:
         serial_prior: list[tuple[str, str]] = []
         for step in phase.get("steps") or []:
             for talent_id, action in expand_step_to_talents(step, bindings):
+                action = self._inject_marker_action(talent_id, action, marker_target, marker_text)
                 prior = turn_prior + serial_prior
                 gen = self._execute_step(
                     state,
@@ -323,6 +594,7 @@ class SessionEngine:
                 stream=False,
                 history=history,
                 user_message=user_message,
+                action=action,
             )
         else:
             model = mapping.get("model", "")
@@ -412,6 +684,7 @@ class SessionEngine:
                     history=history,
                     user_message=user_message,
                     on_chunk=on_chunk if stream else None,
+                    action=action,
                 )
                 if stream:
                     for chunk in chunk_buffer:
@@ -516,8 +789,17 @@ class SessionEngine:
     def finish(self) -> EngineEvent:
         if self.state is None:
             raise RuntimeError("session not started")
+        from studio.artifacts import save_session_artifacts
+
         self.state.logger.total_elapsed = time.perf_counter() - self.state.session_wall_start
+        artifact_dir = save_session_artifacts(
+            self.state.ctx.root,
+            self.state.logger.session_id,
+            self.state.logger.steps,
+        )
         end_record = self.state.logger.finish()
+        if artifact_dir:
+            end_record["artifact_dir"] = str(artifact_dir)
         return EngineEvent("session_done", end_record)
 
 
@@ -536,6 +818,8 @@ def collect_events(
         events.append(event)
         if event.type in ("await_text", "await_choice"):
             reply = responder(event) if responder else ""
+            if event.type == "await_choice" and not reply:
+                reply = "continue"
             try:
                 event = gen.send(reply)
             except StopIteration:
