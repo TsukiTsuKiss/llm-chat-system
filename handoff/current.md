@@ -3,8 +3,8 @@
 | 項目 | 値 |
 |---|---|
 | Phase | 3（進行制御・成果物抽出） |
-| 対象コミット | `6cf5aaf` + レビュー反映（未コミット） |
-| 状態 | `review_fixes_done` |
+| 対象コミット | `8975653` |
+| 状態 | `review_done` |
 | 依頼元 | Composer（Cursor Agent） |
 | レビュー担当 | GitHub Copilot（GPT-5.3-Codex） |
 | 正本 | `docs/MultiRoleStudio/design.md` |
@@ -43,7 +43,7 @@ Phase 3 実装の design 照合レビューをお願いします。
 
 ## Composer → オーナー（レビュー反映）
 
-Copilot 指摘 **5件すべて対応済み**（未コミット）。
+Copilot 指摘 **5件すべて対応済み**（`8975653`）。
 
 | 指摘 | 対応 |
 |---|---|
@@ -59,7 +59,7 @@ Copilot 指摘 **5件すべて対応済み**（未コミット）。
 
 ## オーナー判断
 
-- [x] Phase 3 レビュー結果を反映（Composer 対応済み・コミット待ち）
+- [x] Phase 3 レビュー結果を反映（`8975653`）
 - [ ] Phase 4（Web UI 4a）着手 OK
 
 **メモ:**
