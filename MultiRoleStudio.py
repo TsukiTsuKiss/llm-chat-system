@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 from studio.assistants import MockAssistant
-from studio.bindings import org_has_human_talent
+from studio.bindings import org_has_human_talent, workflow_participating_talent_ids
 from studio.engine import EngineEvent, SessionEngine, collect_events
 from studio.loader import load_session_context, read_attachment_files
 from studio.validation import StudioError, StudioValidationError
@@ -66,14 +66,18 @@ def drive_interactive_responder(event: EngineEvent) -> str | None:
 def validate_batch_mode(ctx, topic: str | None) -> None:
     if not topic:
         return
-    talent_ids = list(ctx.org.get("talent_ids") or [])
-    if org_has_human_talent(ctx.model_mapping, talent_ids):
+    participant_ids = workflow_participating_talent_ids(ctx.org, ctx.slot_bindings)
+    if org_has_human_talent(ctx.model_mapping, participant_ids):
+        wf_label = ctx.workflow_id or "直接送信"
         raise StudioValidationError(
             [
                 StudioError(
                     code="E402",
                     target="--topic",
-                    message="human 参加を含む組織は --topic による無人実行ができません",
+                    message=(
+                        f"ワークフロー '{wf_label}' は human 参加を含むため"
+                        " --topic による無人実行はできません"
+                    ),
                 )
             ]
         )

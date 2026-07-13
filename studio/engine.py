@@ -205,79 +205,97 @@ class SessionEngine:
         bindings: dict[str, list[str]],
         turn_prior: list[tuple[str, str]],
     ) -> Iterator[EngineEvent]:
-        tasks: list[tuple[str, str, int]] = []
+        tasks: list[tuple[str, str]] = []
         for step in phase.get("steps") or []:
             for talent_id, action in expand_step_to_talents(step, bindings):
-                state.step_number += 1
-                tasks.append((talent_id, action, state.step_number))
+                tasks.append((talent_id, action))
 
         if not tasks:
             return
 
-        for talent_id, _, _ in tasks:
+        ai_tasks: list[tuple[str, str]] = []
+        human_tasks: list[tuple[str, str]] = []
+        for talent_id, action in tasks:
             assistant = self.ctx.model_mapping.get(talent_id, {}).get("assistant")
             if assistant == "human":
-                raise StudioValidationError(
-                    [
-                        StudioError(
-                            code="E402",
-                            target="workflow",
-                            message="parallel フェーズに human ロールは Phase 2 未対応です",
-                        )
-                    ]
-                )
+                human_tasks.append((talent_id, action))
+            else:
+                ai_tasks.append((talent_id, action))
 
-        max_workers = min(len(tasks), int(state.ctx.studio_config.get("max_parallel_calls", 8)))
-        order = {tid: i for i, (tid, _, _) in enumerate(tasks)}
+        order = {tid: i for i, (tid, _) in enumerate(tasks)}
         outcomes: list[StepOutcome] = []
 
-        with ThreadPoolExecutor(max_workers=max_workers) as pool:
-            futures = {
-                pool.submit(
-                    self._run_step_sync,
-                    state,
-                    user_text,
-                    talent_id,
-                    action,
-                    step_no,
-                ): talent_id
-                for talent_id, action, step_no in tasks
-            }
-            for future in as_completed(futures):
-                outcomes.append(future.result())
+        if ai_tasks:
+            max_workers = min(
+                len(ai_tasks), int(state.ctx.studio_config.get("max_parallel_calls", 8))
+            )
+            ai_step_numbers: list[tuple[str, str, int]] = []
+            for talent_id, action in ai_tasks:
+                state.step_number += 1
+                ai_step_numbers.append((talent_id, action, state.step_number))
+
+            with ThreadPoolExecutor(max_workers=max_workers) as pool:
+                futures = {
+                    pool.submit(
+                        self._run_step_sync,
+                        state,
+                        user_text,
+                        talent_id,
+                        action,
+                        step_no,
+                    ): talent_id
+                    for talent_id, action, step_no in ai_step_numbers
+                }
+                for future in as_completed(futures):
+                    outcomes.append(future.result())
+
+            outcomes.sort(key=lambda o: order.get(o.talent_id, 999))
+
+            for outcome in outcomes:
+                display_name = self.ctx.talents.get(outcome.talent_id, {}).get(
+                    "name", outcome.talent_id
+                )
+                yield EngineEvent(
+                    "step_start",
+                    {
+                        "talent_id": outcome.talent_id,
+                        "display_name": display_name,
+                        "action": outcome.action,
+                    },
+                )
+                yield EngineEvent(
+                    "step_done",
+                    {
+                        "talent_id": outcome.talent_id,
+                        "assistant": outcome.assistant,
+                        "model": outcome.model,
+                        "text": outcome.text,
+                        "elapsed": outcome.elapsed,
+                        "tokens": {
+                            "in": outcome.tokens_in,
+                            "out": outcome.tokens_out,
+                            "source": outcome.tokens_source,
+                        },
+                        "cost": outcome.cost,
+                        "stream": outcome.stream,
+                    },
+                )
+
+        for talent_id, action in human_tasks:
+            prior = turn_prior + [(o.talent_id, o.text) for o in outcomes]
+            outcome = yield from self._execute_step(
+                state,
+                user_text,
+                talent_id,
+                action,
+                prior_responses=prior or None,
+                stream=state.stream,
+            )
+            if outcome:
+                outcomes.append(outcome)
 
         outcomes.sort(key=lambda o: order.get(o.talent_id, 999))
-
-        for outcome in outcomes:
-            turn_prior.append((outcome.talent_id, outcome.text))
-            display_name = self.ctx.talents.get(outcome.talent_id, {}).get(
-                "name", outcome.talent_id
-            )
-            yield EngineEvent(
-                "step_start",
-                {
-                    "talent_id": outcome.talent_id,
-                    "display_name": display_name,
-                    "action": outcome.action,
-                },
-            )
-            yield EngineEvent(
-                "step_done",
-                {
-                    "talent_id": outcome.talent_id,
-                    "assistant": outcome.assistant,
-                    "model": outcome.model,
-                    "text": outcome.text,
-                    "elapsed": outcome.elapsed,
-                    "tokens": {
-                        "in": outcome.tokens_in,
-                        "out": outcome.tokens_out,
-                        "source": outcome.tokens_source,
-                    },
-                    "cost": outcome.cost,
-                    "stream": outcome.stream,
-                },
-            )
+        turn_prior.extend((o.talent_id, o.text) for o in outcomes)
 
     def _run_step_sync(
         self,

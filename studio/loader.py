@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from studio.bindings import validate_workflow_bindings
+from studio.bindings import validate_workflow_binding_talent_refs, validate_workflow_bindings
 from studio.schema_validate import load_json_file, validate_schema_document
 from studio.validation import StudioError, StudioValidationError, ValidationReport
 
@@ -253,6 +253,7 @@ def load_session_context(
         validate_talent_refs(org_id, org, talents, report)
         validate_model_mapping(org_id, org, mapping, assistants, report)
         validate_role_directives(org_id, org, report)
+        validate_workflow_binding_talent_refs(org_id, org, report)
 
         workflow = None
         slot_bindings = None

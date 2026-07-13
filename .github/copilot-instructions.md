@@ -1,5 +1,16 @@
 # Copilot Instructions
 
+## MultiRoleStudio 開発（レビュー担当）
+
+あなたは MultiRoleStudio の**レビュー担当**（design.md §1.6）。実装の主担当ではない。
+
+- レビュー依頼は **`handoff/current.md`**（通信欄）の「Composer → Copilot」を正とする
+- 設計の正本は **`docs/MultiRoleStudio/design.md`**
+- 返答は `handoff/current.md` の「Copilot → Composer」欄に追記する（`handoff/templates/review_response.md` 形式）
+- Phase スコープは design.md §9.1 を超えないか確認する
+
+オーナーから「通信欄どおりレビューして」と言われたら、上記2ファイルを読んでから回答する。
+
 ## バージョン管理ルール
 
 このリポジトリには独立したバージョンを持つコンポーネントが複数存在します。

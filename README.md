@@ -69,8 +69,10 @@
 
 [設計書](docs/MultiRoleStudio/design.md) に沿って構築中。
 
+**開発チーム通信欄:** [handoff/current.md](handoff/current.md)（Composer ↔ Copilot ↔ オーナー。使い方は [handoff/README.md](handoff/README.md)）
+
 **Phase 1（1 人 CLI）:** 直接送信、`mock` / 実 LLM、JSONL ログ  
-**Phase 2（複数人）:** `serial` / `parallel` ワークフロー、`discussion` / `quiz`、`human`（serial のみ）
+**Phase 2（複数人）:** `serial` / `parallel` ワークフロー、`discussion` / `quiz`、`human`（parallel では AI 先行→human 入力）
 
 **未実装:** `loop` / meeting、Web UI、議事録 など（design.md 9章）
 
@@ -108,9 +110,9 @@ python -m pytest tests/parity/ -v
 | `--topic` | 指定時は**バッチ**（1 発完走）。省略時は対話（`q` で終了） |
 | `--stream off` | ストリーミング OFF（推奨: 速度比較・ログ確認） |
 
-**model_mapping:** `assistant` は `ai_assistants_config.json` のキー、`model` は
-`ai_assistants_config.csv` の `model` 列（例: Groq → `openai/gpt-oss-120b`）。
-ファイル本体は `.gitignore` — `.example` をコピーして編集。
+**model_mapping:** 実行時に読む正本は `organizations/<org>/model_mapping.json`（`.gitignore`）。
+`assistant` は `ai_assistants_config.json` のキー、`model` はその JSON 内の文字列。
+`.example` / `.providers.example` をコピーして編集する。CSV の `model` 列は**手動で写すときの参照用**（実行時には読まない）。
 
 #### 主要ファイル
 

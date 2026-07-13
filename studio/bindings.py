@@ -46,19 +46,7 @@ def validate_workflow_bindings(
     talent_ids = set(org.get("talent_ids") or [])
     explicit = (org.get("workflow_bindings") or {}).get(workflow_id) or {}
 
-    for wf_id, bindings in (org.get("workflow_bindings") or {}).items():
-        for slot_name, ids in bindings.items():
-            for tid in ids:
-                if tid not in talent_ids:
-                    report.add(
-                        StudioError(
-                            code="E205",
-                            target=f"organizations/{org_id}",
-                            message=(
-                                f"workflow_bindings の '{tid}' が talent_ids に含まれていません"
-                            ),
-                        )
-                    )
+    validate_workflow_binding_talent_refs(org_id, org, report)
 
     resolved = resolve_slot_bindings(org, workflow_id, workflow)
 
@@ -141,3 +129,42 @@ def org_has_human_talent(model_mapping: dict[str, dict[str, str]], talent_ids: l
         if model_mapping.get(tid, {}).get("assistant") == "human":
             return True
     return False
+
+
+def validate_workflow_binding_talent_refs(
+    org_id: str,
+    org: dict[str, Any],
+    report: ValidationReport,
+) -> None:
+    """E205: workflow_bindings の ID が talent_ids に含まれるか（起動時常時検証）。"""
+    talent_ids = set(org.get("talent_ids") or [])
+    for bindings in (org.get("workflow_bindings") or {}).values():
+        for ids in bindings.values():
+            for tid in ids:
+                if tid not in talent_ids:
+                    report.add(
+                        StudioError(
+                            code="E205",
+                            target=f"organizations/{org_id}",
+                            message=(
+                                f"workflow_bindings の '{tid}' が talent_ids に含まれていません"
+                            ),
+                        )
+                    )
+
+
+def workflow_participating_talent_ids(
+    org: dict[str, Any],
+    slot_bindings: dict[str, list[str]] | None,
+) -> list[str]:
+    """実行対象ワークフローに登場する人材 ID（直接送信時は編成全員）。"""
+    if slot_bindings:
+        seen: set[str] = set()
+        ordered: list[str] = []
+        for talent_list in slot_bindings.values():
+            for tid in talent_list:
+                if tid not in seen:
+                    seen.add(tid)
+                    ordered.append(tid)
+        return ordered
+    return list(org.get("talent_ids") or [])
