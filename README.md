@@ -65,7 +65,7 @@
 - 📋 リアルタイム設定確認コマンド (`config`, `debug`)
 - 🔧 ロール名統一とプロバイダー分散による安定性向上
 
-### 2. MultiRoleStudio - 次世代マルチロール基盤（Phase 1〜2）
+### 2. MultiRoleStudio - 次世代マルチロール基盤（Phase 1〜3）
 
 [設計書](docs/MultiRoleStudio/design.md) に沿って構築中。
 
@@ -83,8 +83,10 @@
 pip install -r requirements.txt          # .venv13 推奨
 cp organizations/solo/model_mapping.example.json organizations/solo/model_mapping.json
 cp organizations/trio/model_mapping.example.json organizations/trio/model_mapping.json
+cp organizations/nokuru/model_mapping.example.json organizations/nokuru/model_mapping.json
 # 実 LLM 用（model は ai_assistants_config.csv の model 列を引用）
 # cp organizations/trio/model_mapping.providers.example.json organizations/trio/model_mapping.json
+# nokuru も同様に organizations/nokuru/model_mapping.json を編集（hinata/satsuki/kaede ごとに assistant + model）
 ```
 
 #### 実行例
@@ -98,16 +100,24 @@ python MultiRoleStudio.py --org solo --topic "テスト" --stream off   # バッ
 python MultiRoleStudio.py --org trio                           # 直接送信（全員 serial）
 python MultiRoleStudio.py --org trio --workflow discussion --topic "議題" --stream off
 python MultiRoleStudio.py --org trio --workflow quiz --topic "日本の首都は？" --stream off
+#   quiz: 出題(serial) → 全員回答(parallel) → 採点(serial)
 
 # --- Phase 3: 会議・開発（nokuru）---
-cp organizations/nokuru/model_mapping.example.json organizations/nokuru/model_mapping.json
 python MultiRoleStudio.py --org nokuru --workflow meeting --topic "秋キャンプの行き先" --stream off
 python MultiRoleStudio.py --org nokuru --workflow dev --topic "hello 関数" --stream off
-#   quiz: 出題(serial) → 全員回答(parallel) → 採点(serial)
+
+# dev 終了後: セッション出力に表示される成果物ディレクトリで検証
+#   例) 成果物: sandbox/session_20260713_180000
+cd sandbox/session_<session_id>
+./run_all.sh    # pytest と __main__ 付きスクリプトを順に実行（PYTHONPATH=. 済み）
 
 # --- テスト（API キー不要）---
 python -m pytest tests/parity/ -v
 ```
+
+`dev` ワークフローは implementer → reviewer → judge のループでコードを改善し、
+終了時に `studio/artifacts.py` がコードブロックを `sandbox/session_<id>/` へ抽出する。
+レビュー・judge ステップの例示コードは成果物に含めない（誤抽出防止）。
 
 | オプション | 説明 |
 |---|---|
@@ -125,9 +135,10 @@ python -m pytest tests/parity/ -v
 | パス | 内容 |
 |------|------|
 | `MultiRoleStudio.py` | CLI 入口 |
-| `studio/` | loader / engine / bindings / logging |
-| `workflows/` | `discussion.json`, `quiz.json` |
-| `talents/*.json` | 人材定義 |
+| `studio/` | loader / engine / bindings / logging / artifacts |
+| `workflows/` | `discussion.json`, `quiz.json`, `meeting.json`, `dev.json` |
+| `talents/*.json` | 人材定義（`hinata`, `satsuki`, `kaede` 等） |
+| `sandbox/session_<id>/` | dev 成果物と `run_all.sh`（**.gitignore**） |
 | `organizations/<org>/config.json` | 編成・バインディング |
 | `organizations/<org>/model_mapping.json` | assistant + model（**.gitignore**） |
 
@@ -357,9 +368,10 @@ llm-chat-system/
 │   ├── groq_fast_discussion/          # Groq専用高速議論・ディベート組織
 │   │   ├── config.json               # 3ワークフロー: quick_discussion/debate/issue_discussion
 │   │   └── roles/                    # リーダー・アナリスト・リスク評価・ファシリテーター
-│   ├── nokuru/                        # キャラクター会話シミュレーションの実験的サンプル
-│   │   ├── config.json               # 3ワークフロー: camp_planning/camp_discussion/solo_vs_group
-│   │   └── roles/                    # ひなた・さつき・ゆき（ゲスト）・かえで
+│   ├── nokuru/                        # Phase 3 サンプル（meeting / dev、hinata・さつき・かえで）
+│   │   ├── config.json               # workflow_bindings、role_directives
+│   │   ├── model_mapping.example.json
+│   │   └── roles/                    # 旧 MultiRoleChat 用（Studio は talents/*.json を使用）
 │   ├── tech_startup/config.json      # テックスタートアップ組織
 │   ├── consulting_firm/config.json   # コンサルティング組織
 │   └── default_company/config.json   # デフォルト組織
