@@ -1,6 +1,3 @@
 {
-  "solo_bot": {
-    "assistant": "Groq",
-    "model": "openai/gpt-oss-120b"
-  }
+  "solo_bot": { "assistant": "mock" }
 }
