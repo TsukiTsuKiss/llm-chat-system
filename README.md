@@ -2,6 +2,9 @@
 
 このシステムは、複数のAIが協力して問題解決を行う革新的なチャットシステムです。
 
+> **MultiRoleStudio**（`studio/` + `MultiRoleStudio.py`）は design.md に沿った次世代基盤です。  
+> Phase 1 完了（1人チャット・CLI・mock・JSONL ログ）。旧 MultiRoleChat / Chat は Phase 5 まで並行維持します。
+
 ## 🎯 主要コンポーネント
 
 ### 1. MultiRoleChat - マルチロールAI協働システム
@@ -62,7 +65,53 @@
 - 📋 リアルタイム設定確認コマンド (`config`, `debug`)
 - 🔧 ロール名統一とプロバイダー分散による安定性向上
 
-### 2. Single Chat - 高度なAIチャットシステム
+### 2. MultiRoleStudio - 次世代マルチロール基盤（Phase 1）
+
+[設計書](docs/MultiRoleStudio/design.md) に沿って構築中。**Phase 1 = Chat.py 相当の 1 人 CLI** が動作します。
+
+**Phase 1 でできること:**
+- 📋 **JSON Schema 検証** — `schemas/` が定義ファイルの正本
+- 👤 **1 人組織 + 直接送信** — ワークフロー未指定で `talent_ids` 全員が serial 発話
+- 🤖 **mock / 実 LLM** — `model_mapping.json` で切替（テストは mock、本番は Groq 等）
+- 📝 **JSONL セッションログ** — `sessions/<session_id>.jsonl`（Git 管理外）
+- ✅ **パリティ試験** — `tests/parity/`（API キー不要）
+
+**Phase 1 では未実装:** ワークフロー（meeting / loop）、Web UI、議事録、user_context など（design.md 9章参照）
+
+**クイックスタート:**
+
+```bash
+# 依存関係（.venv13 推奨）
+pip install -r requirements.txt
+
+# モデル割当（初回のみ。.example をコピー）
+cp organizations/solo/model_mapping.example.json organizations/solo/model_mapping.json
+# mock のまま → API 不要。Groq 等を試すときは model_mapping.json を編集
+
+# 対話モード
+python MultiRoleStudio.py --org solo
+
+# 1 発完走（バッチ）
+python MultiRoleStudio.py --org solo --topic "Phase 1 テスト"
+
+# パリティ試験
+python -m pytest tests/parity/ -v
+```
+
+**主要ファイル:**
+
+| パス | 内容 |
+|------|------|
+| `MultiRoleStudio.py` | CLI 入口 |
+| `studio/` | loader / engine / logging / mock |
+| `talents/*.json` | 人材定義（組織横断） |
+| `organizations/<org>/config.json` | 編成 |
+| `organizations/<org>/model_mapping.json` | assistant + model（**.gitignore**） |
+| `studio_config.json` | stream / temperature 既定（**.gitignore**） |
+
+**プロバイダー切替:** `model_mapping.json` の `assistant` は `ai_assistants_config.json` のキーと一致させる（例: `Groq`, `ChatGPT`, `Gemini`）。対応する API キーを環境変数に設定。
+
+### 3. Single Chat - 高度なAIチャットシステム
 
 複数プロバイダー対応の洗練されたチャット機能
 
@@ -90,6 +139,9 @@
 - ⏰ **スマートリトライ** - エラー種別に応じた最適化された再試行戦略
 
 ## 📚 ドキュメント
+
+### MultiRoleStudio
+- 📐 **[設計書](docs/MultiRoleStudio/design.md)** — 仕様・Phase ロードマップ・データ構造（正本）
 
 ### MultiRoleChat
 - 📖 **[メインガイド](docs/multi-role-chat/README.md)** - 基本機能と使用方法（Web UI 含む）
@@ -263,11 +315,13 @@ python Chat.py
 
 ```
 llm-chat-system/
-├── ai_assistants_config.csv          # AIプロバイダー定義（共通）
-├── model_costs.csv                    # モデルコスト情報データベース
-├── update_ai_config.py               # 統合管理ユーティリティ（AI設定+コスト管理）
-├── organizations/                     # 組織別詳細設定
-│   ├── creative_org/                  # 創造性特化組織
+├── MultiRoleStudio.py                 # MultiRoleStudio CLI（Phase 1）
+├── studio/                            # 新エンジン（旧コードから import しない）
+├── schemas/                           # JSON Schema（定義の正本）
+├── talents/                           # 人材プール（MultiRoleStudio）
+├── organizations/
+│   ├── solo/                          # Phase 1 最小組織（config + model_mapping.example）
+│   ├── creative_org/                  # 創造性特化組織（旧 MultiRoleChat）
 │   │   ├── config.json               # 組織設定とワークフロー
 │   │   └── roles/                    # 組織専用ロール
 │   │       ├── wild_innovator.txt    # ワイルドアイデア・ジェネレーター
@@ -289,7 +343,10 @@ llm-chat-system/
 │   ├── tech_startup/config.json      # テックスタートアップ組織
 │   ├── consulting_firm/config.json   # コンサルティング組織
 │   └── default_company/config.json   # デフォルト組織
+├── sessions/                          # MultiRoleStudio 実行ログ（.gitignore）
+├── tests/parity/                      # MultiRoleStudio パリティ試験
 └── docs/                             # ドキュメント
+    ├── MultiRoleStudio/              # MultiRoleStudio 設計書
     ├── multi-role-chat/              # MultiRoleChatドキュメント
     ├── single-chat/                  # SingleChatドキュメント
     └── cost-management.md            # コスト管理システムガイド
@@ -450,6 +507,12 @@ sandbox/session_20250814_141337/
 
 ## 📈 バージョン履歴
 
+### MultiRoleStudio Phase 1 (2026-07-13)
+- 🆕 **studio/ パッケージ** — loader / engine / JSONL ログ / mock アシスタント
+- 🆕 **CLI** — `MultiRoleStudio.py`（直接送信・対話 / バッチ `--topic`）
+- 🆕 **schemas/** — 6 本の JSON Schema、**tests/parity/** — 16 件
+- 🆕 **solo 組織** — `talents/solo_bot.json` + `organizations/solo/`
+
 ### v1.6.1 (2026-05-03)
 - 🐛 **バグ修正** - Markdownログで `---` 前の空行が欠落し、直前テキストが setext H2 見出しとして描画される問題を修正
 
@@ -515,6 +578,9 @@ sandbox/session_20250814_141337/
 `tests/`ディレクトリには各機能の検証スクリプトが含まれています：
 
 ```bash
+# MultiRoleStudio パリティ試験（Phase 1・mock・API キー不要）
+python -m pytest tests/parity/ -v
+
 # 設定ファイルの検証
 python tests/test_config.py
 
