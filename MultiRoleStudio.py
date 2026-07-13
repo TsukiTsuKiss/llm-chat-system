@@ -37,8 +37,6 @@ def print_event(event: EngineEvent, *, use_stream: bool) -> None:
     elif event.type == "await_choice":
         p = event.payload
         print(f"\n{p.get('prompt', '続けますか？')} (y=続行 / n=終了)")
-        raw = input("> ").strip().lower()
-        event.payload["_response"] = "exit" if raw in {"n", "no", "exit", "終了"} else "continue"
     elif event.type == "step_start":
         p = event.payload
         print(f"\n--- {p['display_name']} ---")
@@ -59,7 +57,6 @@ def print_event(event: EngineEvent, *, use_stream: bool) -> None:
         print(f"\n[{p['display_name']} として発言]")
         if p.get("briefing"):
             print(p["briefing"])
-        event.payload["_response"] = input("> ")
     elif event.type == "session_done":
         for line in format_session_end_lines(event.payload):
             print(line)
@@ -168,11 +165,7 @@ def run_interactive(args: argparse.Namespace) -> int:
         while True:
             print_event(event, use_stream=use_stream)
             if event.type in ("await_text", "await_choice"):
-                if event.type == "await_text":
-                    reply = input("> ")
-                else:
-                    raw = input("> ").strip().lower()
-                    reply = "exit" if raw in {"n", "no", "exit", "終了"} else "continue"
+                reply = drive_interactive_responder(event)
                 try:
                     event = gen.send(reply)
                 except StopIteration:

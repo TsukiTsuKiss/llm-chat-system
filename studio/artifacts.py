@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from studio.logging import StepMetrics
+from studio.logging import StepMetrics, steps_from_jsonl
 
 CODE_BLOCK_RE = re.compile(r"```(\w+)?\n(.*?)```", re.DOTALL)
 FILENAME_LINE_RE = re.compile(r"^ファイル名:\s*(\S+)\s*$")
@@ -201,12 +201,26 @@ def _ensure_package_inits(session_dir: Path, files: dict[str, str]) -> None:
             init_path.write_text("", encoding="utf-8")
 
 
+def extract_artifacts_from_log(log_path: Path) -> dict[str, str]:
+    """Extract deliverables from a session JSONL without in-memory engine state."""
+    return _prune_junk_artifacts(
+        normalize_artifact_paths(extract_code_artifacts(steps_from_jsonl(log_path)))
+    )
+
+
 def save_session_artifacts(
     root: Path,
     session_id: str,
-    steps: list[StepMetrics],
+    steps: list[StepMetrics] | None = None,
+    *,
+    log_path: Path | None = None,
 ) -> Path | None:
-    files = _prune_junk_artifacts(normalize_artifact_paths(extract_code_artifacts(steps)))
+    if steps is None:
+        if log_path is None:
+            return None
+        files = extract_artifacts_from_log(log_path)
+    else:
+        files = _prune_junk_artifacts(normalize_artifact_paths(extract_code_artifacts(steps)))
     if not files:
         return None
     session_dir = root / "sandbox" / f"session_{session_id}"

@@ -208,6 +208,39 @@ class SessionLogger:
             "total_elapsed": round(self.total_elapsed, 3),
             "total_cost": round(total_cost, 6),
             "by_model": self.build_by_model(),
+            "log_path": str(self.log_path),
         }
         self.write_line(end_record)
         return end_record
+
+
+def steps_from_jsonl(log_path: Path) -> list[StepMetrics]:
+    """Rebuild step metrics from a session JSONL log (design.md 7.5(3))."""
+    steps: list[StepMetrics] = []
+    if not log_path.exists():
+        return steps
+    with log_path.open(encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            record = json.loads(line)
+            if record.get("type") != "step":
+                continue
+            tokens = record.get("tokens", {})
+            steps.append(
+                StepMetrics(
+                    talent_id=record["talent_id"],
+                    assistant=record.get("assistant", ""),
+                    model=record.get("model"),
+                    action=record.get("action", ""),
+                    text=record.get("text", ""),
+                    stream=record.get("stream", False),
+                    elapsed=record.get("elapsed", 0.0),
+                    tokens_in=tokens.get("in", 0),
+                    tokens_out=tokens.get("out", 0),
+                    tokens_source=tokens.get("source", "estimate"),
+                    cost=record.get("cost", 0.0),
+                )
+            )
+    return steps

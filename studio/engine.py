@@ -556,7 +556,9 @@ class SessionEngine:
                 )
 
         for talent_id, action in human_tasks:
-            prior = turn_prior + [(o.talent_id, o.text) for o in outcomes]
+            prior = turn_prior + [
+                (self._speaker_label(o.talent_id), o.text) for o in outcomes
+            ]
             outcome = yield from self._execute_step(
                 state,
                 user_text,
@@ -798,7 +800,7 @@ class SessionEngine:
         artifact_dir = save_session_artifacts(
             self.state.ctx.root,
             self.state.logger.session_id,
-            self.state.logger.steps,
+            log_path=self.state.logger.log_path,
         )
         end_record = self.state.logger.finish()
         if artifact_dir:

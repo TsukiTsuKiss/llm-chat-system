@@ -9,10 +9,15 @@ from pathlib import Path
 import pytest
 
 from studio.assistants import MockAssistant
-from studio.artifacts import extract_code_artifacts, normalize_artifact_paths, save_session_artifacts
+from studio.artifacts import (
+    extract_artifacts_from_log,
+    extract_code_artifacts,
+    normalize_artifact_paths,
+    save_session_artifacts,
+)
 from studio.engine import SessionEngine, collect_events
 from studio.loader import load_session_context
-from studio.logging import StepMetrics
+from studio.logging import StepMetrics, steps_from_jsonl
 from studio.validation import StudioValidationError
 
 
@@ -119,6 +124,7 @@ def test_dev_judge_loop_and_artifacts(nokuru_root: Path, monkeypatch: pytest.Mon
 
     session_done = [e for e in events if e.type == "session_done"][-1]
     assert session_done.payload.get("artifact_dir")
+    assert session_done.payload.get("log_path")
 
     artifact_dir = Path(session_done.payload["artifact_dir"])
     assert (artifact_dir / "hello.py").exists()
@@ -172,6 +178,35 @@ def test_extract_multiple_files_from_backticks_and_comments() -> None:
     assert "test_hello.py" in files
     assert 'return "hi"' in files["hello.py"]
     assert "from hello import hello" in files["test_hello.py"]
+
+
+def test_extract_artifacts_from_jsonl_log(tmp_path: Path) -> None:
+    log_path = tmp_path / "20260101_120000.jsonl"
+    step_record = StepMetrics(
+        talent_id="kaede",
+        assistant="mock",
+        model=None,
+        action="implement",
+        text='ファイル名: hello.py\n```python\nprint("hello")\n```',
+        stream=False,
+        elapsed=0.1,
+        tokens_in=1,
+        tokens_out=2,
+        tokens_source="none",
+        cost=0.0,
+    ).to_log_record()
+    log_path.write_text(json.dumps(step_record, ensure_ascii=False) + "\n", encoding="utf-8")
+
+    loaded = steps_from_jsonl(log_path)
+    assert len(loaded) == 1
+    assert loaded[0].text == step_record["text"]
+
+    files = extract_artifacts_from_log(log_path)
+    assert files["hello.py"] == 'print("hello")'
+
+    session_dir = save_session_artifacts(tmp_path, "jsonl_replay", log_path=log_path)
+    assert session_dir is not None
+    assert (session_dir / "hello.py").read_text(encoding="utf-8") == 'print("hello")'
 
 
 def test_nested_package_gets_init_and_run_script_sets_pythonpath(tmp_path: Path) -> None:

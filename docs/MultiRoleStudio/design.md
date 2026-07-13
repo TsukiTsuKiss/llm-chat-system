@@ -1569,6 +1569,12 @@ Phase 1 では `organizations/solo/`（1人組織）+ `talents/` 1人 + 各 `.ex
   実装（serial）→ [レビュー指摘 → 修正] のループを `exit: judge`（reviewer）で回す。
   成果物抽出（7.5 節）の動作確認を兼ねる開発モードのサンプル
 
+**任意拡張（§10.2 の4種に含めない）**
+
+- `workflows/discussion_sourced.json`: `participant` + `source_checker`。
+  出典確認ループ（`exit: marker`、最大3回）のデモ。nokuru / trio にバインディング例あり。
+  Phase 3 で追加。10.2 の4種パターンとは別枠の運用サンプル。
+
 ### 10.3 組織・シナリオ・アプリ設定
 
 - `organizations/nokuru/config.json`: 3.3 節のサンプルそのもの
