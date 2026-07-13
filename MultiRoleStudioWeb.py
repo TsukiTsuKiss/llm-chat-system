@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""MultiRoleStudio Web UI (Phase 4a: chat tab minimum)."""
+"""MultiRoleStudio Web UI (Phase 4a: chat, Phase 4b: settings)."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ import gradio as gr
 
 from studio.loader import load_studio_config
 from studio.validation import StudioValidationError
+from studio.settings_ui import SettingsHandles, build_settings_tab
 from studio.web_ui import (
     DIRECT_WORKFLOW_VALUE,
     WebSession,
@@ -22,7 +23,7 @@ from studio.web_ui import (
 )
 from web_input_utils import stream_default_from_config, temperature_default_from_config
 
-VERSION = "0.4.0"
+VERSION = "0.4.1"
 
 DEFAULT_ORG = os.getenv("MULTIROLESTUDIOWEB_ORG", "")
 DEFAULT_PORT = int(os.getenv("MULTIROLESTUDIOWEB_PORT", "7862"))
@@ -73,7 +74,7 @@ def build_ui(root: Path) -> gr.Blocks:
     with gr.Blocks(title=f"MultiRoleStudio Web {VERSION}", fill_height=True) as demo:
         session_state = gr.State(WebSession(root=root))
 
-        gr.Markdown(f"# MultiRoleStudio Web `{VERSION}`\nPhase 4a: チャットタブ最小")
+        gr.Markdown(f"# MultiRoleStudio Web `{VERSION}`\nPhase 4a: チャット / Phase 4b: 設定編集")
 
         with gr.Tabs():
             with gr.Tab("💬 チャット"):
@@ -123,8 +124,11 @@ def build_ui(root: Path) -> gr.Blocks:
                         )
                         send_btn = gr.Button("送信", variant="primary")
 
-            with gr.Tab("⚙️ 設定編集"):
-                gr.Markdown("Phase 4b で実装予定（design.md §8.4）")
+            build_settings_tab(
+                root,
+                SettingsHandles(org_dd=org_dd, wf_dd=wf_dd, talents_md=talents_md),
+                demo,
+            )
 
             with gr.Tab("📄 セッション"):
                 gr.Markdown("Phase 4e で実装予定（design.md §8.5）")

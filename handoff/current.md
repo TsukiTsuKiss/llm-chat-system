@@ -1,10 +1,10 @@
-# 通信欄 — MultiRoleStudio Phase 4a
+# 通信欄 — MultiRoleStudio Phase 4b
 
 | 項目 | 値 |
 |---|---|
-| Phase | 4a（Web UI — チャットタブ最小） |
+| Phase | 4b（Web UI — 設定編集タブ §8.4） |
 | 対象コミット | 未コミット |
-| 状態 | `phase4a_impl_done` |
+| 状態 | `phase4b_impl_done` |
 | 依頼元 | Composer（Cursor Agent） |
 | 正本 | `docs/MultiRoleStudio/design.md` |
 
@@ -12,30 +12,31 @@
 
 ## Composer → オーナー
 
-Phase 4a（オーナー判断「2」）を実装しました（未コミット）。
+Phase 4b（設定編集タブ）を実装しました（未コミット）。
 
 ### 実装内容
 
 | ファイル | 内容 |
 |---|---|
-| `MultiRoleStudioWeb.py` | Gradio 起動（§8.6: Soft テーマ、フッター非表示、`--port`/`--share`、`q` 終了） |
-| `studio/web_ui.py` | エンジンイベント → Chatbot 表示、`await_text` / `await_choice` 対応 |
-| `tests/parity/test_web_ui.py` | イベント変換・mock セッション（6 件） |
-| `README.md` | Phase 4a 実行例追記 |
+| `studio/config_store.py` | 人材・組織・ワークフロー・model_mapping の保存/削除/バリデーション |
+| `studio/settings_ui.py` | 設定編集タブ（人材 / 組織 / ワークフロー）、チャットタブ Dropdown 連動 |
+| `MultiRoleStudioWeb.py` | 設定タブ統合（v0.4.1） |
+| `tests/parity/test_config_store.py` | config_store parity（7 件） |
+| `README.md` | Phase 4b 追記 |
 
-### スコープ（4a）
+### スコープ（4b）
 
-- [x] チャットタブ（組織 / ワークフロー / ストリーム / Temperature / 新規チャット / 人材一覧）
-- [x] エンジン共有（`SessionEngine` を再実装しない）
-- [x] mock 動作（`solo` + parity 試験）
-- [ ] 設定編集タブ（4b）
+- [x] 人材: フォーム CRUD
+- [x] 組織: name/mission/culture/talent_ids + bindings/directives JSON + model_mapping
+- [x] ワークフロー: JSON テキストエリア CRUD
+- [x] 保存前バリデーション（loader 検証再利用）
 - [ ] ファイル添付（4c）
 - [ ] セッションタブ（4e）
 
 ### 確認
 
 ```bash
-PYTHONPATH=. pytest tests/parity/ -q   # 46 passed
+PYTHONPATH=. pytest tests/parity/ -q   # 53 passed
 python MultiRoleStudioWeb.py --org solo
 ```
 
@@ -43,11 +44,12 @@ python MultiRoleStudioWeb.py --org solo
 
 ## オーナー判断
 
-- [x] Phase 4（Web UI 4a）着手 OK（実装完了・コミット待ち）
-- [ ] Phase 4a をコミット
-- [ ] Phase 4b（設定編集タブ）着手 OK
+- [x] Phase 4a コミット済み（`bf8f451`）
+- [ ] Phase 4b をコミット
+- [ ] Phase 4c（ファイル添付）着手 OK
 
 **メモ:**
 
+- Phase 4a: `bf8f451`
 - Phase 3 完了: `8975653` / handoff `8fcf481`
-- design.md **§6.7** にユーザー割り込み（サブルーチン / コールバック / 割り込み）を Phase 5 構想として起票（2026-07-13）
+- design.md **§6.7** ユーザー割り込みは Phase 5 構想
