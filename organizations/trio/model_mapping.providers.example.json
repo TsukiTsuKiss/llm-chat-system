@@ -1,0 +1,14 @@
+{
+  "alpha": {
+    "assistant": "Groq",
+    "model": "openai/gpt-oss-120b"
+  },
+  "beta": {
+    "assistant": "ChatGPT",
+    "model": "gpt-5.5"
+  },
+  "gamma": {
+    "assistant": "Anthropic",
+    "model": "claude-fable-5"
+  }
+}

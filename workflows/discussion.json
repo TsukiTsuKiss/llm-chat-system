@@ -1,0 +1,21 @@
+{
+  "name": "自由討議",
+  "description": "全参加者が serial 順に意見を述べる",
+  "slots": {
+    "participant": {
+      "description": "議論参加者",
+      "count": "1+"
+    }
+  },
+  "phases": [
+    {
+      "type": "serial",
+      "steps": [
+        {
+          "slot": "participant",
+          "action": "議題について意見と根拠を述べる"
+        }
+      ]
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""MultiRoleStudio CLI (Phase 1)."""
+"""MultiRoleStudio CLI."""
 
 from __future__ import annotations
 
@@ -8,20 +8,23 @@ import sys
 from pathlib import Path
 
 from studio.assistants import MockAssistant
+from studio.bindings import org_has_human_talent
 from studio.engine import EngineEvent, SessionEngine, collect_events
 from studio.loader import load_session_context, read_attachment_files
-from studio.validation import StudioValidationError
+from studio.validation import StudioError, StudioValidationError
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 
 
 def print_event(event: EngineEvent, *, use_stream: bool) -> None:
     if event.type == "session_start":
         p = event.payload
+        wf = p.get("workflow") or "直接送信"
         print(f"\n=== MultiRoleStudio session {p['session_id']} ===")
-        print(f"組織: {p['org']} / 直接送信")
+        print(f"組織: {p['org']} / {wf}")
     elif event.type == "phase_start" and not event.payload.get("phase_end"):
-        print("\n--- phase: serial ---")
+        phase_type = event.payload.get("phase_type", "serial")
+        print(f"\n--- phase: {phase_type} ---")
     elif event.type == "step_start":
         p = event.payload
         print(f"\n--- {p['display_name']} ---")
@@ -60,10 +63,27 @@ def drive_interactive_responder(event: EngineEvent) -> str | None:
     return None
 
 
+def validate_batch_mode(ctx, topic: str | None) -> None:
+    if not topic:
+        return
+    talent_ids = list(ctx.org.get("talent_ids") or [])
+    if org_has_human_talent(ctx.model_mapping, talent_ids):
+        raise StudioValidationError(
+            [
+                StudioError(
+                    code="E402",
+                    target="--topic",
+                    message="human 参加を含む組織は --topic による無人実行ができません",
+                )
+            ]
+        )
+
+
 def run_batch(args: argparse.Namespace) -> int:
     root = Path(args.root)
     try:
         ctx = load_session_context(args.org, root, workflow_id=args.workflow)
+        validate_batch_mode(ctx, args.topic)
     except StudioValidationError as exc:
         print(exc.format_all(), file=sys.stderr)
         return 1
@@ -137,7 +157,7 @@ def run_interactive(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="MultiRoleStudio CLI")
     parser.add_argument("--org", default="solo", help="組織 ID")
-    parser.add_argument("--workflow", default=None, help="ワークフロー ID（Phase 1 未対応）")
+    parser.add_argument("--workflow", default=None, help="ワークフロー ID（discussion / quiz 等）")
     parser.add_argument("--topic", default=None, help="バッチ実行の議題（指定時は無人完走）")
     parser.add_argument("--files", nargs="*", default=None, help="添付ファイル")
     parser.add_argument("--root", default=".", help="プロジェクトルート")

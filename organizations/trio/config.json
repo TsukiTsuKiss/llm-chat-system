@@ -1,0 +1,16 @@
+{
+  "name": "トリオ",
+  "mission": "多様な視点で議題を検討する",
+  "culture": [
+    "1ターン200文字以内で簡潔にまとめる",
+    "相手の発言を尊重する"
+  ],
+  "talent_ids": ["alpha", "beta", "gamma"],
+  "default_workflow": "discussion",
+  "workflow_bindings": {
+    "quiz": {
+      "quizmaster": ["alpha"],
+      "answerer": ["beta", "gamma"]
+    }
+  }
+}

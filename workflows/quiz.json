@@ -1,0 +1,43 @@
+{
+  "name": "クイズ",
+  "description": "出題 → 全員並列回答 → 採点・講評",
+  "slots": {
+    "quizmaster": {
+      "description": "出題者・採点者",
+      "count": "1"
+    },
+    "answerer": {
+      "description": "回答者",
+      "count": "1+"
+    }
+  },
+  "phases": [
+    {
+      "type": "serial",
+      "steps": [
+        {
+          "slot": "quizmaster",
+          "action": "問題を出題し、回答形式を確認する"
+        }
+      ]
+    },
+    {
+      "type": "parallel",
+      "steps": [
+        {
+          "slot": "answerer",
+          "action": "問題に回答する"
+        }
+      ]
+    },
+    {
+      "type": "serial",
+      "steps": [
+        {
+          "slot": "quizmaster",
+          "action": "全員の回答を採点し講評する"
+        }
+      ]
+    }
+  ]
+}

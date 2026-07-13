@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from studio.bindings import validate_workflow_bindings
 from studio.schema_validate import load_json_file, validate_schema_document
 from studio.validation import StudioError, StudioValidationError, ValidationReport
 
@@ -27,6 +28,7 @@ class SessionContext:
     studio_config: dict[str, Any]
     workflow_id: str | None = None
     workflow: dict[str, Any] | None = None
+    slot_bindings: dict[str, list[str]] | None = None
 
 
 @dataclass
@@ -252,15 +254,17 @@ def load_session_context(
         validate_model_mapping(org_id, org, mapping, assistants, report)
         validate_role_directives(org_id, org, report)
 
+        workflow = None
+        slot_bindings = None
         if workflow_id:
             workflow = load_workflow(workflow_id, root_path, report)
-        else:
-            workflow = None
-            default_wf = org.get("default_workflow")
-            if default_wf and workflow_id is None:
-                pass
+            if workflow:
+                slot_bindings = validate_workflow_bindings(
+                    org_id, org, workflow_id, workflow, report
+                )
     else:
         workflow = None
+        slot_bindings = None
 
     if not report.ok:
         raise StudioValidationError(report.errors)
@@ -277,6 +281,7 @@ def load_session_context(
         studio_config=studio_config,
         workflow_id=workflow_id,
         workflow=workflow if workflow_id else None,
+        slot_bindings=slot_bindings,
     )
 
 

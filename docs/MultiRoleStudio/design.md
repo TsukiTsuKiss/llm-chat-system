@@ -1,6 +1,6 @@
 # MultiRoleStudio 設計書
 
-作成日: 2026-06-25 / 最終更新: 2026-07-13（自己改善サンプル追記）
+作成日: 2026-06-25 / 最終更新: 2026-07-13（プロジェクトメンバー・モデル追記）
 
 本書は MultiRoleStudio の仕様と設計判断をまとめたもの。
 確定した仕様（第2〜10章）と、構想段階のアイデア（付録A〜D）を明確に分けて記載する。
@@ -169,10 +169,26 @@ llm-chat-system/              ← この repo のまま
 | 役割 | 担当 | 責務 |
 |---|---|---|
 | **オーナー** | ユーザー（人間） | 方針判断（採用 / 却下 / Phase 延期）、Phase ゲート、忘れた要件の追記 |
-| **実装** | **Cursor Agent** | design.md に沿った実装・テスト・縦切り（schemas → parity → `studio/` → CLI）。設計との突合 |
+| **設計** | ユーザー + **Composer** | 要件・方針の確定、design.md の正本管理（Composer は起案・追記ドラフト） |
+| **実装** | **Composer**（Cursor Agent） | design.md に沿った実装・テスト・縦切り（schemas → parity → `studio/` → CLI） |
 | **レビュー** | **GitHub Copilot** | 差分レビュー、design とコードのズレ指摘、第二意見。実装の主担当にはしない |
 
-#### なぜ実装は Cursor を主担当にするか
+#### プロジェクトメンバー（記録）
+
+| 表示名 | ID / ツール | モデル（記録時点） | 役割 | 備考 |
+|---|---|---|---|---|
+| **tsuki-tsuki** | GitHub: `TsukiTsuKiss` | — | 設計責任・最終判断 | 採用 / 却下 / Phase ゲート |
+| **Composer** | Cursor Agent | **Composer 2.5** | 設計起案・実装 | 本書（design.md）の執筆支援、Phase 1〜2 実装 |
+| **GitHub Copilot** | Copilot（IDE / PR） | **GPT-5.3-Codex** | レビュー | 条件付き合格レビュー、ギャップ指摘 |
+
+- **Composer** は Cursor IDE 上の AI エージェント（本チャットの担当）。表記は `Composer` を正とし、
+  文中では「Cursor Agent」と同義で扱う
+- **モデル列**は当時の実績記録。ツール側のアップデートで変わるため、Phase 着手時に必要なら更新する
+  （後進が「どの組み合わせで Phase 1〜2 を通したか」を追えるようにする）
+- 10.4 節のメタサンプル（`studio_dev`）の architect / implementer / reviewer は、
+  上記メンバー構成の**架空ロール化**であり、talent 名そのものではない
+
+#### なぜ実装は Composer（Cursor）を主担当にするか
 
 1. design.md を本セッションで段階的に確定してきた**文脈の連続性**がある（細部の判断を毎回説明し直す必要が少ない）
 2. Phase 1 は **schemas / parity / loader / engine / logging** の縦一気通貫で、複数ファイルの整合が重要
@@ -181,10 +197,10 @@ llm-chat-system/              ← この repo のまま
 #### 標準ワークフロー
 
 ```
-1. オーナー     … Phase スコープと優先度を指示
-2. Cursor      … design.md 通りに実装 + pytest（parity 含む）
-3. Copilot     … 差分を design.md と照合レビュー（任意だが Phase 着手前・大きな PR 前は推奨）
-4. オーナー     … 指摘の採用/却下、parity 通過で次 Phase へ
+1. オーナー（tsuki-tsuki） … Phase スコープと優先度を指示
+2. Composer 2.5   … design.md 通りに実装 + pytest（parity 含む）
+3. Copilot（GPT-5.3-Codex） … 差分を design.md と照合レビュー（任意だが Phase 着手前・大きな PR 前は推奨）
+4. オーナー       … 指摘の採用/却下、parity 通過で次 Phase へ
 ```
 
 #### Copilot に向く作業（副担当）
@@ -193,7 +209,7 @@ llm-chat-system/              ← この repo のまま
 - 既存 `studio/` の**局所修正**・リファクタ提案
 - README / コメント整備
 
-#### Cursor に向く作業（主担当）
+#### Composer に向く作業（主担当）
 
 - Phase 0→1 の**最初の土台**（スキーマ、エンジン骨格、CLI 入口）
 - パリティ試験の**先行作成と実装追随**
@@ -440,7 +456,13 @@ UI 初期値（stream / temperature）は組織 config には置かず、`studio
 | `talents/*.json` | キャラクター定義（共有可） | ✅ commit |
 | `organizations/<org>/config.json` | 構造定義（共有可） | ✅ commit |
 | `organizations/<org>/model_mapping.json` | 環境依存（個人差あり） | ❌ .gitignore |
-| `organizations/<org>/model_mapping.example.json` | テンプレ | ✅ commit |
+| `organizations/<org>/model_mapping.example.json` | テンプレ（mock 既定） | ✅ commit |
+| `organizations/<org>/model_mapping.providers.example.json` | テンプレ（実 LLM・model 付き） | ✅ commit（任意） |
+
+**`model` 文字列の引用元（確定）**: `ai_assistants_config.json` を正本とし、
+`ai_assistants_config.csv` の各 `assistant_name` 行の **`model` 列**（JSON では `models` 配列の先頭）を
+`model_mapping.json` に書く。例: CSV の `Groq` → `openai/gpt-oss-120b`、`ChatGPT` → `gpt-5.5`、
+`Anthropic` → `claude-fable-5`（2026-07-13 時点の CSV 内容）。
 
 `model_mapping.example.json` の例（キーは talent の ID）：
 
@@ -470,6 +492,9 @@ UI 初期値（stream / temperature）は組織 config には置かず、`studio
 4. Phase 1 から実装する（パリティ試験の前提）
 
 ユーザーは `.example` をコピーして自分の環境に合わせて書き換える。
+**mock テスト用**は `model_mapping.example.json`（`assistant: mock`）、
+**実 LLM 用**は `model_mapping.providers.example.json` をコピーし、
+`model` は上記 CSV / JSON の `model` 列を引用する。
 `assistant` の実体（プロバイダー・APIクラス・モデル一覧）は `ai_assistants_config.json` を
 正本として使用する（読み込みロジックは `studio/loader.py` へ移植。6.5 節）。
 

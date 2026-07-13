@@ -65,51 +65,63 @@
 - 📋 リアルタイム設定確認コマンド (`config`, `debug`)
 - 🔧 ロール名統一とプロバイダー分散による安定性向上
 
-### 2. MultiRoleStudio - 次世代マルチロール基盤（Phase 1）
+### 2. MultiRoleStudio - 次世代マルチロール基盤（Phase 1〜2）
 
-[設計書](docs/MultiRoleStudio/design.md) に沿って構築中。**Phase 1 = Chat.py 相当の 1 人 CLI** が動作します。
+[設計書](docs/MultiRoleStudio/design.md) に沿って構築中。
 
-**Phase 1 でできること:**
-- 📋 **JSON Schema 検証** — `schemas/` が定義ファイルの正本
-- 👤 **1 人組織 + 直接送信** — ワークフロー未指定で `talent_ids` 全員が serial 発話
-- 🤖 **mock / 実 LLM** — `model_mapping.json` で切替（テストは mock、本番は Groq 等）
-- 📝 **JSONL セッションログ** — `sessions/<session_id>.jsonl`（Git 管理外）
-- ✅ **パリティ試験** — `tests/parity/`（API キー不要）
+**Phase 1（1 人 CLI）:** 直接送信、`mock` / 実 LLM、JSONL ログ  
+**Phase 2（複数人）:** `serial` / `parallel` ワークフロー、`discussion` / `quiz`、`human`（serial のみ）
 
-**Phase 1 では未実装:** ワークフロー（meeting / loop）、Web UI、議事録、user_context など（design.md 9章参照）
+**未実装:** `loop` / meeting、Web UI、議事録 など（design.md 9章）
 
-**クイックスタート:**
+#### セットアップ
 
 ```bash
-# 依存関係（.venv13 推奨）
-pip install -r requirements.txt
-
-# モデル割当（初回のみ。.example をコピー）
+pip install -r requirements.txt          # .venv13 推奨
 cp organizations/solo/model_mapping.example.json organizations/solo/model_mapping.json
-# mock のまま → API 不要。Groq 等を試すときは model_mapping.json を編集
+cp organizations/trio/model_mapping.example.json organizations/trio/model_mapping.json
+# 実 LLM 用（model は ai_assistants_config.csv の model 列を引用）
+# cp organizations/trio/model_mapping.providers.example.json organizations/trio/model_mapping.json
+```
 
-# 対話モード
-python MultiRoleStudio.py --org solo
+#### 実行例
 
-# 1 発完走（バッチ）
-python MultiRoleStudio.py --org solo --topic "Phase 1 テスト"
+```bash
+# --- Phase 1: 1人 ---
+python MultiRoleStudio.py --org solo                          # 対話
+python MultiRoleStudio.py --org solo --topic "テスト" --stream off   # バッチ
 
-# パリティ試験
+# --- Phase 2: 3人（trio）---
+python MultiRoleStudio.py --org trio                           # 直接送信（全員 serial）
+python MultiRoleStudio.py --org trio --workflow discussion --topic "議題" --stream off
+python MultiRoleStudio.py --org trio --workflow quiz --topic "日本の首都は？" --stream off
+#   quiz: 出題(serial) → 全員回答(parallel) → 採点(serial)
+
+# --- テスト（API キー不要）---
 python -m pytest tests/parity/ -v
 ```
 
-**主要ファイル:**
+| オプション | 説明 |
+|---|---|
+| `--org` | 組織 ID（`solo`, `trio` 等） |
+| `--workflow` | 省略時は**直接送信**。`discussion` / `quiz` |
+| `--topic` | 指定時は**バッチ**（1 発完走）。省略時は対話（`q` で終了） |
+| `--stream off` | ストリーミング OFF（推奨: 速度比較・ログ確認） |
+
+**model_mapping:** `assistant` は `ai_assistants_config.json` のキー、`model` は
+`ai_assistants_config.csv` の `model` 列（例: Groq → `openai/gpt-oss-120b`）。
+ファイル本体は `.gitignore` — `.example` をコピーして編集。
+
+#### 主要ファイル
 
 | パス | 内容 |
 |------|------|
 | `MultiRoleStudio.py` | CLI 入口 |
-| `studio/` | loader / engine / logging / mock |
-| `talents/*.json` | 人材定義（組織横断） |
-| `organizations/<org>/config.json` | 編成 |
+| `studio/` | loader / engine / bindings / logging |
+| `workflows/` | `discussion.json`, `quiz.json` |
+| `talents/*.json` | 人材定義 |
+| `organizations/<org>/config.json` | 編成・バインディング |
 | `organizations/<org>/model_mapping.json` | assistant + model（**.gitignore**） |
-| `studio_config.json` | stream / temperature 既定（**.gitignore**） |
-
-**プロバイダー切替:** `model_mapping.json` の `assistant` は `ai_assistants_config.json` のキーと一致させる（例: `Groq`, `ChatGPT`, `Gemini`）。対応する API キーを環境変数に設定。
 
 ### 3. Single Chat - 高度なAIチャットシステム
 
@@ -506,6 +518,12 @@ sandbox/session_20250814_141337/
 ## 🔄 更新履歴
 
 ## 📈 バージョン履歴
+
+### MultiRoleStudio Phase 2 (2026-07-13)
+- 🆕 **serial / parallel** — ワークフロー実行エンジン、`studio/bindings.py`
+- 🆕 **workflows/** — `discussion.json`, `quiz.json`
+- 🆕 **trio 組織** — 3 人 + プロバイダー混在デモ（alpha/beta/gamma）
+- 🆕 **パリティ試験** — Phase 2 向け 4 件追加（計 20 件）
 
 ### MultiRoleStudio Phase 1 (2026-07-13)
 - 🆕 **studio/ パッケージ** — loader / engine / JSONL ログ / mock アシスタント
