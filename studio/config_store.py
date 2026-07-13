@@ -229,11 +229,16 @@ def save_config(
     org_id: str | None = None,
 ) -> SaveResult:
     item_id = (item_id or "").strip()
-    if not item_id:
+    org_id = (org_id or "").strip() if org_id else ""
+
+    if kind == "model_mapping":
+        if not org_id:
+            return SaveResult(False, "組織 ID を選択してください")
+    elif not item_id:
         return SaveResult(False, "ID を入力してください")
 
     root = Path(root)
-    report = validate_config(kind, item_id, data, root, org_id=org_id)
+    report = validate_config(kind, item_id, data, root, org_id=org_id or None)
     if not report.ok:
         return SaveResult(False, "\n".join(err.format() for err in report.errors))
 

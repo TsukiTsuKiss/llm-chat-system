@@ -1413,6 +1413,16 @@ Gradio 起動・終了の共通仕様（8.6 節）に従う。
 - **ファイルのみ送信**: テキスト未入力時は「添付ファイルの内容を要約してください。」を user 入力として扱う
 - **表示**: チャット上の user 吹き出しに `📎 添付: ファイル名` を付与。JSONL の `user_input.attachments` にも記録
 
+**Phase 4d 実装フィードバック（2026-07-14）:**
+
+- **model_mapping フォーム**: JSON テキスト欄を廃止し、人材プール全員分の **静的行**（`gr.Group` + `visible` 切替）で assistant / model を編集
+- **E401 UI**: API キー未設定 assistant はプルダウンに `(APIキー未設定)` ラベルで表示し、選択時は **前の値に戻す** + 理由を `org_mapping_note` に表示（旧 ChatWeb 踏襲）
+- **model**: `ai_assistants_config.json` の候補 + `allow_custom_value` で自由入力
+- **talent_ids 連動**: チェック変更時に mapping state をマージ（新規 talent は `mock` 既定）。`input` → `then` の2段イベントで行表示を更新（初回チェック取りこぼし防止）
+- **表示順**: talent_ids チェックボックス（人材プール一覧）と同じ順。`alpha` は一覧先頭なら mapping も先頭
+- **組織切替**: `@gr.render` は使わない（行数変動で Gradio `fn_index` 不一致になるため）
+- **保存ボタン**: model_mapping フォームの**下**に配置
+
 ### 8.4 設定編集タブ
 
 新データ構造（3章）に対応した編集画面にする。旧構造（demo_roles / system_prompt_file）の編集 UI は作らない。
@@ -1553,7 +1563,7 @@ MultiRoleStudio は MultiRoleChat / MultiRoleChatWeb の完全な置き換えを
 - [ ] 温度非対応モデルへのフォールバック
 - [ ] ストリーミング表示（CLI / Web 両方）
 - [x] ファイル添付の取り込み（Web）
-- [ ] 組織・ワークフローの Web 編集
+- [x] 組織・ワークフローの Web 編集
 
 注意事項：
 

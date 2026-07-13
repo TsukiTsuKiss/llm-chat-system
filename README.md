@@ -76,7 +76,8 @@
 **Phase 3（進行制御）:** `loop` + `exit`（marker / judge / user）、`meeting` / `dev`、成果物抽出（`sandbox/`）  
 **Phase 4a（Web UI 最小）:** `MultiRoleStudioWeb.py` — チャットタブ（mock / 実 LLM）  
 **Phase 4b（設定編集）:** 人材・組織・ワークフローの CRUD（保存前バリデーション、チャットタブ連動）  
-**Phase 4c（ファイル添付）:** テキスト系ファイル取り込み（`upload_limits` / CLI `--files` と共用）
+**Phase 4c（ファイル添付）:** テキスト系ファイル取り込み（`upload_limits` / CLI `--files` と共用）  
+**Phase 4d（model_mapping フォーム）:** assistant / model プルダウン、API キー未設定 assistant の選択不可
 
 **未実装:** セッションタブ（4e）、議事録、Git 連携 など（design.md 9章）
 
@@ -159,7 +160,9 @@ python MultiRoleStudioWeb.py --org trio --port 7863
 | パス | 内容 |
 |------|------|
 | `MultiRoleStudio.py` | CLI 入口 |
-| `MultiRoleStudioWeb.py` | Web 入口（Phase 4a チャット / 4b 設定編集 / 4c ファイル添付） |
+| `MultiRoleStudioWeb.py` | Web 入口（Phase 4a〜4d） |
+| `studio/assistant_availability.py` | API キー未設定 assistant の判定（§8.3 #10） |
+| `studio/mapping_form.py` | model_mapping フォーム用データ変換 |
 | `studio/web_ui.py` | エンジンイベント → Gradio 表示 |
 | `studio/config_store.py` | 設定の保存・削除・バリデーション |
 | `studio/settings_ui.py` | 設定編集タブ UI |

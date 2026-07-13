@@ -9,6 +9,13 @@ from typing import Any
 
 import gradio as gr
 
+from studio.assistant_availability import (
+    assistant_dropdown_choices,
+    is_assistant_available,
+    load_assistants_catalog,
+    model_dropdown_choices,
+    unavailable_reason,
+)
 from studio.config_store import (
     create_organization,
     create_talent,
@@ -16,9 +23,14 @@ from studio.config_store import (
     delete_config,
     list_configs,
     load_config,
-    mapping_to_json_text,
-    parse_mapping_json,
     save_config,
+)
+from studio.mapping_form import (
+    build_mapping_payload,
+    merge_mapping_for_talents,
+    normalize_mapping_entry,
+    ordered_talent_ids,
+    patch_mapping_entry,
 )
 from studio.web_ui import load_org_panel, workflow_dropdown_choices
 
@@ -55,6 +67,7 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
     talent_ids = list_configs("talent", root)
     org_ids = list_configs("organization", root)
     wf_ids = list_configs("workflow", root)
+    assistants_catalog = load_assistants_catalog(root)
 
     with gr.Tab("⚙️ 設定編集"):
         with gr.Column(elem_classes=["studio-settings-panel"]):
@@ -132,7 +145,34 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
                     )
                     org_default_wf = gr.Textbox(label="default_workflow（任意）")
                     org_save_btn = gr.Button("組織 config を保存", **_SAVE_BTN)
-                    org_mapping_json = gr.Textbox(label="model_mapping.json", lines=10)
+                    org_mapping_state = gr.State({})
+                    org_talent_ids_order = gr.State([])
+                    org_mapping_note = gr.Markdown("")
+
+                    mapping_row_ids: list[str] = list(talent_ids)
+                    assistant_choices_init, _ = assistant_dropdown_choices(assistants_catalog)
+                    mapping_rows: dict[str, tuple[Any, Any, Any]] = {}
+
+                    gr.Markdown("**model_mapping**（talent_ids チェックボックスと同じ順）")
+                    for talent_id in mapping_row_ids:
+                        with gr.Group(visible=False) as group:
+                            with gr.Row():
+                                gr.Textbox(value=talent_id, label="人材 ID", interactive=False, scale=2)
+                                asst_dd = gr.Dropdown(
+                                    label="assistant",
+                                    choices=assistant_choices_init,
+                                    interactive=True,
+                                    scale=3,
+                                )
+                                model_dd = gr.Dropdown(
+                                    label="model",
+                                    choices=[],
+                                    allow_custom_value=True,
+                                    interactive=True,
+                                    scale=3,
+                                )
+                        mapping_rows[talent_id] = (group, asst_dd, model_dd)
+
                     org_mapping_save_btn = gr.Button("model_mapping を保存", **_SAVE_BTN)
                     org_msg = gr.Markdown("")
 
@@ -156,6 +196,120 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
                     wf_json = gr.Textbox(label="workflows/<id>.json", lines=24)
                     wf_save_btn = gr.Button("保存", **_SAVE_BTN)
                     wf_msg = gr.Markdown("")
+
+    def _talent_pool_ids() -> list[str]:
+        return list_configs("talent", root)
+
+    def _mapping_load_bundle(talent_ids_selected: list[str], mapping: dict):
+        pool = _talent_pool_ids()
+        order = ordered_talent_ids(talent_ids_selected, None, choice_order=pool)
+        state: dict[str, dict[str, str]] = {
+            talent_id: normalize_mapping_entry(entry)
+            for talent_id, entry in (mapping or {}).items()
+        }
+        for talent_id in order:
+            state.setdefault(talent_id, normalize_mapping_entry(None))
+        return state, order
+
+    def _sync_mapping_state(
+        selected: list[str],
+        mapping_state: dict,
+        talent_order: list[str],
+    ) -> tuple[dict[str, dict[str, str]], list[str]]:
+        order = ordered_talent_ids(selected, talent_order, choice_order=_talent_pool_ids())
+        state = dict(mapping_state or {})
+        for talent_id in order:
+            state.setdefault(talent_id, normalize_mapping_entry(None))
+        return state, order
+
+    def _mapping_row_output_list() -> list:
+        outputs: list = []
+        for talent_id in mapping_row_ids:
+            group, asst_dd, model_dd = mapping_rows[talent_id]
+            outputs.extend([group, asst_dd, model_dd])
+        return outputs
+
+    def _noop_row_updates() -> list:
+        return [gr.update()] * (3 * len(mapping_row_ids))
+
+    def _mapping_row_updates(selected: list[str], mapping: dict) -> list:
+        assistant_choices, _ = assistant_dropdown_choices(assistants_catalog)
+        selected_set = set(selected or [])
+        updates: list = []
+        for talent_id in mapping_row_ids:
+            visible = talent_id in selected_set
+            entry = normalize_mapping_entry((mapping or {}).get(talent_id)) if visible else {}
+            assistant = entry.get("assistant", "mock")
+            models = model_dropdown_choices(assistant, assistants_catalog) if visible else []
+            model_value = entry.get("model") or (models[0] if models else None)
+            updates.extend([
+                gr.update(visible=visible),
+                gr.update(
+                    value=assistant if visible else None,
+                    choices=assistant_choices,
+                ),
+                gr.update(
+                    value=model_value if visible else None,
+                    choices=models,
+                ),
+            ])
+        return updates
+
+    def _empty_org_mapping_fields():
+        return {}, [], *_mapping_row_updates([], {})
+
+    def _make_assistant_handler(talent_id: str):
+        def handler(assistant_name: str, state: dict):
+            cfg = assistants_catalog.get(assistant_name, {})
+            if not is_assistant_available(assistant_name, cfg):
+                prev = normalize_mapping_entry((state or {}).get(talent_id))
+                models = model_dropdown_choices(prev["assistant"], assistants_catalog)
+                reason = unavailable_reason(assistant_name, cfg)
+                return (
+                    state or {},
+                    gr.update(value=prev["assistant"]),
+                    gr.update(choices=models, value=prev.get("model")),
+                    f"⚠️ `{assistant_name}` は API キー未設定のため選択できません（{reason}）",
+                )
+            models = model_dropdown_choices(assistant_name, assistants_catalog)
+            model_value = models[0] if models else ""
+            new_state = patch_mapping_entry(
+                state,
+                talent_id,
+                assistant=assistant_name,
+                model=model_value,
+            )
+            entry = new_state[talent_id]
+            return (
+                new_state,
+                gr.update(),
+                gr.update(choices=models, value=entry.get("model")),
+                "",
+            )
+
+        return handler
+
+    def _make_model_handler(talent_id: str):
+        def handler(model_name: str, state: dict):
+            return (
+                patch_mapping_entry(state, talent_id, model=model_name or ""),
+                "",
+            )
+
+        return handler
+
+    for _tid in mapping_row_ids:
+        _, asst_dd, model_dd = mapping_rows[_tid]
+        asst_dd.change(
+            _make_assistant_handler(_tid),
+            inputs=[asst_dd, org_mapping_state],
+            outputs=[org_mapping_state, asst_dd, model_dd, org_mapping_note],
+        )
+        model_dd.change(
+            _make_model_handler(_tid),
+            inputs=[model_dd, org_mapping_state],
+            outputs=[org_mapping_state, org_mapping_note],
+        )
 
     def _refresh_talent_choices(current: str | None = None):
         ids = list_configs("talent", root)
@@ -245,24 +399,29 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
 
     def load_org(org_id: str):
         if not org_id:
-            return "", "", "", [], "{}", "{}", "", "", ""
-        data = load_config("organization", org_id, root)
-        mapping = load_config("model_mapping", "", root, org_id=org_id)
-        extra = {
-            "common_directives": data.get("common_directives", []),
-            "role_directives": data.get("role_directives", {}),
-        }
-        return (
-            data.get("name", ""),
-            data.get("mission", ""),
-            _list_to_lines(data.get("culture")),
-            data.get("talent_ids") or [],
-            json.dumps(data.get("workflow_bindings") or {}, ensure_ascii=False, indent=2),
-            json.dumps(extra, ensure_ascii=False, indent=2),
-            data.get("default_workflow") or "",
-            mapping_to_json_text(mapping),
-            "",
-        )
+            base = ("", "", "", [], "{}", "{}", "", {}, [], "")
+        else:
+            data = load_config("organization", org_id, root)
+            mapping = load_config("model_mapping", "", root, org_id=org_id)
+            talent_ids_selected = data.get("talent_ids") or []
+            merged, order = _mapping_load_bundle(talent_ids_selected, mapping)
+            extra = {
+                "common_directives": data.get("common_directives", []),
+                "role_directives": data.get("role_directives", {}),
+            }
+            base = (
+                data.get("name", ""),
+                data.get("mission", ""),
+                _list_to_lines(data.get("culture")),
+                talent_ids_selected,
+                json.dumps(data.get("workflow_bindings") or {}, ensure_ascii=False, indent=2),
+                json.dumps(extra, ensure_ascii=False, indent=2),
+                data.get("default_workflow") or "",
+                merged,
+                order,
+                "",
+            )
+        return base
 
     def _build_org_config(
         name: str,
@@ -272,10 +431,17 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
         bindings_json: str,
         directives_json: str,
         default_wf: str,
+        talent_order: list[str],
     ) -> tuple[dict[str, Any] | None, str]:
         if not talent_ids_selected:
             return None, "talent_ids を1つ以上選択してください"
-        config: dict[str, Any] = {"talent_ids": list(talent_ids_selected)}
+        config: dict[str, Any] = {
+            "talent_ids": ordered_talent_ids(
+                talent_ids_selected,
+                talent_order,
+                choice_order=_talent_pool_ids(),
+            ),
+        }
         if name.strip():
             config["name"] = name.strip()
         if mission.strip():
@@ -301,10 +467,10 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
             config["default_workflow"] = str(default_wf).strip()
         return config, ""
 
-    def save_org(org_id: str, *fields):
-        config, err = _build_org_config(*fields)
+    def save_org(org_id: str, mapping_state: dict, talent_order: list[str], *fields):
+        config, err = _build_org_config(*fields, talent_order)
         if config is None:
-            return err, gr.update(), gr.update(), gr.update()
+            return err, gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), *_noop_row_updates()
         result = save_config("organization", org_id, config, root)
         orgs = list_configs("organization", root)
         org_upd = gr.update(
@@ -313,7 +479,19 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
         )
         wf_upd = gr.update(choices=workflow_dropdown_choices(root))
         talents_text = load_org_panel(root, org_id, "")[0] if result.ok else gr.update()
-        return result.message, org_upd, wf_upd, talents_text
+        if result.ok:
+            order = list(config["talent_ids"])
+            state = _sync_mapping_state(order, mapping_state, order)[0]
+            return (
+                result.message,
+                org_upd,
+                wf_upd,
+                talents_text,
+                state,
+                order,
+                *_mapping_row_updates(order, state),
+            )
+        return result.message, org_upd, wf_upd, talents_text, gr.update(), gr.update(), *_noop_row_updates()
 
     org_fields = [
         org_name,
@@ -326,22 +504,57 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
     ]
     org_save_btn.click(
         save_org,
-        inputs=[org_id_dd, *org_fields],
-        outputs=[org_msg, handles.org_dd, handles.wf_dd, handles.talents_md],
+        inputs=[org_id_dd, org_mapping_state, org_talent_ids_order, *org_fields],
+        outputs=[
+            org_msg,
+            handles.org_dd,
+            handles.wf_dd,
+            handles.talents_md,
+            org_mapping_state,
+            org_talent_ids_order,
+            *_mapping_row_output_list(),
+        ],
     )
 
-    def save_org_mapping(org_id: str, mapping_text: str):
-        mapping, err = parse_mapping_json(mapping_text)
-        if mapping is None:
-            return err, gr.update()
-        result = save_config("model_mapping", "", mapping, root, org_id=org_id)
+    def save_org_mapping(org_id: str, talent_ids_selected: list[str], mapping_state: dict):
+        if not org_id:
+            return "組織 ID を選択してください", gr.update(), gr.update(), *_noop_row_updates()
+        if not talent_ids_selected:
+            return "talent_ids を1つ以上選択してください", gr.update(), gr.update(), *_noop_row_updates()
+        ordered = ordered_talent_ids(
+            talent_ids_selected,
+            None,
+            choice_order=_talent_pool_ids(),
+        )
+        payload = build_mapping_payload(ordered, mapping_state)
+        result = save_config("model_mapping", "", payload, root, org_id=org_id)
         talents_text = load_org_panel(root, org_id, "")[0] if result.ok else gr.update()
-        return result.message, talents_text
+        if result.ok:
+            state = dict(mapping_state or {})
+            state.update(payload)
+            return result.message, talents_text, state, *_mapping_row_updates(talent_ids_selected, state)
+        return result.message, talents_text, gr.update(), *_noop_row_updates()
 
     org_mapping_save_btn.click(
         save_org_mapping,
-        inputs=[org_id_dd, org_mapping_json],
-        outputs=[org_msg, handles.talents_md],
+        inputs=[org_id_dd, org_talent_ids, org_mapping_state],
+        outputs=[org_msg, handles.talents_md, org_mapping_state, *_mapping_row_output_list()],
+    )
+
+    def on_talent_ids_change(selected: list[str], mapping_state: dict, talent_order: list[str]):
+        return _sync_mapping_state(selected, mapping_state, talent_order)
+
+    def refresh_mapping_rows(selected: list[str], mapping_state: dict):
+        return _mapping_row_updates(selected, mapping_state)
+
+    org_talent_ids.input(
+        on_talent_ids_change,
+        inputs=[org_talent_ids, org_mapping_state, org_talent_ids_order],
+        outputs=[org_mapping_state, org_talent_ids_order],
+    ).then(
+        refresh_mapping_rows,
+        inputs=[org_talent_ids, org_mapping_state],
+        outputs=_mapping_row_output_list(),
     )
 
     def on_org_create(new_id: str, initial_talent: str, name: str):
@@ -355,8 +568,15 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
         wf_upd = gr.update(choices=workflow_dropdown_choices(root))
         if result.ok:
             loaded = load_org(new_id)
-            return (result.message, org_dd_upd, chat_org_upd, wf_upd, *loaded)
-        return (result.message, org_dd_upd, chat_org_upd, wf_upd, "", "", "", [], "{}", "{}", "", "", "")
+            return (
+                result.message,
+                org_dd_upd,
+                chat_org_upd,
+                wf_upd,
+                *loaded,
+                *_mapping_row_updates(loaded[3], loaded[7]),
+            )
+        return (result.message, org_dd_upd, chat_org_upd, wf_upd, "", "", "", [], "{}", "{}", "", *_empty_org_mapping_fields())
 
     org_create_btn.click(
         on_org_create,
@@ -373,7 +593,9 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
             org_bindings_json,
             org_directives_json,
             org_default_wf,
-            org_mapping_json,
+            org_mapping_state,
+            org_talent_ids_order,
+            *_mapping_row_output_list(),
         ],
     )
 
@@ -383,7 +605,20 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
         org_dd_upd = gr.update(choices=orgs, value=orgs[0] if orgs else None)
         chat_org_upd = org_dd_upd
         wf_upd = gr.update(choices=workflow_dropdown_choices(root))
-        return result.message, org_dd_upd, chat_org_upd, wf_upd, "", "", "", [], "{}", "{}", "", "", ""
+        return (
+            result.message,
+            org_dd_upd,
+            chat_org_upd,
+            wf_upd,
+            "",
+            "",
+            "",
+            [],
+            "{}",
+            "{}",
+            "",
+            *_empty_org_mapping_fields(),
+        )
 
     org_delete_btn.click(
         on_org_delete,
@@ -400,7 +635,9 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
             org_bindings_json,
             org_directives_json,
             org_default_wf,
-            org_mapping_json,
+            org_mapping_state,
+            org_talent_ids_order,
+            *_mapping_row_output_list(),
         ],
     )
 
@@ -415,9 +652,14 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
             org_bindings_json,
             org_directives_json,
             org_default_wf,
-            org_mapping_json,
+            org_mapping_state,
+            org_talent_ids_order,
             org_msg,
         ],
+    ).then(
+        refresh_mapping_rows,
+        inputs=[org_talent_ids, org_mapping_state],
+        outputs=_mapping_row_output_list(),
     )
 
     def load_workflow(wf_id: str):
@@ -473,6 +715,11 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
     ])
     demo.load(load_org, inputs=[org_id_dd], outputs=[
         org_name, org_mission, org_culture, org_talent_ids,
-        org_bindings_json, org_directives_json, org_default_wf, org_mapping_json, org_msg,
-    ])
+        org_bindings_json, org_directives_json, org_default_wf,
+        org_mapping_state, org_talent_ids_order, org_msg,
+    ]).then(
+        refresh_mapping_rows,
+        inputs=[org_talent_ids, org_mapping_state],
+        outputs=_mapping_row_output_list(),
+    )
     demo.load(load_workflow, inputs=[wf_id_dd], outputs=[wf_json, wf_msg])

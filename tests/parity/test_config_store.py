@@ -75,3 +75,11 @@ def test_save_organization_updates_session_context(studio_root: Path) -> None:
     assert result.ok
     ctx = load_session_context("solo", studio_root)
     assert ctx.org.get("mission") == "test mission"
+
+
+def test_save_model_mapping_uses_org_id_not_item_id(studio_root: Path) -> None:
+    mapping = {"solo_bot": {"assistant": "mock"}}
+    result = save_config("model_mapping", "", mapping, studio_root, org_id="solo")
+    assert result.ok
+    loaded = load_config("model_mapping", "", studio_root, org_id="solo")
+    assert loaded["solo_bot"]["assistant"] == "mock"

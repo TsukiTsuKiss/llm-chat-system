@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""MultiRoleStudio Web UI (Phase 4a: chat, Phase 4b: settings, Phase 4c: attachments)."""
+"""MultiRoleStudio Web UI (Phase 4a: chat, Phase 4b: settings, Phase 4c: attachments, Phase 4d: mapping form)."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ from studio.web_ui import (
 )
 from web_input_utils import stream_default_from_config, temperature_default_from_config
 
-VERSION = "0.4.2"
+VERSION = "0.4.3"
 
 DEFAULT_ORG = os.getenv("MULTIROLESTUDIOWEB_ORG", "")
 DEFAULT_PORT = int(os.getenv("MULTIROLESTUDIOWEB_PORT", "7862"))
@@ -124,7 +124,7 @@ def build_ui(root: Path) -> gr.Blocks:
 
         gr.Markdown(
             f"# MultiRoleStudio Web `{VERSION}`\n"
-            "Phase 4a: チャット / Phase 4b: 設定編集 / Phase 4c: ファイル添付"
+            "Phase 4a: チャット / Phase 4b: 設定編集 / Phase 4c: ファイル添付 / Phase 4d: model_mapping フォーム"
         )
 
         with gr.Tabs():
