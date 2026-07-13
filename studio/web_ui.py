@@ -23,6 +23,8 @@ SPEAKER_EMOJIS = [
 
 UIUpdate = tuple[list[dict[str, str]], str, bool, str]
 
+IDLE_STATUS = "待機中（メッセージを入力してください）"
+
 
 def list_organizations(root: Path) -> list[str]:
     org_dir = root / "organizations"
@@ -260,7 +262,23 @@ def _status_from_event(event: EngineEvent) -> str:
         return "応答完了"
     if event.type == "step_error":
         return "エラーが発生しました"
+    if event.type == "loop_check":
+        payload = event.payload
+        if payload.get("result") == "exit":
+            return "ループ終了"
+        return f"反復 {payload.get('iteration')} 完了"
+    if event.type == "session_done":
+        return IDLE_STATUS
     return "実行中…"
+
+
+def _idle_ui(session: WebSession) -> UIUpdate:
+    return (
+        session.renderer.copy_messages(),
+        IDLE_STATUS,
+        False,
+        "メッセージを入力…",
+    )
 
 
 def _pending_ui(session: WebSession, kind: str, event: EngineEvent) -> UIUpdate:
@@ -305,6 +323,8 @@ def process_events(
         except StopIteration:
             break
 
+    yield _idle_ui(session)
+
 
 def resume_after_reply(session: WebSession, reply: str) -> Generator[UIUpdate, None, None]:
     pending = session.pending
@@ -314,6 +334,7 @@ def resume_after_reply(session: WebSession, reply: str) -> Generator[UIUpdate, N
     try:
         event = pending.generator.send(reply)
     except StopIteration:
+        yield _idle_ui(session)
         return
     yield from process_events(session, pending.generator, first_event=event)
 

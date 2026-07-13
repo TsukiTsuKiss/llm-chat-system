@@ -11,6 +11,7 @@ from studio.engine import EngineEvent, SessionEngine, collect_events
 from studio.loader import load_session_context
 from studio.web_ui import (
     ChatEventRenderer,
+    IDLE_STATUS,
     WebSession,
     handle_chat_submit,
     list_organizations,
@@ -97,6 +98,8 @@ def test_web_session_direct_chat_mock(studio_root: Path) -> None:
     assert any(m["role"] == "user" and "こんにちは" in m["content"] for m in messages)
     assert any(m["role"] == "assistant" for m in messages)
     assert show_choice is False
+    assert status == IDLE_STATUS
+    assert status != "実行中…"
     assert session.engine is not None
 
 

@@ -22,6 +22,11 @@ from studio.config_store import (
 )
 from studio.web_ui import load_org_panel, workflow_dropdown_choices
 
+# 削除・新規作成: 入力欄の横に小さく配置（ラベルと高さを揃えない）
+_ACTION_BTN = dict(variant="primary", size="sm", elem_classes=["studio-action-btn"], scale=0, min_width=80)
+_SAVE_BTN = dict(variant="primary", elem_classes=["studio-save-btn"])
+_ID_ROW = dict(elem_classes=["studio-id-row"])
+
 
 @dataclass
 class SettingsHandles:
@@ -52,84 +57,105 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
     wf_ids = list_configs("workflow", root)
 
     with gr.Tab("⚙️ 設定編集"):
-        gr.Markdown("人材・組織・ワークフローを編集します。保存前にバリデーションを実行します（§8.4）。")
+        with gr.Column(elem_classes=["studio-settings-panel"]):
+            gr.Markdown("人材・組織・ワークフローを編集します。保存前にバリデーションを実行します（§8.4）。")
 
-        with gr.Tabs():
-            # --- Talent ---
-            with gr.Tab("👤 人材"):
-                with gr.Row():
-                    talent_id_dd = gr.Dropdown(
-                        label="人材 ID",
+            with gr.Tabs():
+                # --- Talent ---
+                with gr.Tab("👤 人材"):
+                    with gr.Row():
+                        with gr.Group():
+                            with gr.Row(**_ID_ROW):
+                                talent_id_dd = gr.Dropdown(
+                                    label="人材 ID",
+                                    choices=talent_ids,
+                                    value=talent_ids[0] if talent_ids else None,
+                                    allow_custom_value=True,
+                                    scale=4,
+                                )
+                                talent_delete_btn = gr.Button("削除", **_ACTION_BTN)
+                        with gr.Group():
+                            with gr.Row(**_ID_ROW):
+                                talent_new_id = gr.Textbox(
+                                    label="新規 ID",
+                                    placeholder="例: my_bot",
+                                    scale=4,
+                                )
+                                talent_create_btn = gr.Button("新規作成", **_ACTION_BTN)
+                    talent_name = gr.Textbox(label="name")
+                    talent_personality = gr.Textbox(label="personality", lines=2)
+                    talent_tags = gr.Textbox(label="tags（カンマ区切り）")
+                    talent_prompt = gr.Textbox(label="system_prompt", lines=10)
+                    talent_save_btn = gr.Button("保存", **_SAVE_BTN)
+                    talent_msg = gr.Markdown("")
+
+                # --- Organization ---
+                with gr.Tab("🏢 組織"):
+                    with gr.Row():
+                        with gr.Group():
+                            with gr.Row(**_ID_ROW):
+                                org_id_dd = gr.Dropdown(
+                                    label="組織 ID",
+                                    choices=org_ids,
+                                    value=org_ids[0] if org_ids else None,
+                                    allow_custom_value=True,
+                                    scale=4,
+                                )
+                                org_delete_btn = gr.Button("削除", **_ACTION_BTN)
+                        with gr.Group():
+                            with gr.Row(**_ID_ROW):
+                                org_new_id = gr.Textbox(label="新規組織 ID", scale=3)
+                                org_new_talent = gr.Dropdown(
+                                    label="初期人材（必須）",
+                                    choices=talent_ids,
+                                    value=talent_ids[0] if talent_ids else None,
+                                    scale=3,
+                                )
+                                org_create_btn = gr.Button("新規作成", **_ACTION_BTN)
+                    org_name = gr.Textbox(label="name")
+                    org_mission = gr.Textbox(label="mission", lines=2)
+                    org_culture = gr.Textbox(label="culture（1行1項目）", lines=4)
+                    org_talent_ids = gr.CheckboxGroup(
+                        label="talent_ids",
                         choices=talent_ids,
-                        value=talent_ids[0] if talent_ids else None,
-                        allow_custom_value=True,
+                        value=talent_ids[:1] if talent_ids else [],
                     )
-                    talent_new_id = gr.Textbox(label="新規 ID", placeholder="例: my_bot")
-                    talent_create_btn = gr.Button("新規作成", variant="secondary")
-                    talent_delete_btn = gr.Button("削除", variant="stop")
-                talent_name = gr.Textbox(label="name")
-                talent_personality = gr.Textbox(label="personality", lines=2)
-                talent_tags = gr.Textbox(label="tags（カンマ区切り）")
-                talent_prompt = gr.Textbox(label="system_prompt", lines=10)
-                talent_save_btn = gr.Button("保存", variant="primary")
-                talent_msg = gr.Markdown("")
+                    org_bindings_json = gr.Textbox(
+                        label="workflow_bindings（JSON）",
+                        lines=6,
+                        placeholder='{"discussion": {"participant": ["solo_bot"]}}',
+                    )
+                    org_directives_json = gr.Textbox(
+                        label="common_directives / role_directives（JSON）",
+                        lines=6,
+                        placeholder='{"common_directives": [], "role_directives": {}}',
+                    )
+                    org_default_wf = gr.Textbox(label="default_workflow（任意）")
+                    org_mapping_json = gr.Textbox(label="model_mapping.json", lines=10)
+                    org_save_btn = gr.Button("組織 config を保存", **_SAVE_BTN)
+                    org_mapping_save_btn = gr.Button("model_mapping を保存", **_SAVE_BTN)
+                    org_msg = gr.Markdown("")
 
-            # --- Organization ---
-            with gr.Tab("🏢 組織"):
-                with gr.Row():
-                    org_id_dd = gr.Dropdown(
-                        label="組織 ID",
-                        choices=org_ids,
-                        value=org_ids[0] if org_ids else None,
-                        allow_custom_value=True,
-                    )
-                    org_new_id = gr.Textbox(label="新規組織 ID")
-                    org_new_talent = gr.Dropdown(
-                        label="初期人材（必須）",
-                        choices=talent_ids,
-                        value=talent_ids[0] if talent_ids else None,
-                    )
-                    org_create_btn = gr.Button("新規作成", variant="secondary")
-                    org_delete_btn = gr.Button("削除", variant="stop")
-                org_name = gr.Textbox(label="name")
-                org_mission = gr.Textbox(label="mission", lines=2)
-                org_culture = gr.Textbox(label="culture（1行1項目）", lines=4)
-                org_talent_ids = gr.CheckboxGroup(
-                    label="talent_ids",
-                    choices=talent_ids,
-                    value=talent_ids[:1] if talent_ids else [],
-                )
-                org_bindings_json = gr.Textbox(
-                    label="workflow_bindings（JSON）",
-                    lines=6,
-                    placeholder='{"discussion": {"participant": ["solo_bot"]}}',
-                )
-                org_directives_json = gr.Textbox(
-                    label="common_directives / role_directives（JSON）",
-                    lines=6,
-                    placeholder='{"common_directives": [], "role_directives": {}}',
-                )
-                org_default_wf = gr.Textbox(label="default_workflow（任意）")
-                org_mapping_json = gr.Textbox(label="model_mapping.json", lines=10)
-                org_save_btn = gr.Button("組織 config を保存", variant="primary")
-                org_mapping_save_btn = gr.Button("model_mapping を保存", variant="primary")
-                org_msg = gr.Markdown("")
-
-            # --- Workflow ---
-            with gr.Tab("🔄 ワークフロー"):
-                with gr.Row():
-                    wf_id_dd = gr.Dropdown(
-                        label="ワークフロー ID",
-                        choices=wf_ids,
-                        value=wf_ids[0] if wf_ids else None,
-                        allow_custom_value=True,
-                    )
-                    wf_new_id = gr.Textbox(label="新規 ID")
-                    wf_create_btn = gr.Button("新規作成", variant="secondary")
-                    wf_delete_btn = gr.Button("削除", variant="stop")
-                wf_json = gr.Textbox(label="workflows/<id>.json", lines=24)
-                wf_save_btn = gr.Button("保存", variant="primary")
-                wf_msg = gr.Markdown("")
+                # --- Workflow ---
+                with gr.Tab("🔄 ワークフロー"):
+                    with gr.Row():
+                        with gr.Group():
+                            with gr.Row(**_ID_ROW):
+                                wf_id_dd = gr.Dropdown(
+                                    label="ワークフロー ID",
+                                    choices=wf_ids,
+                                    value=wf_ids[0] if wf_ids else None,
+                                    allow_custom_value=True,
+                                    scale=4,
+                                )
+                                wf_delete_btn = gr.Button("削除", **_ACTION_BTN)
+                        with gr.Group():
+                            with gr.Row(**_ID_ROW):
+                                wf_new_id = gr.Textbox(label="新規 ID", scale=4)
+                                wf_create_btn = gr.Button("新規作成", **_ACTION_BTN)
+                    wf_json = gr.Textbox(label="workflows/<id>.json", lines=24)
+                    wf_save_btn = gr.Button("保存", **_SAVE_BTN)
+                    wf_msg = gr.Markdown("")
 
     def _refresh_talent_choices(current: str | None = None):
         ids = list_configs("talent", root)

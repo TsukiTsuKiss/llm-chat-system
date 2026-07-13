@@ -1395,6 +1395,17 @@ Gradio 起動・終了の共通仕様（8.6 節）に従う。
 11. **thinking ブロック非表示**: 6.4 節。推論モデル（Claude extended thinking 等）の
     「考え中」内部テキストは UI に表示しない
 
+**Phase 4a/4b 実装フィードバック（2026-07-14）:**
+
+- **状態欄**: 1 ターン（ワークフロー 1 周）完了後は **「待機中（メッセージを入力してください）」** を表示する。
+  `loop_check` 等の最終イベント後に「実行中…」が残ると、処理完了と誤認される（4b で修正）
+- **続行 / 終了ボタン**: `await_choice`（`exit.type: "user"` のワークフロー）のときのみ表示。
+  `meeting` 等の marker 終了では **出ない**（design どおり）
+- **チャット欄の高さ**: 初回表示で **メッセージ欄・送信ボタンが viewport 内** に収まるよう、Chatbot の初期高さを
+  `clamp(200px, calc(100dvh - 22rem), 480px)` 程度に抑える（`resizable=True` で拡大可）
+- **連続メッセージ**: Gradio 6 の `group_consecutive_messages` デフォルト **OFF** + トグル（同一 talent の連続発話を 1 吹き出しにまとめない）
+- **強制停止**: Web UI にキャンセルボタンは **未実装**（Phase 4 スコープ外）。当面は新規チャット / サーバー `q` 終了
+
 ### 8.4 設定編集タブ
 
 新データ構造（3章）に対応した編集画面にする。旧構造（demo_roles / system_prompt_file）の編集 UI は作らない。
@@ -1424,6 +1435,13 @@ Gradio 起動・終了の共通仕様（8.6 節）に従う。
 4. 保存時は 5章のバリデーションを通し、エラーは保存前に警告表示する
 5. 保存関数は `save_config(kind, id, data)` の形に抽象化し、構造変更時に UI を触らずに済むようにする
 
+**Phase 4b 実装フィードバック（2026-07-14）:**
+
+- **レイアウト**: 8.4 の「左ペイン / 右ペイン」図は、実装では **タブ内サブタブ**（👤 人材 / 🏢 組織 / 🔄 ワークフロー）+ フォームに置き換えた（Gradio の `Tabs` 構成の方が CRUD 操作と整合しやすい）
+- **ID 操作 UI**: 「編集対象 ID」（Dropdown）と「新規 ID」（Textbox）を **分離** する。同一フィールドに兼用しない（`allow_custom_value` だけでは初見ユーザーが混乱する）
+- **ボタン配置**: 各サブタブ先頭を **2 グループ** にする — `[既存 ID ▼] [削除]` / `[新規 ID] [新規作成]`。削除・新規作成ボタンは入力欄の **下端に揃え**、`equal_height` でラベルまで伸ばさない（Soft テーマの項目名チップとボタンが混同される）
+- **保存**: フォーム下部の **保存** は primary。設定タブ内の削除・新規作成も同系統の操作ボタンとして扱う（Phase 4b では CSS `--button-*` で全 Web 共通色を上書き。項目ラベルは Soft テーマの紫チップのまま）
+
 ### 8.5 セッションタブ
 
 1. `sessions/` の一覧表示（新しい順。各 jsonl の `session_meta` から組織・ワークフロー・日時を表示）
@@ -1443,6 +1461,13 @@ Phase 4 で Gradio Web 版に共通して適用する。
 | **Gradio フッター非表示** | `footer { display: none !important; }` を CSS 注入（旧 MultiRoleChatWeb.py 踏襲） | 4 |
 | **`--port` / `--share`** | 起動引数・環境変数でポート指定・Gradio 公開トンネル（旧 Web 版踏襲） | 4 |
 | **Soft テーマ** | Gradio テーマ（任意。旧 ChatWeb.py 踏襲） | 4 |
+| **操作ボタン色** | CSS 変数 `--button-primary-*` / `--button-secondary-*` で全タブの primary ボタンを統一（Phase 4b: 水色。項目ラベルは Soft テーマの紫チップのまま） | 4b |
+| **日本語ページ・翻訳バー抑制** | Gradio 6 の HTML テンプレートは `<html lang="en">` 固定。`launch(head=…)` や JS だけでは view-source / Edge 翻訳バーに効かない。**`templates/gradio/frontend/index.html`（`lang="ja"` + `notranslate`）を Jinja2 ChoiceLoader で優先**（`studio/gradio_template.py`）。Gradio バージョンアップ時は asset ハッシュ要確認 | 4b |
+
+**補足（Gradio 6 / Soft テーマ）:**
+
+- 項目名（`block_title`）は **紫背景のチップ** 表示がデフォルト。ボタンと混同しやすいため、操作ボタンは別色（上表）で区別する
+- `head=` パラメータの HTML は **サーバー HTML に埋め込まれず**、`gradio_config` 経由のクライアント注入。言語属性の変更にはテンプレート差し替えが必要
 
 ### 8.7 ChatWeb 由来機能（後回し）
 

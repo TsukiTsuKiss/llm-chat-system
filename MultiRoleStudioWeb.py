@@ -9,6 +9,7 @@ from pathlib import Path
 
 import gradio as gr
 
+from studio.gradio_template import use_japanese_html_template
 from studio.loader import load_studio_config
 from studio.validation import StudioValidationError
 from studio.settings_ui import SettingsHandles, build_settings_tab
@@ -28,13 +29,54 @@ VERSION = "0.4.1"
 DEFAULT_ORG = os.getenv("MULTIROLESTUDIOWEB_ORG", "")
 DEFAULT_PORT = int(os.getenv("MULTIROLESTUDIOWEB_PORT", "7862"))
 
-HIDE_FOOTER_CSS = """
+STUDIO_WEB_CSS = """
 .gradio-container footer { display: none !important; }
+/* 全タブ共通: すべてのボタンを水色で統一（項目名の紫チップと区別） */
+.gradio-container {
+  --button-primary-background-fill: #38bdf8;
+  --button-primary-background-fill-hover: #0ea5e9;
+  --button-primary-border-color: #0ea5e9;
+  --button-primary-border-color-hover: #0284c7;
+  --button-primary-text-color: white;
+  --button-secondary-background-fill: #38bdf8;
+  --button-secondary-background-fill-hover: #0ea5e9;
+  --button-secondary-border-color: #0ea5e9;
+  --button-secondary-border-color-hover: #0284c7;
+  --button-secondary-text-color: white;
+  --button-secondary-text-color-hover: white;
+  --button-cancel-background-fill: #38bdf8;
+  --button-cancel-background-fill-hover: #0ea5e9;
+  --button-cancel-border-color: #0ea5e9;
+  --button-cancel-border-color-hover: #0284c7;
+  --button-cancel-text-color: white;
+}
+.studio-id-row {
+  align-items: flex-end !important;
+  gap: 0.5rem !important;
+}
+.studio-action-btn {
+  flex: 0 0 auto !important;
+  align-self: flex-end !important;
+}
+.studio-action-btn button {
+  min-height: 2.25rem !important;
+  height: 2.25rem !important;
+  white-space: nowrap;
+}
+.studio-chat-column {
+  min-height: 0 !important;
+}
+#studio-chatbot {
+  max-height: calc(100dvh - 20rem) !important;
+}
+.studio-chat-footer {
+  flex: 0 0 auto !important;
+}
 """
 
-CHATBOT_MIN_HEIGHT = 320
-# 大画面の初期高さ（vh）。リサイズは Gradio の resizable に任せる（CSS で height を固定しない）
-CHATBOT_DEFAULT_HEIGHT = "calc(100vh - 320px)"
+CHATBOT_MIN_HEIGHT = 200
+# 初回表示でメッセージ欄・送信ボタンが viewport 内に収まる高さ（リサイズ可）
+CHATBOT_DEFAULT_HEIGHT = "clamp(200px, calc(100dvh - 22rem), 480px)"
 
 DEFAULT_MSG_PLACEHOLDER = "メッセージを入力…"
 
@@ -102,9 +144,9 @@ def build_ui(root: Path) -> gr.Blocks:
                             step=0.1,
                             value=default_temperature,
                         )
-                        new_chat_btn = gr.Button("新規チャット", variant="secondary")
+                        new_chat_btn = gr.Button("新規チャット", variant="primary")
                         talents_md = gr.Markdown("**参加人材**")
-                    with gr.Column(scale=3):
+                    with gr.Column(scale=3, elem_classes=["studio-chat-column"]):
                         chatbot = gr.Chatbot(
                             label="チャット",
                             elem_id="studio-chatbot",
@@ -113,16 +155,17 @@ def build_ui(root: Path) -> gr.Blocks:
                             resizable=True,
                             group_consecutive_messages=False,
                         )
-                        status_tb = gr.Textbox(label="状態", interactive=False)
-                        with gr.Row(visible=False) as choice_row:
-                            continue_btn = gr.Button("続行 (y)", variant="primary")
-                            exit_btn = gr.Button("終了 (n)")
-                        msg_tb = gr.Textbox(
-                            label="メッセージ",
-                            placeholder=DEFAULT_MSG_PLACEHOLDER,
-                            lines=2,
-                        )
-                        send_btn = gr.Button("送信", variant="primary")
+                        with gr.Column(elem_classes=["studio-chat-footer"]):
+                            status_tb = gr.Textbox(label="状態", lines=1, interactive=False)
+                            with gr.Row(visible=False) as choice_row:
+                                continue_btn = gr.Button("続行 (y)", variant="primary")
+                                exit_btn = gr.Button("終了 (n)", variant="primary")
+                            msg_tb = gr.Textbox(
+                                label="メッセージ",
+                                placeholder=DEFAULT_MSG_PLACEHOLDER,
+                                lines=2,
+                            )
+                            send_btn = gr.Button("送信", variant="primary")
 
             build_settings_tab(
                 root,
@@ -250,13 +293,14 @@ def main() -> None:
         DEFAULT_ORG = args.org
 
     print(f"[INFO] MultiRoleStudioWeb v{VERSION} 起動中 (root={root})")
+    use_japanese_html_template()
     demo = build_ui(root)
     demo.launch(
         server_port=args.port,
         share=args.share,
         inbrowser=True,
         theme=gr.themes.Soft(),
-        css=HIDE_FOOTER_CSS,
+        css=STUDIO_WEB_CSS,
         prevent_thread_lock=True,
     )
     print("[INFO] サーバー起動完了。終了するには q + Enter を押してください。")
