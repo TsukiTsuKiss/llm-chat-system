@@ -73,9 +73,10 @@
 
 **Phase 1（1 人 CLI）:** 直接送信、`mock` / 実 LLM、JSONL ログ  
 **Phase 2（複数人）:** `serial` / `parallel` ワークフロー、`discussion` / `quiz`、`human`（parallel では AI 先行→human 入力）  
-**Phase 3（進行制御）:** `loop` + `exit`（marker / judge / user）、`meeting` / `dev`、成果物抽出（`sandbox/`）
+**Phase 3（進行制御）:** `loop` + `exit`（marker / judge / user）、`meeting` / `dev`、成果物抽出（`sandbox/`）  
+**Phase 4a（Web UI 最小）:** `MultiRoleStudioWeb.py` — チャットタブのみ（mock / 実 LLM）。設定・セッションタブは Phase 4b〜
 
-**未実装:** Web UI、議事録、Git 連携 など（design.md 9章）
+**未実装:** 設定編集タブ、セッションタブ、議事録、Git 連携 など（design.md 9章）
 
 #### セットアップ
 
@@ -114,6 +115,11 @@ cd sandbox/session_<session_id>
 
 # --- テスト（API キー不要）---
 python -m pytest tests/parity/ -v
+
+# --- Phase 4a: Web UI（チャットタブ最小）---
+python MultiRoleStudioWeb.py --org solo          # ブラウザ起動（デフォルト port 7862）
+python MultiRoleStudioWeb.py --org trio --port 7863
+# 終了: コンソールで q + Enter（design.md §8.6）
 ```
 
 `dev` ワークフローは implementer → reviewer → judge のループでコードを改善し、
@@ -151,6 +157,8 @@ python -m pytest tests/parity/ -v
 | パス | 内容 |
 |------|------|
 | `MultiRoleStudio.py` | CLI 入口 |
+| `MultiRoleStudioWeb.py` | Web 入口（Phase 4a: チャットタブ） |
+| `studio/web_ui.py` | エンジンイベント → Gradio 表示 |
 | `studio/` | loader / engine / bindings / logging / artifacts |
 | `workflows/` | `discussion.json`, `discussion_sourced.json`, `quiz.json`, `meeting.json`, `dev.json` |
 | `talents/*.json` | 人材定義（`hinata`, `satsuki`, `kaede` 等） |
