@@ -32,7 +32,7 @@ from studio.mapping_form import (
     ordered_talent_ids,
     patch_mapping_entry,
 )
-from studio.web_ui import load_org_panel, workflow_dropdown_choices
+from studio.web_ui import load_org_panel, workflow_dropdown_for_org
 
 # 削除・新規作成: 入力欄の横に小さく配置（ラベルと高さを揃えない）
 _ACTION_BTN = dict(variant="primary", size="sm", elem_classes=["studio-action-btn"], scale=0, min_width=80)
@@ -61,6 +61,11 @@ def _lines_to_list(text: str) -> list[str]:
 
 def _list_to_lines(items: list[str] | None) -> str:
     return "\n".join(items or [])
+
+
+def _chat_workflow_update(root: Path, org_id: str, current_wf: str = ""):
+    choices, value = workflow_dropdown_for_org(root, org_id or "", current_wf)
+    return gr.update(choices=choices, value=value)
 
 
 def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) -> None:
@@ -467,7 +472,7 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
             config["default_workflow"] = str(default_wf).strip()
         return config, ""
 
-    def save_org(org_id: str, mapping_state: dict, talent_order: list[str], *fields):
+    def save_org(org_id: str, chat_wf: str, mapping_state: dict, talent_order: list[str], *fields):
         config, err = _build_org_config(*fields, talent_order)
         if config is None:
             return err, gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), *_noop_row_updates()
@@ -477,8 +482,9 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
             choices=orgs,
             value=org_id if result.ok and org_id in orgs else (orgs[0] if orgs else None),
         )
-        wf_upd = gr.update(choices=workflow_dropdown_choices(root))
-        talents_text = load_org_panel(root, org_id, "")[0] if result.ok else gr.update()
+        choices, wf_value = workflow_dropdown_for_org(root, org_id, chat_wf)
+        wf_upd = gr.update(choices=choices, value=wf_value)
+        talents_text = load_org_panel(root, org_id, wf_value)[0] if result.ok else gr.update()
         if result.ok:
             order = list(config["talent_ids"])
             state = _sync_mapping_state(order, mapping_state, order)[0]
@@ -504,7 +510,7 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
     ]
     org_save_btn.click(
         save_org,
-        inputs=[org_id_dd, org_mapping_state, org_talent_ids_order, *org_fields],
+        inputs=[org_id_dd, handles.wf_dd, org_mapping_state, org_talent_ids_order, *org_fields],
         outputs=[
             org_msg,
             handles.org_dd,
@@ -557,7 +563,7 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
         outputs=_mapping_row_output_list(),
     )
 
-    def on_org_create(new_id: str, initial_talent: str, name: str):
+    def on_org_create(new_id: str, initial_talent: str, name: str, chat_wf: str):
         result = create_organization(new_id, root, initial_talent_id=initial_talent, name=name)
         orgs = list_configs("organization", root)
         org_dd_upd = gr.update(
@@ -565,7 +571,8 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
             value=new_id if result.ok and new_id in orgs else (orgs[0] if orgs else None),
         )
         chat_org_upd = org_dd_upd
-        wf_upd = gr.update(choices=workflow_dropdown_choices(root))
+        target_org = new_id if result.ok and new_id in orgs else (orgs[0] if orgs else "")
+        wf_upd = _chat_workflow_update(root, target_org, chat_wf)
         if result.ok:
             loaded = load_org(new_id)
             return (
@@ -580,7 +587,7 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
 
     org_create_btn.click(
         on_org_create,
-        inputs=[org_new_id, org_new_talent, org_name],
+        inputs=[org_new_id, org_new_talent, org_name, handles.wf_dd],
         outputs=[
             org_msg,
             org_id_dd,
@@ -599,12 +606,13 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
         ],
     )
 
-    def on_org_delete(org_id: str):
+    def on_org_delete(org_id: str, chat_wf: str):
         result = delete_config("organization", org_id, root)
         orgs = list_configs("organization", root)
-        org_dd_upd = gr.update(choices=orgs, value=orgs[0] if orgs else None)
+        next_org = orgs[0] if orgs else ""
+        org_dd_upd = gr.update(choices=orgs, value=next_org or None)
         chat_org_upd = org_dd_upd
-        wf_upd = gr.update(choices=workflow_dropdown_choices(root))
+        wf_upd = _chat_workflow_update(root, next_org, chat_wf)
         return (
             result.message,
             org_dd_upd,
@@ -622,7 +630,7 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
 
     org_delete_btn.click(
         on_org_delete,
-        inputs=[org_id_dd],
+        inputs=[org_id_dd, handles.wf_dd],
         outputs=[
             org_msg,
             org_id_dd,
@@ -668,7 +676,7 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
         data = load_config("workflow", wf_id, root)
         return json.dumps(data, ensure_ascii=False, indent=2), ""
 
-    def save_workflow(wf_id: str, text: str):
+    def save_workflow(wf_id: str, text: str, org_id: str, chat_wf: str):
         try:
             data = json.loads(text or "{}")
         except json.JSONDecodeError as exc:
@@ -676,37 +684,41 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
         if not isinstance(data, dict):
             return "ワークフローは JSON オブジェクトである必要があります", gr.update()
         result = save_config("workflow", wf_id, data, root)
-        wf_upd = gr.update(choices=workflow_dropdown_choices(root))
+        wf_upd = _chat_workflow_update(root, org_id, chat_wf)
         return result.message, wf_upd
 
     wf_id_dd.change(load_workflow, inputs=[wf_id_dd], outputs=[wf_json, wf_msg])
-    wf_save_btn.click(save_workflow, inputs=[wf_id_dd, wf_json], outputs=[wf_msg, handles.wf_dd])
+    wf_save_btn.click(
+        save_workflow,
+        inputs=[wf_id_dd, wf_json, org_id_dd, handles.wf_dd],
+        outputs=[wf_msg, handles.wf_dd],
+    )
 
-    def on_wf_create(new_id: str):
+    def on_wf_create(new_id: str, org_id: str, chat_wf: str):
         result = create_workflow(new_id, root)
         ids = list_configs("workflow", root)
         dd_upd = gr.update(choices=ids, value=new_id if result.ok else (ids[0] if ids else None))
-        wf_chat_upd = gr.update(choices=workflow_dropdown_choices(root))
+        wf_chat_upd = _chat_workflow_update(root, org_id, chat_wf)
         if result.ok:
             return result.message, dd_upd, wf_chat_upd, load_workflow(new_id)[0]
         return result.message, dd_upd, wf_chat_upd, ""
 
     wf_create_btn.click(
         on_wf_create,
-        inputs=[wf_new_id],
+        inputs=[wf_new_id, org_id_dd, handles.wf_dd],
         outputs=[wf_msg, wf_id_dd, handles.wf_dd, wf_json],
     )
 
-    def on_wf_delete(wf_id: str):
+    def on_wf_delete(wf_id: str, org_id: str, chat_wf: str):
         result = delete_config("workflow", wf_id, root)
         ids = list_configs("workflow", root)
         dd_upd = gr.update(choices=ids, value=ids[0] if ids else None)
-        wf_chat_upd = gr.update(choices=workflow_dropdown_choices(root))
+        wf_chat_upd = _chat_workflow_update(root, org_id, chat_wf)
         return result.message, dd_upd, wf_chat_upd, ""
 
     wf_delete_btn.click(
         on_wf_delete,
-        inputs=[wf_id_dd],
+        inputs=[wf_id_dd, org_id_dd, handles.wf_dd],
         outputs=[wf_msg, wf_id_dd, handles.wf_dd, wf_json],
     )
 

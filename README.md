@@ -77,9 +77,11 @@
 **Phase 4a（Web UI 最小）:** `MultiRoleStudioWeb.py` — チャットタブ（mock / 実 LLM）  
 **Phase 4b（設定編集）:** 人材・組織・ワークフローの CRUD（保存前バリデーション、チャットタブ連動）  
 **Phase 4c（ファイル添付）:** テキスト系ファイル取り込み（`upload_limits` / CLI `--files` と共用）  
-**Phase 4d（model_mapping フォーム）:** assistant / model プルダウン、API キー未設定 assistant の選択不可
+**Phase 4d（model_mapping フォーム）:** assistant / model プルダウン、API キー未設定 assistant の選択不可  
+**Phase 4e（セッションタブ）:** 一覧表示、JSONL から Markdown レポート生成・閲覧、エクスポート、parallel フロー図  
+**Phase 4e 追補（チャット workflow UX）:** 組織連動プルダウン、未設定 workflow の `— 未設定` ラベルと案内欄、検証エラー詳細表示
 
-**未実装:** セッションタブ（4e）、議事録、Git 連携 など（design.md 9章）
+**未実装:** セッション再開・議事録・Git 採用（Phase 5）、`workflow_bindings` フォーム（§8.4 残）、Zenn 草稿 など（design.md 9章）
 
 #### セットアップ
 
@@ -160,10 +162,12 @@ python MultiRoleStudioWeb.py --org trio --port 7863
 | パス | 内容 |
 |------|------|
 | `MultiRoleStudio.py` | CLI 入口 |
-| `MultiRoleStudioWeb.py` | Web 入口（Phase 4a〜4d） |
+| `MultiRoleStudioWeb.py` | Web 入口（Phase 4a〜4e） |
 | `studio/assistant_availability.py` | API キー未設定 assistant の判定（§8.3 #10） |
 | `studio/mapping_form.py` | model_mapping フォーム用データ変換 |
-| `studio/web_ui.py` | エンジンイベント → Gradio 表示 |
+| `studio/session_report.py` | セッション一覧・Markdown レポート生成（§8.5） |
+| `studio/sessions_ui.py` | セッションタブ UI |
+| `studio/web_ui.py` | エンジンイベント → Gradio 表示、組織別 workflow 選択肢 |
 | `studio/config_store.py` | 設定の保存・削除・バリデーション |
 | `studio/settings_ui.py` | 設定編集タブ UI |
 | `studio/` | loader / engine / bindings / logging / artifacts |

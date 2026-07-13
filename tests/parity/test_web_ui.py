@@ -18,7 +18,10 @@ from studio.web_ui import (
     list_organizations,
     list_workflows,
     resolve_user_input_with_attachments,
+    workflow_available_for_org,
     workflow_dropdown_choices,
+    workflow_dropdown_choices_for_org,
+    resolve_workflow_value_for_org,
 )
 
 
@@ -29,6 +32,57 @@ def test_list_organizations_and_workflows(studio_root: Path) -> None:
     assert isinstance(wfs, list)
     choices = workflow_dropdown_choices(studio_root)
     assert choices[0][1] == ""
+
+
+def _copy_nokuru_tree(studio_root: Path) -> None:
+    repo = Path(__file__).resolve().parents[2]
+    import json
+    import shutil
+
+    for name in (
+        "workflows",
+        "organizations/nokuru",
+        "talents/hinata.json",
+        "talents/satsuki.json",
+        "talents/kaede.json",
+    ):
+        src = repo / name
+        if src.is_file():
+            dest = studio_root / name
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dest)
+        elif src.is_dir():
+            dest = studio_root / name
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            if not dest.exists():
+                shutil.copytree(src, dest)
+            else:
+                for path in src.glob("*.json"):
+                    shutil.copy2(path, dest / path.name)
+
+    mapping = {
+        "hinata": {"assistant": "mock"},
+        "satsuki": {"assistant": "mock"},
+        "kaede": {"assistant": "mock"},
+    }
+    (studio_root / "organizations" / "nokuru" / "model_mapping.json").write_text(
+        json.dumps(mapping, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+def test_workflow_dropdown_choices_for_org_marks_unbound(studio_root: Path) -> None:
+    _copy_nokuru_tree(studio_root)
+    choices = workflow_dropdown_choices_for_org(studio_root, "nokuru")
+    labels = {label for label, _ in choices}
+    values = {value for _, value in choices}
+    assert "quiz" in values
+    assert any("quiz" in label and "未設定" in label for label in labels)
+    assert "meeting" in values
+    assert resolve_workflow_value_for_org(studio_root, "nokuru", "quiz") == "meeting"
+    assert workflow_available_for_org(studio_root, "nokuru", "quiz") is False
+    assert workflow_available_for_org(studio_root, "nokuru", "meeting") is True
+    assert workflow_available_for_org(studio_root, "nokuru", "discussion") is True
 
 
 def test_renderer_step_done_includes_display_name() -> None:

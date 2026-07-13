@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""MultiRoleStudio Web UI (Phase 4a: chat, Phase 4b: settings, Phase 4c: attachments, Phase 4d: mapping form)."""
+"""MultiRoleStudio Web UI (Phase 4a: chat, Phase 4b: settings, Phase 4c: attachments, Phase 4d: mapping form, Phase 4e: sessions)."""
 
 from __future__ import annotations
 
@@ -13,19 +13,21 @@ from studio.gradio_template import use_japanese_html_template
 from studio.loader import load_studio_config
 from studio.validation import StudioValidationError
 from studio.settings_ui import SettingsHandles, build_settings_tab
+from studio.sessions_ui import build_sessions_tab
 from studio.web_ui import (
-    DIRECT_WORKFLOW_VALUE,
     WebSession,
     handle_chat_submit,
     handle_choice,
     list_organizations,
     load_org_panel,
     upload_limits_from_config,
-    workflow_dropdown_choices,
+    workflow_available_for_org,
+    workflow_dropdown_for_org,
+    workflow_unavailable_note,
 )
 from web_input_utils import stream_default_from_config, temperature_default_from_config
 
-VERSION = "0.4.3"
+VERSION = "0.4.4"
 
 DEFAULT_ORG = os.getenv("MULTIROLESTUDIOWEB_ORG", "")
 DEFAULT_PORT = int(os.getenv("MULTIROLESTUDIOWEB_PORT", "7862"))
@@ -73,6 +75,25 @@ STUDIO_WEB_CSS = """
 .studio-chat-footer {
   flex: 0 0 auto !important;
 }
+/* セッションレポート Mermaid: ノード内文字のコントラスト確保（Gradio ダーク UI 対策） */
+.studio-session-report .mermaid foreignObject,
+.studio-session-report .mermaid foreignObject div,
+.studio-session-report .mermaid foreignObject p,
+.studio-session-report .mermaid foreignObject span {
+  color: #0f172a !important;
+}
+.studio-session-report .mermaid .nodeLabel,
+.studio-session-report .mermaid .label {
+  color: #0f172a !important;
+}
+.studio-session-report[data-flow-theme="dark"] .mermaid foreignObject,
+.studio-session-report[data-flow-theme="dark"] .mermaid foreignObject div,
+.studio-session-report[data-flow-theme="dark"] .mermaid foreignObject p,
+.studio-session-report[data-flow-theme="dark"] .mermaid foreignObject span,
+.studio-session-report[data-flow-theme="dark"] .mermaid .nodeLabel,
+.studio-session-report[data-flow-theme="dark"] .mermaid .label {
+  color: #f8fafc !important;
+}
 """
 
 CHATBOT_MIN_HEIGHT = 200
@@ -109,7 +130,6 @@ def _default_org(root: Path) -> str:
 
 def build_ui(root: Path) -> gr.Blocks:
     orgs = list_organizations(root)
-    wf_choices = workflow_dropdown_choices(root)
     try:
         studio_config = load_studio_config(root)
     except StudioValidationError:
@@ -117,14 +137,17 @@ def build_ui(root: Path) -> gr.Blocks:
     default_stream = stream_default_from_config(studio_config, default_value=True)
     default_temperature = temperature_default_from_config(studio_config, default_value=0.7)
     default_org = _default_org(root)
+    wf_choices, default_wf = workflow_dropdown_for_org(root, default_org or "", "")
     upload_limits = upload_limits_from_config(studio_config)
 
     with gr.Blocks(title=f"MultiRoleStudio Web {VERSION}", fill_height=True) as demo:
         session_state = gr.State(WebSession(root=root))
+        valid_wf_state = gr.State(default_wf)
+        pending_wf_hint_state = gr.State("")
 
         gr.Markdown(
             f"# MultiRoleStudio Web `{VERSION}`\n"
-            "Phase 4a: チャット / Phase 4b: 設定編集 / Phase 4c: ファイル添付 / Phase 4d: model_mapping フォーム"
+            "Phase 4a: チャット / Phase 4b: 設定編集 / Phase 4c: ファイル添付 / Phase 4d: model_mapping フォーム / Phase 4e: セッション"
         )
 
         with gr.Tabs():
@@ -139,8 +162,9 @@ def build_ui(root: Path) -> gr.Blocks:
                         wf_dd = gr.Dropdown(
                             label="ワークフロー",
                             choices=wf_choices,
-                            value=DIRECT_WORKFLOW_VALUE,
+                            value=default_wf,
                         )
+                        wf_note_md = gr.Markdown("")
                         upload_files = gr.File(
                             label="ファイルを会話に取り込む（テキスト系）",
                             file_count="multiple",
@@ -187,14 +211,31 @@ def build_ui(root: Path) -> gr.Blocks:
                 demo,
             )
 
-            with gr.Tab("📄 セッション"):
-                gr.Markdown("Phase 4e で実装予定（design.md §8.5）")
+            build_sessions_tab(root, demo)
 
-        def refresh_talents(org_id: str, workflow_value: str) -> str:
-            return load_org_panel(root, org_id, workflow_value)[0]
+        def on_org_change(org_id: str, workflow_value: str) -> tuple[dict, str, str, str, str]:
+            choices, value = workflow_dropdown_for_org(root, org_id or "", workflow_value)
+            talents = load_org_panel(root, org_id, value)[0]
+            return gr.update(choices=choices, value=value), talents, value, "", ""
 
-        def on_org_change(org_id: str, workflow_value: str) -> str:
-            return refresh_talents(org_id, workflow_value)
+        def on_wf_change(
+            org_id: str,
+            workflow_value: str,
+            last_valid_wf: str,
+            pending_hint: str,
+        ) -> tuple[dict, dict | str, str, str, str]:
+            if workflow_value and not workflow_available_for_org(root, org_id or "", workflow_value):
+                revert = last_valid_wf
+                if not workflow_available_for_org(root, org_id or "", revert or None):
+                    _, revert = workflow_dropdown_for_org(root, org_id or "", "")
+                note = workflow_unavailable_note(root, org_id or "", workflow_value)
+                return gr.update(value=revert), gr.update(), revert, note, note
+
+            if pending_hint and workflow_value == last_valid_wf:
+                return gr.update(), gr.update(), last_valid_wf, pending_hint, pending_hint
+
+            talents = load_org_panel(root, org_id, workflow_value)[0]
+            return gr.update(), talents, workflow_value, "", ""
 
         def on_new_chat(session: WebSession):
             summary = session.reset_chat()
@@ -264,14 +305,26 @@ def build_ui(root: Path) -> gr.Blocks:
                     _upload_input_update(clear_upload),
                 )
 
-        org_dd.change(on_org_change, inputs=[org_dd, wf_dd], outputs=[talents_md])
-        wf_dd.change(on_org_change, inputs=[org_dd, wf_dd], outputs=[talents_md])
+        org_dd.change(
+            on_org_change,
+            inputs=[org_dd, wf_dd],
+            outputs=[wf_dd, talents_md, valid_wf_state, pending_wf_hint_state, wf_note_md],
+        )
+        wf_dd.change(
+            on_wf_change,
+            inputs=[org_dd, wf_dd, valid_wf_state, pending_wf_hint_state],
+            outputs=[wf_dd, talents_md, valid_wf_state, pending_wf_hint_state, wf_note_md],
+        )
         merge_cb.change(
             lambda merge: gr.update(group_consecutive_messages=merge),
             inputs=[merge_cb],
             outputs=[chatbot],
         )
-        demo.load(refresh_talents, inputs=[org_dd, wf_dd], outputs=[talents_md])
+        demo.load(
+            on_org_change,
+            inputs=[org_dd, wf_dd],
+            outputs=[wf_dd, talents_md, valid_wf_state, pending_wf_hint_state, wf_note_md],
+        )
 
         new_chat_btn.click(
             on_new_chat,

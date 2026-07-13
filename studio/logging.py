@@ -62,6 +62,7 @@ class StepMetrics:
     tokens_out: int
     tokens_source: str
     cost: float
+    phase_type: str | None = None
 
     def to_log_record(self) -> dict[str, Any]:
         record: dict[str, Any] = {
@@ -79,6 +80,8 @@ class StepMetrics:
             },
             "cost": round(self.cost, 6),
         }
+        if self.phase_type:
+            record["phase_type"] = self.phase_type
         if self.model:
             record["model"] = self.model
             if self.elapsed > 0 and self.tokens_out > 0:
@@ -241,6 +244,7 @@ def steps_from_jsonl(log_path: Path) -> list[StepMetrics]:
                     tokens_out=tokens.get("out", 0),
                     tokens_source=tokens.get("source", "estimate"),
                     cost=record.get("cost", 0.0),
+                    phase_type=record.get("phase_type"),
                 )
             )
     return steps

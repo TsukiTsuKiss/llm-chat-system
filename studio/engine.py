@@ -466,6 +466,7 @@ class SessionEngine:
                     action,
                     prior_responses=prior or None,
                     stream=state.stream,
+                    phase_type="serial",
                 )
                 outcome = yield from gen
                 if outcome:
@@ -518,6 +519,7 @@ class SessionEngine:
                         talent_id,
                         action,
                         step_no,
+                        "parallel",
                     ): talent_id
                     for talent_id, action, step_no in ai_step_numbers
                 }
@@ -567,6 +569,7 @@ class SessionEngine:
                 action,
                 prior_responses=prior or None,
                 stream=state.stream,
+                phase_type="parallel",
             )
             if outcome:
                 outcomes.append(outcome)
@@ -581,6 +584,7 @@ class SessionEngine:
         talent_id: str,
         action: str,
         step_number: int,
+        phase_type: str | None = None,
     ) -> StepOutcome:
         talent = self.ctx.talents.get(talent_id, {})
         mapping = self.ctx.model_mapping.get(talent_id, {})
@@ -629,6 +633,7 @@ class SessionEngine:
             tokens_out=result.tokens_out,
             tokens_source=result.tokens_source,
             cost=result.cost,
+            phase_type=phase_type,
         )
         state.logger.log_step(metrics)
         return StepOutcome(
@@ -654,6 +659,7 @@ class SessionEngine:
         *,
         prior_responses: list[tuple[str, str]] | None,
         stream: bool,
+        phase_type: str | None = None,
     ) -> Iterator[EngineEvent, None, StepOutcome | None]:
         talent = self.ctx.talents.get(talent_id, {})
         mapping = self.ctx.model_mapping.get(talent_id, {})
@@ -759,6 +765,7 @@ class SessionEngine:
             tokens_out=result.tokens_out,
             tokens_source=result.tokens_source,
             cost=result.cost,
+            phase_type=phase_type,
         )
         state.logger.log_step(metrics)
         yield EngineEvent(

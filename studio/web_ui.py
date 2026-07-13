@@ -15,6 +15,7 @@ from web_input_utils import normalize_uploaded_files
 
 DIRECT_WORKFLOW_LABEL = "直接送信（全ロール）"
 DIRECT_WORKFLOW_VALUE = ""
+UNCONFIGURED_WORKFLOW_LABEL_SUFFIX = " — 未設定"
 
 SPEAKER_EMOJIS = [
     "🔵", "🟠", "🟢", "🟣",
@@ -50,6 +51,92 @@ def workflow_dropdown_choices(root: Path) -> list[tuple[str, str]]:
     return [(DIRECT_WORKFLOW_LABEL, DIRECT_WORKFLOW_VALUE)] + [
         (wf_id, wf_id) for wf_id in list_workflows(root)
     ]
+
+
+def workflow_available_for_org(root: Path, org_id: str, workflow_id: str | None) -> bool:
+    if not org_id:
+        return workflow_id in (None, "")
+    try:
+        load_session_context(org_id, root, workflow_id=workflow_id or None)
+        return True
+    except StudioValidationError:
+        return False
+
+
+def organizations_with_workflow(root: Path, workflow_id: str) -> list[str]:
+    return [
+        org_id
+        for org_id in list_organizations(root)
+        if workflow_available_for_org(root, org_id, workflow_id)
+    ]
+
+
+def workflow_unavailable_hint(root: Path, org_id: str, workflow_id: str) -> str:
+    others = [
+        oid for oid in organizations_with_workflow(root, workflow_id) if oid != org_id
+    ]
+    lines = [
+        f"ワークフロー `{workflow_id}` は組織 `{org_id}` では未設定です。",
+        "設定タブの `workflow_bindings` に追加してください。",
+    ]
+    if others:
+        lines.append(f"設定済みの組織: {', '.join(f'`{o}`' for o in others)}")
+    return "\n".join(lines)
+
+
+def workflow_unavailable_note(root: Path, org_id: str, workflow_id: str) -> str:
+    return f"**⚠️ ワークフロー未設定**\n\n{workflow_unavailable_hint(root, org_id, workflow_id)}"
+
+
+def workflow_dropdown_choices_for_org(root: Path, org_id: str) -> list[tuple[str, str]]:
+    """Chat tab: all workflows; unavailable ones are labeled but not executable."""
+    choices: list[tuple[str, str]] = [(DIRECT_WORKFLOW_LABEL, DIRECT_WORKFLOW_VALUE)]
+    for wf_id in list_workflows(root):
+        if org_id and workflow_available_for_org(root, org_id, wf_id):
+            choices.append((wf_id, wf_id))
+        else:
+            label = wf_id if not org_id else f"{wf_id}{UNCONFIGURED_WORKFLOW_LABEL_SUFFIX}"
+            choices.append((label, wf_id))
+    return choices
+
+
+def resolve_workflow_value_for_org(
+    root: Path,
+    org_id: str,
+    current_value: str | None = None,
+) -> str:
+    normalized = current_value or ""
+    if normalized:
+        if workflow_available_for_org(root, org_id, normalized):
+            return normalized
+    elif workflow_available_for_org(root, org_id, None):
+        return DIRECT_WORKFLOW_VALUE
+
+    default_wf = ""
+    if org_id:
+        try:
+            from studio.config_store import load_config
+
+            org = load_config("organization", org_id, root)
+            default_wf = str(org.get("default_workflow") or "").strip()
+        except (ValueError, OSError, KeyError):
+            default_wf = ""
+    if default_wf and workflow_available_for_org(root, org_id, default_wf):
+        return default_wf
+    return DIRECT_WORKFLOW_VALUE
+
+
+def workflow_dropdown_for_org(
+    root: Path,
+    org_id: str,
+    current_value: str | None = None,
+) -> tuple[list[tuple[str, str]], str]:
+    choices = workflow_dropdown_choices_for_org(root, org_id)
+    value = resolve_workflow_value_for_org(root, org_id, current_value)
+    allowed = {item_value for _, item_value in choices}
+    if value not in allowed:
+        value = DIRECT_WORKFLOW_VALUE
+    return choices, value
 
 
 def upload_limits_from_config(studio_config: dict | None) -> dict[str, int]:
@@ -509,8 +596,14 @@ def load_org_panel(root: Path, org_id: str, workflow_value: str) -> tuple[str, s
         ctx = load_session_context(org_id, root, workflow_id=workflow_value or None)
         return talents_markdown(ctx), ""
     except StudioValidationError as exc:
-        return talents_markdown_from_error(org_id), exc.format_all()
+        detail = exc.format_all()
+        return (
+            f"**参加人材**\n\n"
+            f"組織 `{org_id}` の読み込みに失敗しました。\n\n"
+            f"```\n{detail}\n```",
+            detail,
+        )
 
 
 def talents_markdown_from_error(org_id: str) -> str:
-    return f"**参加人材**\n\n組織 `{org_id}` の読み込みに失敗しました（model_mapping 等を確認）。"
+    return f"**参加人材**\n\n組織 `{org_id}` の読み込みに失敗しました。"

@@ -1394,6 +1394,9 @@ Gradio 起動・終了の共通仕様（8.6 節）に従う。
     プルダウンで選択不可（グレーアウト + 理由表示。旧 ChatWeb.py 踏襲）
 11. **thinking ブロック非表示**: 6.4 節。推論モデル（Claude extended thinking 等）の
     「考え中」内部テキストは UI に表示しない
+12. **ワークフロー未設定の案内**（Phase 4e 追補）: 組織で実行不可な workflow はプルダウンに
+    ` — 未設定` 付きで表示する。選択時は有効な workflow に戻し、プルダウン直下の案内欄に
+    `workflow_bindings` 追加方法と設定済み組織名を表示する（E401 の assistant 選択不可と同系統の「選べない理由を見せる」UX）
 
 **Phase 4a/4b 実装フィードバック（2026-07-14）:**
 
@@ -1422,6 +1425,30 @@ Gradio 起動・終了の共通仕様（8.6 節）に従う。
 - **表示順**: talent_ids チェックボックス（人材プール一覧）と同じ順。`alpha` は一覧先頭なら mapping も先頭
 - **組織切替**: `@gr.render` は使わない（行数変動で Gradio `fn_index` 不一致になるため）
 - **保存ボタン**: model_mapping フォームの**下**に配置
+
+**Phase 4e 実装フィードバック（2026-07-14）:**
+
+- **セッション一覧**: `sessions/*.jsonl` を新しい順。`session_meta` から組織・ワークフロー・日時を Dropdown ラベルに表示
+- **Markdown レポート**: jsonl からその場生成（Mermaid フロー + 応答時間表 + 会話ログ）。ファイルとしては保存しない
+- **フロー図テーマ**: ライト / ダーク切替（Mermaid `themeVariables` + CSS フォールバック）。既定はダーク
+- **エクスポート**: `sessions/exports/<session_id>.md` に出力（`.gitignore` 対象）
+- **Phase 5 ボタン**: 再開・議事録・採用はプレースホルダ（クリックで Phase 5 予定を通知）
+- **parallel フロー図**: JSONL の `step_metrics.phase_type`（`serial` / `parallel`）に基づき Mermaid で fork/sync 表示。
+  Phase 4e 以前の jsonl には `phase_type` が無く serial 直列表示になる
+
+**Phase 4e 追補 — チャットタブ workflow UX（2026-07-14）:**
+
+- **組織連動プルダウン**: 組織変更時、ワークフロー選択肢を `load_session_context` 相当の検証結果で更新する。
+  「直接送信（全ロール）」は常に先頭。単一スロット workflow（例: `discussion`）は `workflow_bindings` 省略可（4.2 節の自動割当）
+- **未設定ラベル**: 当該組織で実行不可な workflow は **非表示にせず**、ラベル末尾に ` — 未設定` を付ける
+  （例: `quiz — 未設定`）。複数スロット workflow で `workflow_bindings` 未登録の場合が該当
+- **案内欄**: ワークフロープルダウン直下に `wf_note_md` を置く。未設定 workflow を選んだとき、
+  選択は直前の有効値に戻し、案内欄に理由を**残す**（`workflow_bindings` 追加を促す。
+  他組織に設定済みなら `設定済みの組織: trio` 等を列挙）。組織変更・別 workflow 選択でクリア
+- **フォールバック**: 組織変更で現選択が無効になった場合、`default_workflow` → なければ「直接送信」へ
+- **参加人材欄のエラー**: 読み込み失敗時、汎用「model_mapping 等」ではなく E301 等の**検証メッセージ全文**を表示
+- **設定タブ連動**: 組織 config / model_mapping / workflow 保存時もチャット側プルダウンを組織向けに再計算
+- **未実装（§8.4 残）**: `workflow_bindings` のスロット割当フォーム（JSON テキストのまま。checkbox / 単一選択 UI は Phase 4 仕上げ）
 
 ### 8.4 設定編集タブ
 
