@@ -10,6 +10,7 @@ import pytest
 from studio.assistants import MockAssistant
 from studio.engine import SessionEngine, collect_events
 from studio.loader import load_session_context
+from studio.prompts import format_prior_responses
 from studio.validation import StudioValidationError
 
 
@@ -56,6 +57,52 @@ def test_discussion_serial_three_steps(trio_root: Path) -> None:
 
     types = [e.type for e in events]
     assert types.count("phase_start") == 1
+
+
+def test_format_prior_responses_uses_speaker_labels() -> None:
+    block = format_prior_responses([("ひなた", "意見A"), ("かえで", "意見B")])
+    assert "ひなた:" in block
+    assert "かえで:" in block
+    assert "hinata:" not in block
+
+
+def test_serial_prior_uses_display_name_not_talent_id(
+    trio_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: list[str] = []
+    from studio.assistants import invoke_mock_step as orig_mock
+
+    def capture_mock(*args, **kwargs):
+        captured.append(kwargs.get("user_message", ""))
+        return orig_mock(*args, **kwargs)
+
+    monkeypatch.setattr("studio.engine.invoke_mock_step", capture_mock)
+    MockAssistant.reset()
+    ctx = load_session_context("trio", trio_root, workflow_id="discussion")
+    collect_events(SessionEngine(ctx), "議題", stream=False)
+
+    assert len(captured) >= 2
+    prior_section = captured[1].split("--- 前の発言 ---", 1)[1]
+    assert prior_section.lstrip().startswith("Alpha:")
+
+
+def test_discussion_sourced_participants_then_checker(trio_root: Path) -> None:
+    MockAssistant.reset()
+    ctx = load_session_context("trio", trio_root, workflow_id="discussion_sourced")
+    events = collect_events(SessionEngine(ctx), "出典テスト", stream=False)
+
+    step_dones = [e for e in events if e.type == "step_done"]
+    assert len(step_dones) == 9
+    assert [s.payload["talent_id"] for s in step_dones[:3]] == ["alpha", "gamma", "beta"]
+
+    loop_checks = [e for e in events if e.type == "loop_check"]
+    assert len(loop_checks) == 3
+    assert all(e.payload["result"] == "continue" for e in loop_checks)
+
+    checker_start = [
+        e for e in events if e.type == "step_start" and e.payload.get("talent_id") == "beta"
+    ][0]
+    assert "ソース" in checker_start.payload.get("action", "")
 
 
 def test_quiz_serial_parallel_serial(trio_root: Path) -> None:

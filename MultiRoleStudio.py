@@ -9,6 +9,7 @@ from pathlib import Path
 
 from studio.assistants import MockAssistant
 from studio.bindings import org_has_human_talent, workflow_participating_talent_ids
+from studio.display import format_session_end_lines, format_step_metrics_line
 from studio.engine import EngineEvent, SessionEngine, collect_events
 from studio.loader import load_session_context, read_attachment_files
 from studio.validation import StudioError, StudioValidationError
@@ -50,10 +51,7 @@ def print_event(event: EngineEvent, *, use_stream: bool) -> None:
             print()
         else:
             print(p["text"])
-        print(
-            f"[{p['assistant']}] elapsed={p['elapsed']:.3f}s "
-            f"tokens={p['tokens']['in']}/{p['tokens']['out']} cost={p['cost']:.6f}"
-        )
+        print(format_step_metrics_line(p))
     elif event.type == "step_error":
         print(f"❌ {event.payload['talent_id']}: {event.payload['error']}")
     elif event.type == "await_text":
@@ -63,13 +61,8 @@ def print_event(event: EngineEvent, *, use_stream: bool) -> None:
             print(p["briefing"])
         event.payload["_response"] = input("> ")
     elif event.type == "session_done":
-        p = event.payload
-        print(
-            f"\n=== session end === total_elapsed={p['total_elapsed']:.1f}s "
-            f"total_cost=${p['total_cost']:.6f}"
-        )
-        if p.get("artifact_dir"):
-            print(f"成果物: {p['artifact_dir']}")
+        for line in format_session_end_lines(event.payload):
+            print(line)
 
 
 def drive_interactive_responder(event: EngineEvent) -> str | None:

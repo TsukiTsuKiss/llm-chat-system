@@ -11,6 +11,10 @@
     "quiz": {
       "quizmaster": ["alpha"],
       "answerer": ["beta", "gamma"]
+    },
+    "discussion_sourced": {
+      "participant": ["alpha", "gamma"],
+      "source_checker": ["beta"]
     }
   }
 }

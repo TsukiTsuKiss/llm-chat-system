@@ -86,6 +86,25 @@ def test_meeting_max_iterations_without_marker(
     assert all(e.payload["result"] == "continue" for e in loop_checks[:2])
 
 
+def test_discussion_sourced_marker_early_exit(
+    nokuru_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("STUDIO_MOCK_MARKER", "【確認完了】")
+    MockAssistant.reset()
+    ctx = load_session_context("nokuru", nokuru_root, workflow_id="discussion_sourced")
+    events = collect_events(SessionEngine(ctx), "キャンプ議題", stream=False)
+
+    loop_checks = [e for e in events if e.type == "loop_check"]
+    assert len(loop_checks) == 1
+    assert loop_checks[0].payload["result"] == "exit"
+    assert loop_checks[0].payload["exit_type"] == "marker"
+    assert any(
+        "【確認完了】" in e.payload["text"]
+        for e in events
+        if e.type == "step_done" and e.payload["talent_id"] == "satsuki"
+    )
+
+
 def test_dev_judge_loop_and_artifacts(nokuru_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("STUDIO_MOCK_JUDGE_EXIT", "1")
     monkeypatch.setenv("STUDIO_MOCK_EMIT_CODE", "1")

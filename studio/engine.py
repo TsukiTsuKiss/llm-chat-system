@@ -148,6 +148,9 @@ class SessionEngine:
         talent_ids = list(self.ctx.org.get("talent_ids") or [])
         return build_direct_workflow(talent_ids), build_direct_bindings(talent_ids)
 
+    def _speaker_label(self, talent_id: str) -> str:
+        return self.ctx.talents.get(talent_id, {}).get("name", talent_id)
+
     def _run_phases(
         self,
         phases: list[dict[str, Any]],
@@ -465,7 +468,7 @@ class SessionEngine:
                 )
                 outcome = yield from gen
                 if outcome:
-                    serial_prior.append((outcome.talent_id, outcome.text))
+                    serial_prior.append((self._speaker_label(outcome.talent_id), outcome.text))
         turn_prior.extend(serial_prior)
 
     def _run_parallel_phase(
@@ -566,7 +569,7 @@ class SessionEngine:
                 outcomes.append(outcome)
 
         outcomes.sort(key=lambda o: order.get(o.talent_id, 999))
-        turn_prior.extend((o.talent_id, o.text) for o in outcomes)
+        turn_prior.extend((self._speaker_label(o.talent_id), o.text) for o in outcomes)
 
     def _run_step_sync(
         self,

@@ -99,6 +99,7 @@ python MultiRoleStudio.py --org solo --topic "テスト" --stream off   # バッ
 # --- Phase 2: 3人（trio）---
 python MultiRoleStudio.py --org trio                           # 直接送信（全員 serial）
 python MultiRoleStudio.py --org trio --workflow discussion --topic "議題" --stream off
+python MultiRoleStudio.py --org trio --workflow discussion_sourced --topic "議題" --stream off
 python MultiRoleStudio.py --org trio --workflow quiz --topic "日本の首都は？" --stream off
 #   quiz: 出題(serial) → 全員回答(parallel) → 採点(serial)
 
@@ -119,12 +120,27 @@ python -m pytest tests/parity/ -v
 終了時に `studio/artifacts.py` がコードブロックを `sandbox/session_<id>/` へ抽出する。
 レビュー・judge ステップの例示コードは成果物に含めない（誤抽出防止）。
 
+`discussion_sourced` は participant → source_checker を最大3反復し、
+確認不要時は source_checker が `【確認完了】` でループを終了する。
+「ソースは？」への有効な回答は URL・正式資料名、または事実主張の取り下げ（仮説への格下げ）のみ。
+「要確認・再調査予定」だけでは完了扱いにしない。
+
 | オプション | 説明 |
 |---|---|
 | `--org` | 組織 ID（`solo`, `trio` 等） |
-| `--workflow` | 省略時は**直接送信**。`discussion` / `quiz` / `meeting` / `dev` |
+| `--workflow` | 省略時は**直接送信**。`discussion` / `discussion_sourced` / `quiz` / `meeting` / `dev` |
 | `--topic` | 指定時は**バッチ**（1 発完走）。省略時は対話（`q` で終了） |
 | `--stream off` | ストリーミング OFF（推奨: 速度比較・ログ確認） |
+
+各 step 終了時に `[assistant/model] | 秒 | in=… out=… (api/estimate) | tok/s | $…` を表示する。
+
+- **in** … 入力トークン数（システムプロンプト・議題・指示・`--- 前の発言 ---`・履歴など、モデルへ送った全文）
+- **out** … 出力トークン数（その step の応答テキスト）
+- **(api)** … プロバイダー API が返した実数。**(estimate)** … API 非対応時の文字数概算
+- **$** … `model_costs.csv` に基づく推定コスト（USD）
+
+セッション終了時はモデル別集計を **Markdown 表**で表示（この部分のみ Markdown。他はプレーンテキスト）。
+集計の正本は `sessions/<id>.jsonl` の `session_end.by_model`（JSON）に保存される。
 
 **model_mapping:** 実行時に読む正本は `organizations/<org>/model_mapping.json`（`.gitignore`）。
 `assistant` は `ai_assistants_config.json` のキー、`model` はその JSON 内の文字列。
@@ -136,7 +152,7 @@ python -m pytest tests/parity/ -v
 |------|------|
 | `MultiRoleStudio.py` | CLI 入口 |
 | `studio/` | loader / engine / bindings / logging / artifacts |
-| `workflows/` | `discussion.json`, `quiz.json`, `meeting.json`, `dev.json` |
+| `workflows/` | `discussion.json`, `discussion_sourced.json`, `quiz.json`, `meeting.json`, `dev.json` |
 | `talents/*.json` | 人材定義（`hinata`, `satsuki`, `kaede` 等） |
 | `sandbox/session_<id>/` | dev 成果物と `run_all.sh`（**.gitignore**） |
 | `organizations/<org>/config.json` | 編成・バインディング |

@@ -46,6 +46,15 @@ def build_system_prompt(
     return "\n\n".join(parts)
 
 
+def format_prior_responses(prior_responses: list[tuple[str, str]] | None) -> str:
+    if not prior_responses:
+        return ""
+    lines = ["\n--- 前の発言 ---"]
+    for speaker, text in prior_responses:
+        lines.append(f"{speaker}: {text}")
+    return "\n".join(lines)
+
+
 def build_user_message(
     user_text: str,
     *,
@@ -55,10 +64,9 @@ def build_user_message(
 ) -> str:
     parts: list[str] = [user_text]
 
-    if prior_responses:
-        parts.append("\n--- 前の発言 ---")
-        for talent_id, text in prior_responses:
-            parts.append(f"{talent_id}: {text}")
+    prior_block = format_prior_responses(prior_responses)
+    if prior_block:
+        parts.append(prior_block)
 
     if action:
         parts.append(f"\nあなたへの指示: {action}")

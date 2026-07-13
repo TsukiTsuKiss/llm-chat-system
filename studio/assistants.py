@@ -53,7 +53,7 @@ class MockAssistant:
             raise MockTemperatureError("temperature is not supported for mock model")
 
         marker = os.environ.get("STUDIO_MOCK_MARKER")
-        if marker and ("集約" in action or "判断" in action):
+        if marker and ("集約" in action or "判断" in action or "終了条件" in action):
             text = f"MOCK:{talent_id}:step{step_number} {marker}了"
         elif os.environ.get("STUDIO_MOCK_JUDGE_EXIT") == "1" and "【判定】" in action:
             text = "【判定】終了\nMOCK: judge OK"
