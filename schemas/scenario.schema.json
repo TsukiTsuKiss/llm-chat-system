@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://llm-chat-system.local/schemas/scenario.schema.json",
+  "title": "Scenario",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "organization": { "type": "string" },
+    "workflow": { "type": "string" },
+    "talent_ids": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "generation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "temperature": { "type": "number" },
+        "top_p": { "type": "number" },
+        "seed": { "type": "integer" },
+        "variation_profile": {
+          "type": "string",
+          "enum": ["stable", "balanced", "creative"]
+        }
+      }
+    }
+  }
+}

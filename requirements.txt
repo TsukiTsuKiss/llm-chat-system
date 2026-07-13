@@ -31,6 +31,8 @@ beautifulsoup4>=4.12.0
 gradio>=5.0.0                  # ChatWeb.py の Web UI
 pydantic>=2.7.4
 typing-extensions>=4.7.0
+jsonschema>=4.23.0             # MultiRoleStudio スキーマ検証
+pytest>=8.0.0                  # パリティ試験（tests/parity/）
 
 # --- オプション (API直接利用時) ---
 # openai

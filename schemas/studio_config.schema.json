@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://llm-chat-system.local/schemas/studio_config.schema.json",
+  "title": "StudioConfig",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "stream": { "type": "boolean", "default": true },
+    "temperature": { "type": "number", "default": 0.7 },
+    "max_parallel_calls": { "type": "integer", "minimum": 1, "default": 8 },
+    "default_org": { "type": "string" },
+    "user_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "path": { "type": "string" },
+        "rag": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean", "default": false },
+            "corpus_dir": { "type": "string" },
+            "index_dir": { "type": "string" },
+            "top_k": { "type": "integer", "minimum": 1, "default": 5 }
+          }
+        }
+      }
+    },
+    "upload_limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_files": { "type": "integer", "minimum": 1, "default": 5 },
+        "max_file_size_kb": { "type": "integer", "minimum": 1, "default": 256 },
+        "max_total_chars": { "type": "integer", "minimum": 1, "default": 80000 }
+      }
+    }
+  }
+}

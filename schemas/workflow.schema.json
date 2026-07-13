@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://llm-chat-system.local/schemas/workflow.schema.json",
+  "title": "Workflow",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["name", "slots", "phases"],
+  "properties": {
+    "name": { "type": "string", "minLength": 1 },
+    "description": { "type": "string" },
+    "slots": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["description", "count"],
+        "properties": {
+          "description": { "type": "string" },
+          "count": {
+            "type": "string",
+            "enum": ["1", "1+"]
+          }
+        }
+      }
+    },
+    "phases": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/phase" }
+    }
+  },
+  "$defs": {
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["slot"],
+      "properties": {
+        "slot": { "type": "string", "minLength": 1 },
+        "action": { "type": "string" }
+      }
+    },
+    "phase": {
+      "oneOf": [
+        { "$ref": "#/$defs/serialPhase" },
+        { "$ref": "#/$defs/parallelPhase" },
+        { "$ref": "#/$defs/loopPhase" }
+      ]
+    },
+    "serialPhase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "steps"],
+      "properties": {
+        "type": { "const": "serial" },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/step" }
+        }
+      }
+    },
+    "parallelPhase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "steps"],
+      "properties": {
+        "type": { "const": "parallel" },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/step" }
+        }
+      }
+    },
+    "loopPhase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "phases"],
+      "properties": {
+        "type": { "const": "loop" },
+        "max_iterations": { "type": "integer", "minimum": 1 },
+        "exit": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["type", "marker"],
+              "properties": {
+                "type": { "const": "marker" },
+                "marker": { "type": "string", "minLength": 1 }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["type", "slot", "criteria"],
+              "properties": {
+                "type": { "const": "judge" },
+                "slot": { "type": "string", "minLength": 1 },
+                "criteria": { "type": "string", "minLength": 1 }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["type"],
+              "properties": {
+                "type": { "const": "user" },
+                "prompt": { "type": "string" }
+              }
+            }
+          ]
+        },
+        "phases": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "oneOf": [
+              { "$ref": "#/$defs/serialPhase" },
+              { "$ref": "#/$defs/parallelPhase" }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

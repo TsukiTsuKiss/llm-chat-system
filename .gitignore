@@ -121,6 +121,13 @@ gptme/
 logs/
 **/logs/
 multi_logs/
+sessions/
+
+# MultiRoleStudio ユーザーローカル設定
+studio_config.json
+organizations/*/model_mapping.json
+user_context/
+user_context/index/
 
 # � サンドボックス実行環境
 sandbox/

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://llm-chat-system.local/schemas/model_mapping.schema.json",
+  "title": "ModelMapping",
+  "type": "object",
+  "additionalProperties": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["assistant"],
+    "properties": {
+      "assistant": { "type": "string", "minLength": 1 },
+      "model": { "type": "string" }
+    }
+  }
+}

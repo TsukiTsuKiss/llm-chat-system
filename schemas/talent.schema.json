@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://llm-chat-system.local/schemas/talent.schema.json",
+  "title": "Talent",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["name", "system_prompt"],
+  "properties": {
+    "name": { "type": "string", "minLength": 1 },
+    "system_prompt": { "type": "string", "minLength": 1 },
+    "personality": { "type": "string" },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

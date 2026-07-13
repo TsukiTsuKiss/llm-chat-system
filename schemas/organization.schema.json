@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://llm-chat-system.local/schemas/organization.schema.json",
+  "title": "Organization",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["talent_ids"],
+  "properties": {
+    "name": { "type": "string" },
+    "mission": { "type": "string" },
+    "culture": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "talent_ids": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1
+    },
+    "default_workflow": { "type": "string" },
+    "workflow_bindings": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "common_directives": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "role_directives": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "type": "string" }
+      }
+    }
+  }
+}
