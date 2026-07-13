@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""MultiRoleStudio Web UI (Phase 4a: chat, Phase 4b: settings)."""
+"""MultiRoleStudio Web UI (Phase 4a: chat, Phase 4b: settings, Phase 4c: attachments)."""
 
 from __future__ import annotations
 
@@ -20,11 +20,12 @@ from studio.web_ui import (
     handle_choice,
     list_organizations,
     load_org_panel,
+    upload_limits_from_config,
     workflow_dropdown_choices,
 )
 from web_input_utils import stream_default_from_config, temperature_default_from_config
 
-VERSION = "0.4.1"
+VERSION = "0.4.2"
 
 DEFAULT_ORG = os.getenv("MULTIROLESTUDIOWEB_ORG", "")
 DEFAULT_PORT = int(os.getenv("MULTIROLESTUDIOWEB_PORT", "7862"))
@@ -86,6 +87,10 @@ def _msg_input_update(placeholder: str = DEFAULT_MSG_PLACEHOLDER) -> dict:
     return gr.update(value="", placeholder=placeholder)
 
 
+def _upload_input_update(clear: bool = False) -> dict:
+    return gr.update(value=None) if clear else gr.update()
+
+
 def _default_org(root: Path) -> str:
     orgs = list_organizations(root)
     if not orgs:
@@ -112,11 +117,15 @@ def build_ui(root: Path) -> gr.Blocks:
     default_stream = stream_default_from_config(studio_config, default_value=True)
     default_temperature = temperature_default_from_config(studio_config, default_value=0.7)
     default_org = _default_org(root)
+    upload_limits = upload_limits_from_config(studio_config)
 
     with gr.Blocks(title=f"MultiRoleStudio Web {VERSION}", fill_height=True) as demo:
         session_state = gr.State(WebSession(root=root))
 
-        gr.Markdown(f"# MultiRoleStudio Web `{VERSION}`\nPhase 4a: チャット / Phase 4b: 設定編集")
+        gr.Markdown(
+            f"# MultiRoleStudio Web `{VERSION}`\n"
+            "Phase 4a: チャット / Phase 4b: 設定編集 / Phase 4c: ファイル添付"
+        )
 
         with gr.Tabs():
             with gr.Tab("💬 チャット"):
@@ -131,6 +140,11 @@ def build_ui(root: Path) -> gr.Blocks:
                             label="ワークフロー",
                             choices=wf_choices,
                             value=DIRECT_WORKFLOW_VALUE,
+                        )
+                        upload_files = gr.File(
+                            label="ファイルを会話に取り込む（テキスト系）",
+                            file_count="multiple",
+                            type="filepath",
                         )
                         stream_cb = gr.Checkbox(label="ストリーミング", value=default_stream)
                         merge_cb = gr.Checkbox(
@@ -187,7 +201,7 @@ def build_ui(root: Path) -> gr.Blocks:
             status = "新規チャットを開始しました"
             if summary:
                 status = f"{status}\n{summary}"
-            return [], session, status, gr.update(visible=False), _msg_input_update()
+            return [], session, status, gr.update(visible=False), _msg_input_update(), _upload_input_update(True)
 
         def on_submit(
             session: WebSession,
@@ -196,15 +210,18 @@ def build_ui(root: Path) -> gr.Blocks:
             workflow_value: str,
             stream: bool,
             temperature: float,
+            files,
         ):
             try:
-                for messages, status, show_choice, placeholder in handle_chat_submit(
+                for messages, status, show_choice, placeholder, clear_upload in handle_chat_submit(
                     session,
                     user_text,
                     org_id=org_id,
                     workflow_value=workflow_value,
                     stream=stream,
                     temperature=temperature,
+                    files=files,
+                    upload_limits=upload_limits,
                 ):
                     yield (
                         messages,
@@ -212,6 +229,7 @@ def build_ui(root: Path) -> gr.Blocks:
                         status,
                         gr.update(visible=show_choice),
                         _msg_input_update(placeholder),
+                        _upload_input_update(clear_upload),
                     )
             except StudioValidationError as exc:
                 yield (
@@ -220,27 +238,30 @@ def build_ui(root: Path) -> gr.Blocks:
                     exc.format_all(),
                     gr.update(visible=False),
                     _msg_input_update(),
+                    _upload_input_update(),
                 )
 
         def on_choice(session: WebSession, choice: str):
             result = handle_choice(session, choice)
             if isinstance(result, tuple):
-                messages, status, show_choice, placeholder = result
+                messages, status, show_choice, placeholder, clear_upload = result
                 yield (
                     messages,
                     session,
                     status,
                     gr.update(visible=show_choice),
                     _msg_input_update(placeholder),
+                    _upload_input_update(clear_upload),
                 )
                 return
-            for messages, status, show_choice, placeholder in result:
+            for messages, status, show_choice, placeholder, clear_upload in result:
                 yield (
                     messages,
                     session,
                     status,
                     gr.update(visible=show_choice),
                     _msg_input_update(placeholder),
+                    _upload_input_update(clear_upload),
                 )
 
         org_dd.change(on_org_change, inputs=[org_dd, wf_dd], outputs=[talents_md])
@@ -255,11 +276,19 @@ def build_ui(root: Path) -> gr.Blocks:
         new_chat_btn.click(
             on_new_chat,
             inputs=[session_state],
-            outputs=[chatbot, session_state, status_tb, choice_row, msg_tb],
+            outputs=[chatbot, session_state, status_tb, choice_row, msg_tb, upload_files],
         )
 
-        submit_inputs = [session_state, msg_tb, org_dd, wf_dd, stream_cb, temp_sl]
-        submit_outputs = [chatbot, session_state, status_tb, choice_row, msg_tb]
+        submit_inputs = [
+            session_state,
+            msg_tb,
+            org_dd,
+            wf_dd,
+            stream_cb,
+            temp_sl,
+            upload_files,
+        ]
+        submit_outputs = [chatbot, session_state, status_tb, choice_row, msg_tb, upload_files]
 
         send_btn.click(on_submit, inputs=submit_inputs, outputs=submit_outputs)
         msg_tb.submit(on_submit, inputs=submit_inputs, outputs=submit_outputs)
@@ -267,12 +296,12 @@ def build_ui(root: Path) -> gr.Blocks:
         continue_btn.click(
             on_choice,
             inputs=[session_state, gr.State("continue")],
-            outputs=[chatbot, session_state, status_tb, choice_row, msg_tb],
+            outputs=[chatbot, session_state, status_tb, choice_row, msg_tb, upload_files],
         )
         exit_btn.click(
             on_choice,
             inputs=[session_state, gr.State("exit")],
-            outputs=[chatbot, session_state, status_tb, choice_row, msg_tb],
+            outputs=[chatbot, session_state, status_tb, choice_row, msg_tb, upload_files],
         )
 
     return demo

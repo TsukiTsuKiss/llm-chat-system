@@ -11,11 +11,13 @@ from studio.engine import EngineEvent, SessionEngine, collect_events
 from studio.loader import load_session_context
 from studio.web_ui import (
     ChatEventRenderer,
+    FILE_ONLY_DEFAULT,
     IDLE_STATUS,
     WebSession,
     handle_chat_submit,
     list_organizations,
     list_workflows,
+    resolve_user_input_with_attachments,
     workflow_dropdown_choices,
 )
 
@@ -94,12 +96,13 @@ def test_web_session_direct_chat_mock(studio_root: Path) -> None:
         )
     )
     assert updates
-    messages, status, show_choice, _placeholder = updates[-1]
+    messages, status, show_choice, _placeholder, clear_upload = updates[-1]
     assert any(m["role"] == "user" and "こんにちは" in m["content"] for m in messages)
     assert any(m["role"] == "assistant" for m in messages)
     assert show_choice is False
     assert status == IDLE_STATUS
     assert status != "実行中…"
+    assert clear_upload is False
     assert session.engine is not None
 
 
@@ -160,3 +163,59 @@ def test_collect_events_via_engine_matches_renderer(studio_root: Path) -> None:
     for event in events:
         renderer.apply(event)
     assert any("ping" in m["content"] for m in renderer.messages if m["role"] == "user")
+
+
+def test_resolve_user_input_files_only(studio_root: Path) -> None:
+    sample = studio_root / "sample.txt"
+    sample.write_text("hello attachment", encoding="utf-8")
+    prompt, display, context, names = resolve_user_input_with_attachments(
+        "",
+        [str(sample)],
+        {},
+    )
+    assert prompt == FILE_ONLY_DEFAULT
+    assert FILE_ONLY_DEFAULT in display
+    assert "sample.txt" in display
+    assert "hello attachment" in context
+    assert names == ["sample.txt"]
+
+
+def test_resolve_user_input_rejects_missing_file(studio_root: Path) -> None:
+    from studio.validation import StudioValidationError
+
+    with pytest.raises(StudioValidationError):
+        resolve_user_input_with_attachments(
+            "hi",
+            [str(studio_root / "missing.txt")],
+            {},
+        )
+
+
+def test_web_session_file_only_submit_clears_upload(studio_root: Path) -> None:
+    MockAssistant.reset()
+    sample = studio_root / "note.md"
+    sample.write_text("# Title\nbody", encoding="utf-8")
+    session = WebSession(root=studio_root)
+    updates = list(
+        handle_chat_submit(
+            session,
+            "",
+            org_id="solo",
+            workflow_value="",
+            stream=False,
+            temperature=0.7,
+            files=[str(sample)],
+            upload_limits={},
+        )
+    )
+    assert updates
+    first = updates[0]
+    assert first[4] is True
+    messages = updates[-1][0]
+    assert any(
+        m["role"] == "user"
+        and FILE_ONLY_DEFAULT in m["content"]
+        and "note.md" in m["content"]
+        for m in messages
+    )
+    assert any(m["role"] == "assistant" for m in messages)

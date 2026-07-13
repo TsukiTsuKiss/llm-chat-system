@@ -75,9 +75,10 @@
 **Phase 2（複数人）:** `serial` / `parallel` ワークフロー、`discussion` / `quiz`、`human`（parallel では AI 先行→human 入力）  
 **Phase 3（進行制御）:** `loop` + `exit`（marker / judge / user）、`meeting` / `dev`、成果物抽出（`sandbox/`）  
 **Phase 4a（Web UI 最小）:** `MultiRoleStudioWeb.py` — チャットタブ（mock / 実 LLM）  
-**Phase 4b（設定編集）:** 人材・組織・ワークフローの CRUD（保存前バリデーション、チャットタブ連動）
+**Phase 4b（設定編集）:** 人材・組織・ワークフローの CRUD（保存前バリデーション、チャットタブ連動）  
+**Phase 4c（ファイル添付）:** テキスト系ファイル取り込み（`upload_limits` / CLI `--files` と共用）
 
-**未実装:** ファイル添付（4c）、セッションタブ（4e）、議事録、Git 連携 など（design.md 9章）
+**未実装:** セッションタブ（4e）、議事録、Git 連携 など（design.md 9章）
 
 #### セットアップ
 
@@ -118,7 +119,7 @@ cd sandbox/session_<session_id>
 python -m pytest tests/parity/ -v
 
 # --- Phase 4: Web UI ---
-python MultiRoleStudioWeb.py --org solo          # チャット + 設定編集（port 7862）
+python MultiRoleStudioWeb.py --org solo          # チャット + 設定編集 + ファイル添付（port 7862）
 python MultiRoleStudioWeb.py --org trio --port 7863
 # 終了: コンソールで q + Enter（design.md §8.6）
 ```
@@ -158,7 +159,7 @@ python MultiRoleStudioWeb.py --org trio --port 7863
 | パス | 内容 |
 |------|------|
 | `MultiRoleStudio.py` | CLI 入口 |
-| `MultiRoleStudioWeb.py` | Web 入口（Phase 4a チャット / 4b 設定編集） |
+| `MultiRoleStudioWeb.py` | Web 入口（Phase 4a チャット / 4b 設定編集 / 4c ファイル添付） |
 | `studio/web_ui.py` | エンジンイベント → Gradio 表示 |
 | `studio/config_store.py` | 設定の保存・削除・バリデーション |
 | `studio/settings_ui.py` | 設定編集タブ UI |

@@ -9,8 +9,9 @@ from typing import Generator, Iterator
 from studio.assistants import MockAssistant
 from studio.display import format_session_end_lines, format_step_metrics_line
 from studio.engine import EngineEvent, SessionEngine
-from studio.loader import SessionContext, load_session_context
+from studio.loader import SessionContext, load_session_context, read_attachment_files
 from studio.validation import StudioValidationError
+from web_input_utils import normalize_uploaded_files
 
 DIRECT_WORKFLOW_LABEL = "直接送信（全ロール）"
 DIRECT_WORKFLOW_VALUE = ""
@@ -21,9 +22,10 @@ SPEAKER_EMOJIS = [
     "🔷", "🚨", "💠", "🟩",
 ]
 
-UIUpdate = tuple[list[dict[str, str]], str, bool, str]
+UIUpdate = tuple[list[dict[str, str]], str, bool, str, bool]
 
 IDLE_STATUS = "待機中（メッセージを入力してください）"
+FILE_ONLY_DEFAULT = "添付ファイルの内容を要約してください。"
 
 
 def list_organizations(root: Path) -> list[str]:
@@ -48,6 +50,47 @@ def workflow_dropdown_choices(root: Path) -> list[tuple[str, str]]:
     return [(DIRECT_WORKFLOW_LABEL, DIRECT_WORKFLOW_VALUE)] + [
         (wf_id, wf_id) for wf_id in list_workflows(root)
     ]
+
+
+def upload_limits_from_config(studio_config: dict | None) -> dict[str, int]:
+    limits = (studio_config or {}).get("upload_limits")
+    if isinstance(limits, dict):
+        return limits
+    return {}
+
+
+def gradio_file_paths(files) -> list[Path]:
+    return [Path(path) for path in normalize_uploaded_files(files)]
+
+
+def resolve_user_input_with_attachments(
+    user_text: str,
+    files,
+    limits: dict[str, int],
+) -> tuple[str, str, str, list[str]]:
+    """Resolve prompt text, chat display text, attachment context, and file names."""
+    text = (user_text or "").strip()
+    paths = gradio_file_paths(files)
+    attachment_context = ""
+    attachment_names: list[str] = []
+
+    if paths:
+        attachment_context, report = read_attachment_files(paths, limits)
+        if not report.ok:
+            raise StudioValidationError(report.errors)
+        attachment_names = [path.name for path in paths]
+
+    if not text and attachment_names:
+        text = FILE_ONLY_DEFAULT
+
+    if not text:
+        return "", "", "", []
+
+    display = text
+    if attachment_names:
+        display = f"{text}\n\n📎 添付: {', '.join(attachment_names)}"
+
+    return text, display, attachment_context, attachment_names
 
 
 def talents_markdown(ctx: SessionContext) -> str:
@@ -278,6 +321,7 @@ def _idle_ui(session: WebSession) -> UIUpdate:
         IDLE_STATUS,
         False,
         "メッセージを入力…",
+        False,
     )
 
 
@@ -289,12 +333,14 @@ def _pending_ui(session: WebSession, kind: str, event: EngineEvent) -> UIUpdate:
             f"{name} として入力してください",
             False,
             f"{name} として発言…",
+            False,
         )
     return (
         session.renderer.copy_messages(),
         "続行または終了を選んでください",
         True,
         "メッセージを入力…",
+        False,
     )
 
 
@@ -316,6 +362,7 @@ def process_events(
             _status_from_event(event),
             False,
             "メッセージを入力…",
+            False,
         )
 
         try:
@@ -341,25 +388,31 @@ def resume_after_reply(session: WebSession, reply: str) -> Generator[UIUpdate, N
 
 def run_user_message(
     session: WebSession,
-    user_text: str,
+    display_text: str,
+    prompt_text: str,
     *,
     org_id: str,
     workflow_value: str,
     stream: bool,
     temperature: float,
+    attachment_context: str = "",
+    attachment_names: list[str] | None = None,
 ) -> Generator[UIUpdate, None, None]:
     session.ensure_engine(org_id, workflow_value, stream, temperature)
     assert session.engine is not None
-    session.renderer.add_user(user_text)
+    session.renderer.add_user(display_text)
     yield (
         session.renderer.copy_messages(),
         "実行中…",
         False,
         "メッセージを入力…",
+        True,
     )
 
     generator = session.engine.run_turn(
-        user_text,
+        prompt_text,
+        attachment_context=attachment_context,
+        attachments=attachment_names,
         stream=stream,
         temperature=temperature,
     )
@@ -374,6 +427,8 @@ def handle_chat_submit(
     workflow_value: str,
     stream: bool,
     temperature: float,
+    files=None,
+    upload_limits: dict[str, int] | None = None,
 ) -> Generator[UIUpdate, None, None] | UIUpdate:
     text = (user_text or "").strip()
 
@@ -384,6 +439,7 @@ def handle_chat_submit(
                 "続行または終了ボタンを使ってください",
                 True,
                 "メッセージを入力…",
+                False,
             )
         if not text:
             name = session.pending.event.payload.get("display_name", "human")
@@ -392,25 +448,44 @@ def handle_chat_submit(
                 "発言を入力してください",
                 False,
                 f"{name} として発言…",
+                False,
             )
         yield from resume_after_reply(session, text)
         return
 
-    if not text:
+    limits = upload_limits or {}
+    try:
+        prompt_text, display_text, attachment_context, attachment_names = (
+            resolve_user_input_with_attachments(text, files, limits)
+        )
+    except StudioValidationError as exc:
+        return (
+            session.renderer.copy_messages(),
+            exc.format_all(),
+            False,
+            "メッセージを入力…",
+            False,
+        )
+
+    if not prompt_text:
         return (
             session.renderer.copy_messages(),
             "メッセージを入力してください",
             False,
             "メッセージを入力…",
+            False,
         )
 
     yield from run_user_message(
         session,
-        text,
+        display_text,
+        prompt_text,
         org_id=org_id,
         workflow_value=workflow_value,
         stream=stream,
         temperature=temperature,
+        attachment_context=attachment_context,
+        attachment_names=attachment_names or None,
     )
 
 
@@ -424,6 +499,7 @@ def handle_choice(
             "選択待ちではありません",
             False,
             "メッセージを入力…",
+            False,
         )
     yield from resume_after_reply(session, choice)
 

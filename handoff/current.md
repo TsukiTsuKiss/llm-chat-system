@@ -1,10 +1,10 @@
-# 通信欄 — MultiRoleStudio Phase 4b
+# 通信欄 — MultiRoleStudio Phase 4c
 
 | 項目 | 値 |
 |---|---|
-| Phase | 4b（Web UI — 設定編集タブ §8.4 + UX フィードバック） |
+| Phase | 4c（Web UI — ファイル添付 §8.3） |
 | 対象コミット | 未コミット（本コミット予定） |
-| 状態 | `phase4b_impl_done` |
+| 状態 | `phase4c_impl_done` |
 | 依頼元 | Composer（Cursor Agent） |
 | 正本 | `docs/MultiRoleStudio/design.md` |
 
@@ -12,24 +12,26 @@
 
 ## Composer → オーナー
 
-Phase 4b 本体（`753a285`）に加え、オーナー実機確認に基づく UX 修正と design.md フィードバックを反映（本コミット）。
+Phase 4c（ファイル添付）を実装しました。
 
-### 追加分（4b UX）
+### 変更
 
 | ファイル | 内容 |
 |---|---|
-| `studio/settings_ui.py` | ID 操作 UI（既存+削除 / 新規+作成）、ボタン配置 |
-| `studio/web_ui.py` | ターン完了後「待機中」表示 |
-| `MultiRoleStudioWeb.py` | チャット欄高さ、水色ボタン CSS、フッター入力 |
-| `studio/gradio_template.py` + `templates/gradio/` | `lang="ja"` テンプレート（翻訳バー抑制） |
-| `docs/MultiRoleStudio/design.md` | §8.3 / §8.4 / §8.6 実装フィードバック |
-| `tests/parity/test_gradio_template.py` | テンプレート hook |
+| `studio/web_ui.py` | `resolve_user_input_with_attachments`、UIUpdate 5 要素（upload クリア） |
+| `studio/engine.py` | `run_turn(attachments=…)` → JSONL `user_input.attachments` |
+| `MultiRoleStudioWeb.py` | 左ペイン `gr.File`、送信後クリア、v0.4.2 |
+| `tests/parity/test_web_ui.py` | 添付解決・ファイルのみ送信・クリアフラグ |
+| `docs/MultiRoleStudio/design.md` | §8.3 4c フィードバック、9.2 チェック ✅ |
+| `README.md` | Phase 4c 追記 |
 
 ### 確認
 
 ```bash
 PYTHONPATH=. pytest tests/parity/ -q
 python MultiRoleStudioWeb.py --org solo
+# 左ペインで .txt を添付 → 送信 → アップロード欄が空になること
+# メッセージ空 + ファイルのみ → 要約プロンプトで応答すること
 ```
 
 ---
@@ -37,11 +39,11 @@ python MultiRoleStudioWeb.py --org solo
 ## オーナー判断
 
 - [x] Phase 4a コミット済み（`bf8f451`）
-- [x] Phase 4b 実装・UX 確認 OK
-- [ ] Phase 4b 本コミット push
-- [ ] Phase 4c（ファイル添付）着手 OK
+- [x] Phase 4b 実装・UX 確認 OK（`753a285` / `b6210db`）
+- [ ] Phase 4c 本コミット push
+- [ ] Phase 4e（セッションタブ）着手 OK
 
 **メモ:**
 
-- Phase 4b 本体: `753a285`
-- design.md **§8.6** に Gradio `lang="en"` 対策を追記
+- 添付読み込みは CLI `--files` と同じ `studio/loader.read_attachment_files`
+- 上限は `studio_config.json` の `upload_limits`（既定 5 / 256KB / 8万字）

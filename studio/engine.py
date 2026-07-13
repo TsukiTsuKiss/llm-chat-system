@@ -73,6 +73,7 @@ class SessionEngine:
         user_text: str,
         *,
         attachment_context: str = "",
+        attachments: list[str] | None = None,
         stream: bool | None = None,
         temperature: float | None = None,
     ) -> Iterator[EngineEvent]:
@@ -121,7 +122,7 @@ class SessionEngine:
             )
             state.started = True
 
-        state.logger.log_user_input(user_text)
+        state.logger.log_user_input(user_text, attachments=attachments)
 
         workflow, bindings = self._resolve_workflow()
         turn_prior: list[tuple[str, str]] = []

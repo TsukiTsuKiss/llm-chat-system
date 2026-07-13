@@ -131,8 +131,8 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
                         placeholder='{"common_directives": [], "role_directives": {}}',
                     )
                     org_default_wf = gr.Textbox(label="default_workflow（任意）")
-                    org_mapping_json = gr.Textbox(label="model_mapping.json", lines=10)
                     org_save_btn = gr.Button("組織 config を保存", **_SAVE_BTN)
+                    org_mapping_json = gr.Textbox(label="model_mapping.json", lines=10)
                     org_mapping_save_btn = gr.Button("model_mapping を保存", **_SAVE_BTN)
                     org_msg = gr.Markdown("")
 

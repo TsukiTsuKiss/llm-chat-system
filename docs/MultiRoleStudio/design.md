@@ -1406,6 +1406,13 @@ Gradio 起動・終了の共通仕様（8.6 節）に従う。
 - **連続メッセージ**: Gradio 6 の `group_consecutive_messages` デフォルト **OFF** + トグル（同一 talent の連続発話を 1 吹き出しにまとめない）
 - **強制停止**: Web UI にキャンセルボタンは **未実装**（Phase 4 スコープ外）。当面は新規チャット / サーバー `q` 終了
 
+**Phase 4c 実装フィードバック（2026-07-14）:**
+
+- **ファイル添付**: 左ペインに `gr.File`（`type="filepath"`, 複数可）。CLI と同じ `read_attachment_files` + `studio_config.json` の `upload_limits` を使用
+- **送信後クリア**: 送信受理時（ユーザー吹き出し追加直後）にアップロード欄を空にする（旧 ChatWeb 踏襲）
+- **ファイルのみ送信**: テキスト未入力時は「添付ファイルの内容を要約してください。」を user 入力として扱う
+- **表示**: チャット上の user 吹き出しに `📎 添付: ファイル名` を付与。JSONL の `user_input.attachments` にも記録
+
 ### 8.4 設定編集タブ
 
 新データ構造（3章）に対応した編集画面にする。旧構造（demo_roles / system_prompt_file）の編集 UI は作らない。
@@ -1545,7 +1552,7 @@ MultiRoleStudio は MultiRoleChat / MultiRoleChatWeb の完全な置き換えを
 - [ ] Markdown ログ（Mermaid フロー図・応答時間サマリ）
 - [ ] 温度非対応モデルへのフォールバック
 - [ ] ストリーミング表示（CLI / Web 両方）
-- [ ] ファイル添付の取り込み（Web）
+- [x] ファイル添付の取り込み（Web）
 - [ ] 組織・ワークフローの Web 編集
 
 注意事項：
