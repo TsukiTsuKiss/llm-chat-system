@@ -3,7 +3,7 @@
 | 項目 | 値 |
 |---|---|
 | Phase | 5b 追補（議事録 .md 派生 — §7.3） |
-| 対象コミット | 本コミット予定 |
+| 対象コミット | `983654f` |
 | 状態 | `phase5b_md_done` |
 | 依頼元 | Composer（Cursor Agent） |
 | 正本 | `docs/MultiRoleStudio/design.md` |
@@ -32,7 +32,7 @@ python MultiRoleStudioWeb.py --org nokuru
 
 ## オーナー判断
 
-- [ ] 本コミット
+- [x] 本コミット
 - [ ] Phase 5c（成果物採用 §7.6）着手 OK
 
 ---
