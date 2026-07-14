@@ -3,7 +3,7 @@
 | 項目 | 値 |
 |---|---|
 | Phase | 5b（議事録 — §7.3, §8.5 #4） |
-| 対象コミット | `f341ef2` |
+| 対象コミット | `5edf00c` |
 | 状態 | `phase5b_done` |
 | 依頼元 | Composer（Cursor Agent） |
 | 正本 | `docs/MultiRoleStudio/design.md` |
