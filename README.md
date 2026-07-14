@@ -81,7 +81,7 @@
 **Phase 4e（セッションタブ）:** 一覧表示、JSONL から Markdown レポート生成・閲覧、エクスポート、parallel フロー図  
 **Phase 4e 追補（チャット workflow UX）:** 組織連動プルダウン、未設定 workflow の `— 未設定` ラベルと案内欄、検証エラー詳細表示  
 **Phase 5a（セッション再開）:** チャットタブへ履歴再現、分岐 jsonl（`parent_session_id`）  
-**Phase 5b（議事録）:** jsonl → `minutes/<org>/<topic>.json` 上書き、Git 自動コミット（開発中 `minutes/` は `.gitignore`）
+**Phase 5b（議事録）:** jsonl → `minutes/<org>/<topic>.json` + `.md` 同時保存（開発中 `minutes/` は `.gitignore`）
 
 **未実装:** 成果物採用（Phase 5c）、`workflow_bindings` フォーム（§8.4 残）、Zenn 草稿 など（design.md 9章）
 

@@ -13,6 +13,7 @@ from studio.engine import SessionEngine, collect_events
 from studio.loader import load_session_context
 from studio.minutes import (
     default_topic_slug,
+    document_to_markdown,
     load_existing_minutes,
     mock_minutes_document,
     save_minutes_from_session,
@@ -67,7 +68,7 @@ def test_mock_minutes_document_from_session(studio_root: Path) -> None:
     assert doc["minutes"]["evidence"]
 
 
-def test_save_minutes_writes_json(studio_root: Path) -> None:
+def test_save_minutes_writes_json_and_md(studio_root: Path) -> None:
     session_id = _run_session(studio_root, "議事録テスト")
     result = save_minutes_from_session(
         studio_root,
@@ -76,10 +77,13 @@ def test_save_minutes_writes_json(studio_root: Path) -> None:
         commit=False,
     )
     assert result.ok, result.message
-    assert result.path is not None
-    assert result.path.is_file()
+    assert result.path is not None and result.path.is_file()
+    assert result.md_path is not None and result.md_path.is_file()
     data = json.loads(result.path.read_text(encoding="utf-8"))
     assert data["topic"] == "minutes_test"
+    md = result.md_path.read_text(encoding="utf-8")
+    assert "# 議事録:" in md
+    assert "## 決定事項" in md
     assert session_id in data["source_sessions"]
 
 
@@ -155,6 +159,26 @@ def test_git_commit_skipped_when_dirty(studio_root: Path) -> None:
     assert result.git is not None
     assert not result.git.ok
     assert "未コミット" in result.git.message
+
+
+def test_document_to_markdown_renders_sections() -> None:
+    doc = {
+        "topic": "camp_planning",
+        "updated_at": "2026-07-14T12:00:00+09:00",
+        "source_sessions": ["20260714_120000"],
+        "minutes": {
+            "decisions": ["行き先を3候補に絞る"],
+            "open_issues": ["予算"],
+            "actions": [{"owner": "hinata", "task": "アンケート", "due": "2026-07-20"}],
+            "evidence": [{"session": "20260714_120000", "turns": [1, 2]}],
+            "next_agenda": ["最終決定"],
+        },
+    }
+    md = document_to_markdown(doc)
+    assert "## 決定事項" in md
+    assert "行き先を3候補に絞る" in md
+    assert "| hinata | アンケート | 2026-07-20 |" in md
+    assert "20260714_120000" in md
 
 
 def test_default_topic_from_first_user_input(studio_root: Path) -> None:

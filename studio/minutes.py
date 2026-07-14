@@ -22,6 +22,7 @@ class MinutesSaveResult:
     ok: bool
     message: str
     path: Path | None = None
+    md_path: Path | None = None
     git: GitResult | None = None
     document: dict[str, Any] | None = None
 
@@ -47,9 +48,77 @@ def default_topic_slug(records: list[dict[str, Any]], session_id: str) -> str:
     return slugify_topic(session_id, fallback="session")
 
 
-def minutes_path(root: Path, org_id: str, topic: str) -> Path:
+def minutes_path(root: Path, org_id: str, topic: str, *, suffix: str = ".json") -> Path:
     slug = slugify_topic(topic, fallback="session")
-    return root / "minutes" / org_id / f"{slug}.json"
+    return root / "minutes" / org_id / f"{slug}{suffix}"
+
+
+def document_to_markdown(document: dict[str, Any]) -> str:
+    """Human-readable minutes view (derived from JSON document)."""
+    topic = str(document.get("topic") or "session")
+    updated = str(document.get("updated_at") or "")
+    sessions = document.get("source_sessions") or []
+    body = document.get("minutes") or {}
+
+    lines: list[str] = [
+        f"# 議事録: {topic}",
+        "",
+        f"- **更新**: {updated}" if updated else "",
+    ]
+    if sessions:
+        lines.append(f"- **元セッション**: {', '.join(str(s) for s in sessions)}")
+    lines.append("")
+
+    def section(title: str, items: list[Any], *, bullet: bool = True) -> None:
+        lines.append(f"## {title}")
+        lines.append("")
+        if not items:
+            lines.append("_（なし）_")
+        elif bullet:
+            for item in items:
+                lines.append(f"- {item}")
+        lines.append("")
+
+    section("決定事項", list(body.get("decisions") or []))
+
+    section("未決事項", list(body.get("open_issues") or []))
+
+    lines.append("## アクション")
+    lines.append("")
+    actions = body.get("actions") or []
+    if not actions:
+        lines.append("_（なし）_")
+    else:
+        lines.append("| 担当 | タスク | 期限 |")
+        lines.append("| --- | --- | --- |")
+        for action in actions:
+            if isinstance(action, dict):
+                lines.append(
+                    f"| {action.get('owner', '')} | {action.get('task', '')} | {action.get('due', '')} |"
+                )
+            else:
+                lines.append(f"| | {action} | |")
+    lines.append("")
+
+    lines.append("## 根拠")
+    lines.append("")
+    evidence = body.get("evidence") or []
+    if not evidence:
+        lines.append("_（なし）_")
+    else:
+        for item in evidence:
+            if isinstance(item, dict):
+                session = item.get("session", "?")
+                turns = item.get("turns") or []
+                turn_text = ", ".join(str(t) for t in turns)
+                lines.append(f"- セッション `{session}` — ターン {turn_text}")
+            else:
+                lines.append(f"- {item}")
+    lines.append("")
+
+    section("次回アジェンダ", list(body.get("next_agenda") or []))
+
+    return "\n".join(line for line in lines if line is not None).rstrip() + "\n"
 
 
 def build_transcript(records: list[dict[str, Any]], *, meta: dict[str, Any]) -> str:
@@ -269,11 +338,18 @@ def validate_minutes_document(data: dict[str, Any]) -> list[str]:
     return errors
 
 
-def save_minutes_document(root: Path, org_id: str, topic: str, document: dict[str, Any]) -> Path:
-    path = minutes_path(root, org_id, topic)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(document, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    return path
+def save_minutes_document(
+    root: Path,
+    org_id: str,
+    topic: str,
+    document: dict[str, Any],
+) -> tuple[Path, Path]:
+    json_path = minutes_path(root, org_id, topic, suffix=".json")
+    md_path = minutes_path(root, org_id, topic, suffix=".md")
+    json_path.parent.mkdir(parents=True, exist_ok=True)
+    json_path.write_text(json.dumps(document, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    md_path.write_text(document_to_markdown(document), encoding="utf-8")
+    return json_path, md_path
 
 
 def save_minutes_from_session(
@@ -318,12 +394,21 @@ def save_minutes_from_session(
     if errors:
         return MinutesSaveResult(False, "議事録 JSON が不正です: " + "; ".join(errors))
 
-    saved = save_minutes_document(root, org_id, topic_slug, document)
+    saved_json, saved_md = save_minutes_document(root, org_id, topic_slug, document)
     git_result = None
-    message = f"`{saved.relative_to(root).as_posix()}` を保存しました"
+    json_rel = saved_json.relative_to(root).as_posix()
+    md_rel = saved_md.relative_to(root).as_posix()
+    message = f"`{json_rel}` と `{md_rel}` を保存しました"
     if commit:
         commit_msg = f"minutes({org_id}/{document['topic']}): update from session {session_id}"
-        git_result = commit_paths(root, [saved], commit_msg)
+        git_result = commit_paths(root, [saved_json, saved_md], commit_msg)
         # 運用 UI では Git 成否を message に載せない（design.md 7.3.1）
 
-    return MinutesSaveResult(True, message, path=saved, git=git_result, document=document)
+    return MinutesSaveResult(
+        True,
+        message,
+        path=saved_json,
+        md_path=saved_md,
+        git=git_result,
+        document=document,
+    )

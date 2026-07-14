@@ -312,7 +312,8 @@ sessions/               ← 実行ログ（7章。JSONL のみ・不変の証跡
 
 minutes/                ← 議事録（7.3 節。上書き更新。運用時 Git 管理・開発中 .gitignore → 7.3.1 節）
   nokuru/
-    camp_planning.json
+    camp_planning.json    ← 正本（機械処理・マージ・再開注入用）
+    camp_planning.md      ← 派生（人間閲覧・チャット添付用。JSON から同時生成）
 
 samples/                ← 意図したデモ用会話・議事録（Git 管理。10.5 節）
   sessions/
@@ -1200,7 +1201,7 @@ MultiRoleChat / MultiRoleChatWeb には薄かった「途中再開」を、Multi
 | 層 | ファイル | 更新方式 | 変遷の追い方 | Git |
 |---|---|---|---|---|
 | 証跡（生ログ） | `sessions/<id>.jsonl` | 追記のみ・不変 | ファイルがそのまま時系列 | 管理しない（`.gitignore`） |
-| 議事録（まとめ） | `minutes/<org>/<テーマ>.json` | **常に上書き**（最新だけを保持） | **Git のコミット履歴で見る** | **運用時 Git 管理**（開発中 `.gitignore` → 7.3.1 節） |
+| 議事録（まとめ） | `minutes/<org>/<テーマ>.json` + `.md` | **常に上書き**（最新だけを保持） | **Git のコミット履歴で見る** | **運用時 Git 管理**（開発中 `.gitignore` → 7.3.1 節） |
 | 成果物（コード） | `sandbox/session_<id>/` | セッションごとに生成 | 採用コミット（7.6 節） | 採用時に管理 |
 
 議事録を「版を積むファイル」ではなく「上書きされる生きた文書」にするのがポイント。
@@ -1216,6 +1217,15 @@ MultiRoleChat / MultiRoleChatWeb には薄かった「途中再開」を、Multi
 3. `actions`（担当・期限つきアクション）
 4. `evidence`（根拠となる発話。継続会議をまたぐためセッション付きで記録）
 5. `next_agenda`（次回アジェンダ）
+
+**二層出力（Phase 5b 追補）:**
+
+| ファイル | 読者 | 用途 |
+|---|---|---|
+| `.json` | アプリ / LLM | 正本。マージ・schema 検証・再開時の文脈注入（未実装） |
+| `.md` | 人間 | JSON から派生。閲覧・チャット添付（`read_attachment_files` と同様にテキスト注入可） |
+
+1回の保存で `.json` と `.md` を同時に書き出す。正本は常に JSON とし、Markdown は再生成可能なビューとする。
 
 保存フォーマット（`minutes/nokuru/camp_planning.json`）：
 
@@ -1492,9 +1502,10 @@ Gradio 起動・終了の共通仕様（8.6 節）に従う。
 **Phase 5b 実装フィードバック（2026-07-14）:**
 
 - **議事録**: jsonl から構造化 JSON を生成し `minutes/<org>/<topic>.json` へ上書き（mock / LLM）
+- **Markdown 派生**: 同一保存で `.md` を同時出力（`document_to_markdown`）。人間閲覧・添付用
 - **Git**: 保存後に自動コミット（dirty tree 時は保存のみ）。UI には Git 詳細を出さない（7.3.1 節）
 - **開発中 `.gitignore`**: `minutes/` はローカルのみ。リリース前に解除（7.3.1 節）。サンプルは `samples/`（10.5 節）
-- **ボタンラベル**: `議事録 (.json)` / `エクスポート (.md)` / `成果物採用`（形式をボタンに明示）
+- **ボタンラベル**: `議事録 (.json + .md)` / `エクスポート (.md)` / `成果物採用`
 - **トピック**: 常時入力欄は置かず、最初の user 入力からファイル名 slug を自動生成
 
 ### 8.4 設定編集タブ
@@ -1538,7 +1549,7 @@ Gradio 起動・終了の共通仕様（8.6 節）に従う。
 1. `sessions/` の一覧表示（新しい順。各 jsonl の `session_meta` から組織・ワークフロー・日時を表示）
 2. 選択セッションの Markdown レポートを jsonl からその場で生成して閲覧（7.1 節。ファイルとしては保存しない）
 3. 「再開」ボタン: 選択セッションの `state_snapshot` を復元し、分岐セッションとして続行（7.2 節。Phase 5a）
-4. 「議事録 (.json)」ボタン: 議事録を `minutes/` へ上書き保存（7.3 節。Phase 5b）。トピックは最初の user 入力から自動
+4. 「議事録 (.json + .md)」ボタン: JSON 正本 + Markdown 派生を `minutes/` へ同時上書き（7.3 節。Phase 5b）
 5. 「エクスポート (.md)」ボタン: Markdown レポートを `sessions/exports/` へファイル出力
 6. 「成果物採用」ボタン: sandbox の成果物を作業ツリーへ適用し、コミットを作成する（7.6 節。Phase 5c）
 7. 操作メッセージはボタン行直下。エクスポート結果ファイル欄は成功時のみ表示

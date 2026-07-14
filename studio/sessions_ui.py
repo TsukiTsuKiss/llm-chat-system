@@ -79,7 +79,7 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
             report_md = gr.Markdown(initial_report, elem_classes=["studio-session-report"])
             with gr.Row():
                 resume_btn = gr.Button("再開", **_SAVE_BTN)
-                minutes_btn = gr.Button("議事録 (.json)", **_SAVE_BTN)
+                minutes_btn = gr.Button("議事録 (.json + .md)", **_SAVE_BTN)
                 export_btn = gr.Button("エクスポート (.md)", **_SAVE_BTN)
                 adopt_btn = gr.Button("成果物採用", **_SAVE_BTN)
             session_msg = gr.Markdown("")
