@@ -8,6 +8,7 @@ from typing import Any
 
 import gradio as gr
 
+from studio.minutes import save_minutes_from_session
 from studio.session_report import (
     FlowTheme,
     export_session_markdown,
@@ -78,9 +79,9 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
             report_md = gr.Markdown(initial_report, elem_classes=["studio-session-report"])
             with gr.Row():
                 resume_btn = gr.Button("再開", **_SAVE_BTN)
-                minutes_btn = gr.Button("議事録", **_SAVE_BTN)
-                export_btn = gr.Button("エクスポート", **_SAVE_BTN)
-                adopt_btn = gr.Button("採用", **_SAVE_BTN)
+                minutes_btn = gr.Button("議事録 (.json)", **_SAVE_BTN)
+                export_btn = gr.Button("エクスポート (.md)", **_SAVE_BTN)
+                adopt_btn = gr.Button("成果物採用", **_SAVE_BTN)
             session_msg = gr.Markdown("")
             export_file = gr.File(label="エクスポート結果", interactive=False, visible=False)
 
@@ -193,6 +194,19 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
             msg,
         )
 
+    def on_minutes(session_id: str | None):
+        if not session_id:
+            return "セッションを選択してください"
+        result = save_minutes_from_session(
+            root,
+            session_id,
+            topic=None,
+            commit=True,
+        )
+        if not result.ok:
+            return result.message
+        return f"**議事録** — {result.message}"
+
     def phase5_notice(feature: str) -> str:
         return f"**{feature}** は Phase 5 で実装予定です（design.md §8.5 / 9.1）。"
 
@@ -239,7 +253,8 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
         ],
     )
     minutes_btn.click(
-        lambda: phase5_notice("議事録"),
+        on_minutes,
+        inputs=[session_dd],
         outputs=[session_msg],
     )
     adopt_btn.click(

@@ -123,6 +123,9 @@ logs/
 multi_logs/
 sessions/
 
+# MultiRoleStudio 議事録（開発中はローカルのみ。リリース時に .gitignore から外す → design.md 7.3.1）
+minutes/
+
 # MultiRoleStudio ユーザーローカル設定
 studio_config.json
 organizations/*/model_mapping.json

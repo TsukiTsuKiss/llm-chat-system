@@ -27,7 +27,7 @@ from studio.web_ui import (
 )
 from web_input_utils import stream_default_from_config, temperature_default_from_config
 
-VERSION = "0.5.0"
+VERSION = "0.5.1"
 
 DEFAULT_ORG = os.getenv("MULTIROLESTUDIOWEB_ORG", "")
 DEFAULT_PORT = int(os.getenv("MULTIROLESTUDIOWEB_PORT", "7862"))

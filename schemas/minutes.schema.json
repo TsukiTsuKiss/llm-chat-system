@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://llm-chat-system.local/schemas/minutes.schema.json",
+  "title": "MeetingMinutes",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["topic", "updated_at", "source_sessions", "minutes"],
+  "properties": {
+    "topic": { "type": "string", "minLength": 1 },
+    "updated_at": { "type": "string", "minLength": 1 },
+    "source_sessions": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "minutes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decisions", "open_issues", "actions", "evidence", "next_agenda"],
+      "properties": {
+        "decisions": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "open_issues": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["owner", "task", "due"],
+            "properties": {
+              "owner": { "type": "string" },
+              "task": { "type": "string" },
+              "due": { "type": "string" }
+            }
+          }
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["session", "turns"],
+            "properties": {
+              "session": { "type": "string", "minLength": 1 },
+              "turns": {
+                "type": "array",
+                "items": { "type": "integer", "minimum": 1 }
+              }
+            }
+          }
+        },
+        "next_agenda": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}
