@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import gradio as gr
 
@@ -12,17 +14,35 @@ from studio.session_report import (
     load_session_markdown,
     session_dropdown_choices,
 )
+from studio.validation import StudioValidationError
+from studio.web_ui import apply_session_resume
 
 _ACTION_BTN = dict(variant="primary", size="sm", elem_classes=["studio-action-btn"])
 _SAVE_BTN = dict(variant="primary", elem_classes=["studio-save-btn"])
 _DEFAULT_FLOW_THEME = "ダーク"
 
 
+@dataclass
+class SessionsHandles:
+    session_state: Any
+    org_dd: gr.Dropdown
+    wf_dd: gr.Dropdown
+    wf_note_md: gr.Markdown
+    chatbot: gr.Chatbot
+    status_tb: gr.Textbox
+    talents_md: gr.Markdown
+    choice_row: gr.Row
+    valid_wf_state: Any
+    pending_wf_hint_state: Any
+    stream_cb: gr.Checkbox
+    temp_sl: gr.Slider
+
+
 def _flow_theme_key(label: str) -> FlowTheme:
     return "dark" if label == "ダーク" else "light"
 
 
-def build_sessions_tab(root: Path, _demo: gr.Blocks) -> None:
+def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -> None:
     initial_choices = session_dropdown_choices(root)
     initial_session_id = initial_choices[0][1] if initial_choices else None
     initial_flow_theme = _flow_theme_key(_DEFAULT_FLOW_THEME)
@@ -37,7 +57,8 @@ def build_sessions_tab(root: Path, _demo: gr.Blocks) -> None:
             gr.Markdown(
                 "`sessions/*.jsonl` の一覧表示、Markdown レポート閲覧、エクスポート（§8.5）。"
                 " 下段は **JSONL から生成したレポート**（生ログではありません）。"
-                " 再開・議事録・採用は Phase 5。"
+                " **再開** は分岐セッションとしてチャットタブへ読み込みます（§7.2）。"
+                " 議事録・採用は Phase 5b/5c。"
             )
             with gr.Row():
                 session_dd = gr.Dropdown(
@@ -60,8 +81,14 @@ def build_sessions_tab(root: Path, _demo: gr.Blocks) -> None:
                 minutes_btn = gr.Button("議事録", **_SAVE_BTN)
                 export_btn = gr.Button("エクスポート", **_SAVE_BTN)
                 adopt_btn = gr.Button("採用", **_SAVE_BTN)
-            export_file = gr.File(label="エクスポート結果", interactive=False)
             session_msg = gr.Markdown("")
+            export_file = gr.File(label="エクスポート結果", interactive=False, visible=False)
+
+    def _hide_export() -> dict:
+        return gr.update(value=None, visible=False)
+
+    def _show_export(path: str) -> dict:
+        return gr.update(value=path, visible=True)
 
     def refresh_session_list(current: str | None) -> tuple[list[tuple[str, str]], str | None]:
         choices = session_dropdown_choices(root)
@@ -71,14 +98,14 @@ def build_sessions_tab(root: Path, _demo: gr.Blocks) -> None:
 
     def on_session_select(session_id: str | None, theme_label: str):
         if not session_id:
-            return "_セッションを選択してください_", gr.update(value=None), ""
+            return "_セッションを選択してください_", _hide_export(), ""
         return (
             load_session_markdown(
                 root,
                 session_id,
                 flow_theme=_flow_theme_key(theme_label),
             ),
-            gr.update(value=None),
+            _hide_export(),
             "",
         )
 
@@ -89,7 +116,7 @@ def build_sessions_tab(root: Path, _demo: gr.Blocks) -> None:
 
     def on_export(session_id: str | None, theme_label: str):
         if not session_id:
-            return gr.update(value=None), "セッションを選択してください"
+            return _hide_export(), "セッションを選択してください"
         try:
             path = export_session_markdown(
                 root,
@@ -97,8 +124,74 @@ def build_sessions_tab(root: Path, _demo: gr.Blocks) -> None:
                 flow_theme=_flow_theme_key(theme_label),
             )
         except OSError as exc:
-            return gr.update(value=None), f"エクスポート失敗: {exc}"
-        return str(path), f"`{path.name}` を出力しました（`sessions/exports/`）"
+            return _hide_export(), f"エクスポート失敗: {exc}"
+        return _show_export(str(path)), f"`{path.name}` を出力しました（`sessions/exports/`）"
+
+    def on_resume(
+        session_id: str | None,
+        web_session,
+        stream: bool,
+        temperature: float,
+    ):
+        if not session_id:
+            return (
+                web_session,
+                gr.update(),
+                gr.update(),
+                gr.update(),
+                gr.update(),
+                gr.update(),
+                gr.update(),
+                gr.update(),
+                gr.update(),
+                gr.update(visible=False),
+                "セッションを選択してください",
+            )
+        try:
+            (
+                web_session,
+                messages,
+                status,
+                _org,
+                org_upd,
+                wf_upd,
+                talents,
+                wf_value,
+                _hint_clear,
+                msg,
+            ) = apply_session_resume(
+                web_session,
+                session_id,
+                stream=stream,
+                temperature=temperature,
+            )
+        except StudioValidationError as exc:
+            return (
+                web_session,
+                gr.update(),
+                gr.update(),
+                gr.update(),
+                gr.update(),
+                gr.update(),
+                gr.update(),
+                gr.update(),
+                gr.update(),
+                gr.update(visible=False),
+                exc.format_all(),
+            )
+        return (
+            web_session,
+            messages,
+            status,
+            org_upd,
+            wf_upd,
+            talents,
+            wf_value,
+            "",
+            gr.update(value=""),
+            gr.update(visible=False),
+            msg,
+        )
 
     def phase5_notice(feature: str) -> str:
         return f"**{feature}** は Phase 5 で実装予定です（design.md §8.5 / 9.1）。"
@@ -124,8 +217,26 @@ def build_sessions_tab(root: Path, _demo: gr.Blocks) -> None:
         outputs=[export_file, session_msg],
     )
     resume_btn.click(
-        lambda: phase5_notice("セッション再開"),
-        outputs=[session_msg],
+        on_resume,
+        inputs=[
+            session_dd,
+            handles.session_state,
+            handles.stream_cb,
+            handles.temp_sl,
+        ],
+        outputs=[
+            handles.session_state,
+            handles.chatbot,
+            handles.status_tb,
+            handles.org_dd,
+            handles.wf_dd,
+            handles.talents_md,
+            handles.valid_wf_state,
+            handles.pending_wf_hint_state,
+            handles.wf_note_md,
+            handles.choice_row,
+            session_msg,
+        ],
     )
     minutes_btn.click(
         lambda: phase5_notice("議事録"),

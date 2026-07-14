@@ -13,7 +13,7 @@ from studio.gradio_template import use_japanese_html_template
 from studio.loader import load_studio_config
 from studio.validation import StudioValidationError
 from studio.settings_ui import SettingsHandles, build_settings_tab
-from studio.sessions_ui import build_sessions_tab
+from studio.sessions_ui import SessionsHandles, build_sessions_tab
 from studio.web_ui import (
     WebSession,
     handle_chat_submit,
@@ -27,7 +27,7 @@ from studio.web_ui import (
 )
 from web_input_utils import stream_default_from_config, temperature_default_from_config
 
-VERSION = "0.4.4"
+VERSION = "0.5.0"
 
 DEFAULT_ORG = os.getenv("MULTIROLESTUDIOWEB_ORG", "")
 DEFAULT_PORT = int(os.getenv("MULTIROLESTUDIOWEB_PORT", "7862"))
@@ -147,7 +147,7 @@ def build_ui(root: Path) -> gr.Blocks:
 
         gr.Markdown(
             f"# MultiRoleStudio Web `{VERSION}`\n"
-            "Phase 4a: チャット / Phase 4b: 設定編集 / Phase 4c: ファイル添付 / Phase 4d: model_mapping フォーム / Phase 4e: セッション"
+            "Phase 4a: チャット / Phase 4b: 設定編集 / Phase 4c: ファイル添付 / Phase 4d: model_mapping フォーム / Phase 4e: セッション / Phase 5a: 再開"
         )
 
         with gr.Tabs():
@@ -211,7 +211,24 @@ def build_ui(root: Path) -> gr.Blocks:
                 demo,
             )
 
-            build_sessions_tab(root, demo)
+            build_sessions_tab(
+                root,
+                SessionsHandles(
+                    session_state=session_state,
+                    org_dd=org_dd,
+                    wf_dd=wf_dd,
+                    wf_note_md=wf_note_md,
+                    chatbot=chatbot,
+                    status_tb=status_tb,
+                    talents_md=talents_md,
+                    choice_row=choice_row,
+                    valid_wf_state=valid_wf_state,
+                    pending_wf_hint_state=pending_wf_hint_state,
+                    stream_cb=stream_cb,
+                    temp_sl=temp_sl,
+                ),
+                demo,
+            )
 
         def on_org_change(org_id: str, workflow_value: str) -> tuple[dict, str, str, str, str]:
             choices, value = workflow_dropdown_for_org(root, org_id or "", workflow_value)

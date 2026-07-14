@@ -27,7 +27,7 @@ class EngineEvent:
 @dataclass
 class EngineState:
     ctx: SessionContext
-    logger: SessionLogger
+    logger: SessionLogger | None = None
     histories: RoleHistories = field(default_factory=RoleHistories)
     step_number: int = 0
     stream: bool = True
@@ -35,6 +35,7 @@ class EngineState:
     attachment_context: str = ""
     started: bool = False
     session_wall_start: float = 0.0
+    parent_session_id: str | None = None
 
 
 @dataclass
@@ -110,6 +111,23 @@ class SessionEngine:
         assert state is not None
 
         if not state.started:
+            if state.logger is None:
+                if not state.parent_session_id:
+                    raise RuntimeError("resume session requires parent_session_id")
+                talent_ids = list(self.ctx.org.get("talent_ids") or [])
+                state.logger = SessionLogger.create_branch(
+                    self.ctx.root,
+                    state.parent_session_id,
+                    self.ctx.org_id,
+                    workflow=self.ctx.workflow_id,
+                    talents={
+                        tid: self.ctx.talents[tid]
+                        for tid in talent_ids
+                        if tid in self.ctx.talents
+                    },
+                    model_mapping=self.ctx.model_mapping,
+                    generation={"stream": use_stream, "temperature": use_temperature},
+                )
             state.logger.start()
             yield EngineEvent(
                 "session_start",
@@ -118,10 +136,13 @@ class SessionEngine:
                     "org": self.ctx.org_id,
                     "workflow": self.ctx.workflow_id,
                     "talents": state.logger.talents,
+                    "parent_session_id": state.parent_session_id,
+                    "resumed_from": state.parent_session_id,
                 },
             )
             state.started = True
 
+        assert state.logger is not None
         state.logger.log_user_input(user_text, attachments=attachments)
 
         workflow, bindings = self._resolve_workflow()

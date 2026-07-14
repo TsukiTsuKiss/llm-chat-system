@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Generator, Iterator
 
+import gradio as gr
+
 from studio.assistants import MockAssistant
 from studio.display import format_session_end_lines, format_step_metrics_line
 from studio.engine import EngineEvent, SessionEngine
@@ -259,8 +261,11 @@ class ChatEventRenderer:
         if event.type == "session_start":
             payload = event.payload
             wf = payload.get("workflow") or DIRECT_WORKFLOW_LABEL
+            resumed = payload.get("resumed_from")
+            branch = f"（`{resumed}` から再開）" if resumed else ""
             self._add_system_note(
-                f"セッション開始 `{payload.get('session_id')}` — {payload.get('org')} / {wf}"
+                f"セッション開始 `{payload.get('session_id')}` — "
+                f"{payload.get('org')} / {wf}{branch}"
             )
             return None
 
@@ -381,6 +386,98 @@ class WebSession:
         self.workflow_id = workflow_id
         self.stream = stream
         self.temperature = temperature
+
+    def resume_branch(
+        self,
+        resumed,
+        ctx: SessionContext,
+        *,
+        stream: bool,
+        temperature: float,
+    ) -> None:
+        import time
+
+        from studio.engine import EngineState, SessionEngine
+        from studio.session_resume import ResumedSession
+
+        if not isinstance(resumed, ResumedSession):
+            raise TypeError("resumed must be ResumedSession")
+        self.reset_chat()
+        self.org_id = resumed.org_id
+        self.workflow_id = resumed.workflow_id
+        self.stream = stream
+        self.temperature = temperature
+        self.renderer = ChatEventRenderer()
+        self.renderer.messages = list(resumed.replay_messages)
+        self.renderer.messages.append(
+            {
+                "role": "assistant",
+                "content": (
+                    f"_再開 `{resumed.parent_session_id}` から。"
+                    " 続きを入力してください。_"
+                ),
+            }
+        )
+        self.engine = SessionEngine(ctx)
+        self.engine.state = EngineState(
+            ctx=ctx,
+            logger=None,
+            histories=resumed.histories,
+            step_number=resumed.step_number,
+            stream=stream,
+            temperature=temperature,
+            parent_session_id=resumed.parent_session_id,
+            session_wall_start=time.perf_counter(),
+        )
+
+
+def apply_session_resume(
+    web: WebSession,
+    session_id: str,
+    *,
+    stream: bool,
+    temperature: float,
+) -> tuple[
+    WebSession,
+    list[dict[str, str]],
+    str,
+    str,
+    dict,
+    dict,
+    str,
+    str,
+    str,
+    str,
+]:
+    from studio.session_resume import load_resumed_session
+
+    resumed = load_resumed_session(web.root, session_id)
+    workflow_value = resumed.workflow_id or ""
+    ctx = load_session_context(resumed.org_id, web.root, workflow_id=resumed.workflow_id)
+    MockAssistant.reset()
+    web.resume_branch(resumed, ctx, stream=stream, temperature=temperature)
+    choices, wf_value = workflow_dropdown_for_org(web.root, resumed.org_id, workflow_value)
+    talents = load_org_panel(web.root, resumed.org_id, wf_value)[0]
+    status = (
+        f"再開 `{resumed.parent_session_id}` — "
+        "メッセージを送ると分岐セッションを開始します"
+    )
+    msg = (
+        f"**再開** — `{resumed.parent_session_id}` をチャットタブに読み込みました。"
+        " 続きを入力してください。"
+    )
+    return (
+        web,
+        web.renderer.copy_messages(),
+        status,
+        resumed.org_id,
+        gr.update(value=resumed.org_id),
+        gr.update(choices=choices, value=wf_value),
+        talents,
+        wf_value,
+        "",
+        msg,
+    )
 
 
 def _status_from_event(event: EngineEvent) -> str:

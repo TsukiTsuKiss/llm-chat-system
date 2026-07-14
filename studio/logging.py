@@ -103,6 +103,7 @@ class SessionLogger:
     costs: dict[str, dict[str, float]] = field(default_factory=dict)
     steps: list[StepMetrics] = field(default_factory=list)
     total_elapsed: float = 0.0
+    parent_session_id: str | None = None
     _started: bool = False
 
     @classmethod
@@ -115,7 +116,13 @@ class SessionLogger:
         model_mapping: dict[str, dict[str, str]],
         generation: dict[str, Any],
     ) -> SessionLogger:
-        session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+        base_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+        session_id = base_id
+        suffix = 2
+        sessions_dir = root / "sessions"
+        while (sessions_dir / f"{session_id}.jsonl").exists():
+            session_id = f"{base_id}_{suffix}"
+            suffix += 1
         display_names = {tid: t.get("name", tid) for tid, t in talents.items()}
         models = {
             tid: {"assistant": mapping["assistant"], **({"model": mapping["model"]} if mapping.get("model") else {})}
@@ -132,6 +139,28 @@ class SessionLogger:
             generation=generation,
             costs=load_model_costs(root),
         )
+
+    @classmethod
+    def create_branch(
+        cls,
+        root: Path,
+        parent_session_id: str,
+        org_id: str,
+        workflow: str | None,
+        talents: dict[str, dict[str, Any]],
+        model_mapping: dict[str, dict[str, str]],
+        generation: dict[str, Any],
+    ) -> SessionLogger:
+        logger = cls.create(
+            root,
+            org_id,
+            workflow,
+            talents,
+            model_mapping,
+            generation,
+        )
+        logger.parent_session_id = parent_session_id
+        return logger
 
     @property
     def log_path(self) -> Path:
@@ -151,7 +180,7 @@ class SessionLogger:
                 "type": "session_meta",
                 "organization": self.org_id,
                 "workflow": self.workflow,
-                "parent_session_id": None,
+                "parent_session_id": self.parent_session_id,
                 "talents": self.talents,
                 "models": self.models,
                 "generation": self.generation,
