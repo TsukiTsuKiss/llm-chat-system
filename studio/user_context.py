@@ -7,6 +7,24 @@ from pathlib import Path
 from typing import Any
 
 DEFAULT_USER_CONTEXT_PATH = "user_context/my_context.md"
+DEFAULT_MAX_CHARS = 8000
+
+
+def user_context_max_chars(studio_config: dict[str, Any]) -> int:
+    uc = studio_config.get("user_context") or {}
+    raw = uc.get("max_chars", DEFAULT_MAX_CHARS)
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return DEFAULT_MAX_CHARS
+    if value <= 0:
+        return DEFAULT_MAX_CHARS
+    return value
+
+
+def summary_path(root: Path, studio_config: dict[str, Any]) -> Path:
+    base = user_context_path(root, studio_config)
+    return base.with_name(f"{base.stem}.summary{base.suffix}")
 
 
 @dataclass(frozen=True)
@@ -43,7 +61,20 @@ def load_user_context_text(root: Path, studio_config: dict[str, Any]) -> str | N
     if not path.is_file():
         return None
     text = path.read_text(encoding="utf-8").strip()
-    return text if text else None
+    if not text:
+        return None
+
+    max_chars = user_context_max_chars(studio_config)
+    if len(text) <= max_chars:
+        return text
+
+    summary_file = summary_path(root, studio_config)
+    if summary_file.is_file():
+        summary = summary_file.read_text(encoding="utf-8").strip()
+        if summary:
+            return summary
+
+    return text[:max_chars].rstrip() + "\n\n…（全文は my_context.md。要約は --user-context-summarize）"
 
 
 def resolve_user_context(

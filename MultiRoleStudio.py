@@ -13,6 +13,11 @@ from studio.bindings import org_has_human_talent, workflow_participating_talent_
 from studio.display import format_session_end_lines, format_step_metrics_line
 from studio.engine import EngineEvent, SessionEngine, collect_events
 from studio.loader import load_session_context, read_attachment_files
+from studio.user_context_update import (
+    apply_context_draft,
+    save_context_draft_from_session,
+    save_summary_from_context,
+)
 from studio.validation import StudioError, StudioValidationError
 from studio.workflow_validate import workflow_has_user_exit
 
@@ -198,6 +203,27 @@ def run_apply(args: argparse.Namespace) -> int:
     return 0 if result.ok else 1
 
 
+def run_user_context_draft(args: argparse.Namespace) -> int:
+    root = Path(args.root)
+    result = save_context_draft_from_session(root, args.user_context_draft)
+    print(result.message)
+    return 0 if result.ok else 1
+
+
+def run_user_context_apply(args: argparse.Namespace) -> int:
+    root = Path(args.root)
+    result = apply_context_draft(root, args.user_context_apply)
+    print(result.message)
+    return 0 if result.ok else 1
+
+
+def run_user_context_summarize(args: argparse.Namespace) -> int:
+    root = Path(args.root)
+    result = save_summary_from_context(root)
+    print(result.message)
+    return 0 if result.ok else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="MultiRoleStudio CLI")
     parser.add_argument("--org", default="solo", help="組織 ID")
@@ -227,6 +253,23 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="ユーザーコンテキスト（付録D）を今回のセッションでは注入しない",
     )
+    parser.add_argument(
+        "--user-context-draft",
+        metavar="SESSION_ID",
+        default=None,
+        help="セッションから user_context 更新案を生成（付録D.7）",
+    )
+    parser.add_argument(
+        "--user-context-apply",
+        metavar="SESSION_ID",
+        default=None,
+        help="更新案を my_context.md の蓄積メモへ追記（付録D.7）",
+    )
+    parser.add_argument(
+        "--user-context-summarize",
+        action="store_true",
+        help="my_context.md から要約版 my_context.summary.md を生成（付録D.8）",
+    )
     parser.add_argument("--version", action="version", version=f"MultiRoleStudio {VERSION}")
     return parser
 
@@ -238,6 +281,13 @@ def main(argv: list[str] | None = None) -> int:
         args.stream = True
     elif args.stream == "off":
         args.stream = False
+
+    if args.user_context_draft:
+        return run_user_context_draft(args)
+    if args.user_context_apply:
+        return run_user_context_apply(args)
+    if args.user_context_summarize:
+        return run_user_context_summarize(args)
 
     if args.apply:
         return run_apply(args)

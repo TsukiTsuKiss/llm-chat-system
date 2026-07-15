@@ -79,10 +79,30 @@ STUDIO_WEB_CSS = """
 .studio-chat-footer {
   flex: 0 0 auto !important;
 }
+/* セッションタブ: レポート小窓は可変、操作ボタン行は常に viewport 内に残す */
+#studio-session-panel {
+  display: flex !important;
+  flex-direction: column !important;
+  box-sizing: border-box !important;
+  /* タブ見出し・グローバルヘッダを除き、タブ内をほぼ全高で使う（下端 30px の余白） */
+  min-height: calc(100dvh - 9rem - 30px) !important;
+  height: calc(100dvh - 9rem - 30px) !important;
+  max-height: calc(100dvh - 9rem - 30px) !important;
+  overflow: hidden !important;
+}
+#studio-session-panel > *:not(.studio-session-report-wrap) {
+  flex: 0 0 auto !important;
+}
 .studio-session-report-wrap {
-  max-height: clamp(12rem, calc(100dvh - 28rem), 65vh);
-  overflow-y: auto;
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow-y: auto !important;
   margin: 0.25rem 0 0.5rem;
+}
+#studio-session-actions,
+#studio-session-context-actions {
+  flex: 0 0 auto !important;
 }
 /* セッションレポート Mermaid: ノード内文字のコントラスト確保（Gradio ダーク UI 対策） */
 .studio-session-report .mermaid foreignObject,
@@ -121,7 +141,7 @@ def _upload_input_update(clear: bool = False) -> dict:
     return gr.update(value=None) if clear else gr.update()
 
 
-def _default_org(root: Path) -> str:
+def _default_org(root: Path, cli_org: str | None = None) -> str:
     orgs = list_organizations(root)
     if not orgs:
         return ""
@@ -129,7 +149,7 @@ def _default_org(root: Path) -> str:
         config = load_studio_config(root)
     except StudioValidationError:
         config = {}
-    preferred = config.get("default_org") or DEFAULT_ORG
+    preferred = (cli_org or "").strip() or config.get("default_org") or DEFAULT_ORG
     if preferred in orgs:
         return preferred
     if "solo" in orgs:
@@ -137,7 +157,7 @@ def _default_org(root: Path) -> str:
     return orgs[0]
 
 
-def build_ui(root: Path) -> gr.Blocks:
+def build_ui(root: Path, *, cli_org: str | None = None) -> gr.Blocks:
     orgs = list_organizations(root)
     try:
         studio_config = load_studio_config(root)
@@ -146,7 +166,7 @@ def build_ui(root: Path) -> gr.Blocks:
     default_stream = stream_default_from_config(studio_config, default_value=True)
     default_temperature = temperature_default_from_config(studio_config, default_value=0.7)
     default_user_context = user_context_default_from_config(studio_config, default_value=True)
-    default_org = _default_org(root)
+    default_org = _default_org(root, cli_org)
     wf_choices, default_wf = workflow_dropdown_for_org(root, default_org or "", "")
     upload_limits = upload_limits_from_config(studio_config)
 
@@ -428,13 +448,10 @@ def main() -> None:
     args = parser.parse_args()
 
     root = Path(args.root).resolve()
-    if args.org:
-        global DEFAULT_ORG
-        DEFAULT_ORG = args.org
 
     print(f"[INFO] MultiRoleStudioWeb v{VERSION} 起動中 (root={root})")
     use_japanese_html_template()
-    demo = build_ui(root)
+    demo = build_ui(root, cli_org=args.org)
     demo.launch(
         server_port=args.port,
         share=args.share,

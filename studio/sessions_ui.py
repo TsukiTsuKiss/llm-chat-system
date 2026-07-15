@@ -16,6 +16,11 @@ from studio.session_report import (
     load_session_markdown,
     session_dropdown_choices,
 )
+from studio.user_context_update import (
+    apply_context_draft,
+    load_draft_preview,
+    save_context_draft_from_session,
+)
 from studio.validation import StudioValidationError
 from studio.web_ui import apply_session_resume
 
@@ -89,6 +94,7 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
                 " **再開** は分岐セッションとしてチャットタブへ読み込みます（§7.2）。"
                 " **議事録** は JSON 正本 + Markdown 派生（§7.3）。"
                 " **成果物採用** は sandbox → 作業ツリー + Git コミット（§7.6）。"
+                " **コンテキスト更新案 / コンテキスト採用** はユーザーコンテキスト（付録D.7）の承認式追記。"
             )
             with gr.Row():
                 session_dd = gr.Dropdown(
@@ -112,6 +118,9 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
                 minutes_btn = gr.Button("議事録 (.json + .md)", **_SAVE_BTN)
                 export_btn = gr.Button("エクスポート (.md)", **_SAVE_BTN)
                 adopt_btn = gr.Button("成果物採用", **_SAVE_BTN)
+            with gr.Row(elem_id="studio-session-context-actions"):
+                context_draft_btn = gr.Button("コンテキスト更新案", **_SAVE_BTN)
+                context_apply_btn = gr.Button("コンテキスト採用", **_SAVE_BTN)
             session_msg = gr.Markdown("")
             export_file = gr.File(label="エクスポート結果", interactive=False, visible=False)
 
@@ -244,6 +253,24 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
             return result.message
         return f"**成果物採用** — {result.message}"
 
+    def on_context_draft(session_id: str | None):
+        if not session_id:
+            return "セッションを選択してください"
+        result = save_context_draft_from_session(root, session_id)
+        if not result.ok:
+            return result.message
+        preview = load_draft_preview(root, session_id)
+        body = f"\n\n```markdown\n{preview}\n```" if preview else ""
+        return f"**ユーザーコンテキスト更新案** — {result.message}{body}"
+
+    def on_context_apply(session_id: str | None):
+        if not session_id:
+            return "セッションを選択してください"
+        result = apply_context_draft(root, session_id)
+        if not result.ok:
+            return result.message
+        return f"**ユーザーコンテキスト採用** — {result.message}"
+
     refresh_btn.click(
         on_refresh,
         inputs=[session_dd, flow_theme_radio],
@@ -296,6 +323,16 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
     )
     adopt_btn.click(
         on_adopt,
+        inputs=[session_dd],
+        outputs=[session_msg],
+    )
+    context_draft_btn.click(
+        on_context_draft,
+        inputs=[session_dd],
+        outputs=[session_msg],
+    )
+    context_apply_btn.click(
+        on_context_apply,
         inputs=[session_dd],
         outputs=[session_msg],
     )

@@ -15,6 +15,12 @@
       "properties": {
         "enabled": { "type": "boolean", "default": true },
         "path": { "type": "string" },
+        "max_chars": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 8000,
+          "description": "注入時の全文上限。超過時は my_context.summary.md を優先（付録D.8）"
+        },
         "rag": {
           "type": "object",
           "additionalProperties": false,
