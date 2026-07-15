@@ -15,6 +15,7 @@ from studio.history import ConversationHistory, RoleHistories
 from studio.loader import SessionContext
 from studio.logging import SessionLogger, StepMetrics
 from studio.prompts import build_system_prompt, build_user_message
+from studio.user_context import build_generation_options
 from studio.validation import StudioError, StudioValidationError
 
 
@@ -33,6 +34,8 @@ class EngineState:
     stream: bool = True
     temperature: float | None = 0.7
     attachment_context: str = ""
+    user_context_enabled: bool = True
+    user_context_text: str | None = None
     started: bool = False
     session_wall_start: float = 0.0
     parent_session_id: str | None = None
@@ -69,6 +72,21 @@ class SessionEngine:
         self.ctx = ctx
         self.state: EngineState | None = None
 
+    def _build_system_prompt(
+        self,
+        talent: dict[str, Any],
+        talent_id: str,
+        state: EngineState,
+    ) -> str:
+        text = state.user_context_text if state.user_context_enabled else None
+        return build_system_prompt(
+            talent,
+            self.ctx.org,
+            self.ctx.org_id,
+            talent_id,
+            user_context_text=text,
+        )
+
     def run_turn(
         self,
         user_text: str,
@@ -77,12 +95,20 @@ class SessionEngine:
         attachments: list[str] | None = None,
         stream: bool | None = None,
         temperature: float | None = None,
+        no_user_context: bool = False,
     ) -> Iterator[EngineEvent]:
-        generation = self.ctx.studio_config
-        use_stream = generation.get("stream", True) if stream is None else stream
-        use_temperature = generation.get("temperature", 0.7) if temperature is None else temperature
+        studio_config = self.ctx.studio_config
+        use_stream = studio_config.get("stream", True) if stream is None else stream
+        use_temperature = studio_config.get("temperature", 0.7) if temperature is None else temperature
 
         if self.state is None:
+            generation, uc_resolution = build_generation_options(
+                studio_config,
+                self.ctx.root,
+                stream=use_stream,
+                temperature=use_temperature,
+                no_user_context=no_user_context,
+            )
             talent_ids = list(self.ctx.org.get("talent_ids") or [])
             logger = SessionLogger.create(
                 self.ctx.root,
@@ -94,7 +120,7 @@ class SessionEngine:
                     if tid in self.ctx.talents
                 },
                 model_mapping=self.ctx.model_mapping,
-                generation={"stream": use_stream, "temperature": use_temperature},
+                generation=generation,
             )
             self.state = EngineState(
                 ctx=self.ctx,
@@ -102,6 +128,8 @@ class SessionEngine:
                 stream=use_stream,
                 temperature=use_temperature,
                 attachment_context=attachment_context,
+                user_context_enabled=uc_resolution.enabled,
+                user_context_text=uc_resolution.text,
                 session_wall_start=time.perf_counter(),
             )
         elif attachment_context:
@@ -126,7 +154,11 @@ class SessionEngine:
                         if tid in self.ctx.talents
                     },
                     model_mapping=self.ctx.model_mapping,
-                    generation={"stream": use_stream, "temperature": use_temperature},
+                    generation={
+                        "stream": use_stream,
+                        "temperature": use_temperature,
+                        "user_context": state.user_context_enabled,
+                    },
                 )
             state.logger.start()
             yield EngineEvent(
@@ -347,9 +379,7 @@ class SessionEngine:
             {"talent_id": talent_id, "display_name": display_name, "action": action, "judge": True},
         )
 
-        system_prompt = build_system_prompt(
-            talent, self.ctx.org, self.ctx.org_id, talent_id
-        )
+        system_prompt = self._build_system_prompt(talent, talent_id, state)
         user_message = build_user_message(
             user_text,
             action=action,
@@ -610,7 +640,7 @@ class SessionEngine:
         talent = self.ctx.talents.get(talent_id, {})
         mapping = self.ctx.model_mapping.get(talent_id, {})
         assistant = mapping.get("assistant", "")
-        system_prompt = build_system_prompt(talent, self.ctx.org, self.ctx.org_id, talent_id)
+        system_prompt = self._build_system_prompt(talent, talent_id, state)
         user_message = build_user_message(
             user_text,
             action=action,
@@ -693,9 +723,7 @@ class SessionEngine:
             {"talent_id": talent_id, "display_name": display_name, "action": action},
         )
 
-        system_prompt = build_system_prompt(
-            talent, self.ctx.org, self.ctx.org_id, talent_id
-        )
+        system_prompt = self._build_system_prompt(talent, talent_id, state)
         user_message = build_user_message(
             user_text,
             action=action,
@@ -843,10 +871,16 @@ def collect_events(
     *,
     attachment_context: str = "",
     stream: bool | None = None,
+    no_user_context: bool = False,
     responder: Callable[[EngineEvent], str | None] | None = None,
 ) -> list[EngineEvent]:
     events: list[EngineEvent] = []
-    gen = engine.run_turn(user_text, attachment_context=attachment_context, stream=stream)
+    gen = engine.run_turn(
+        user_text,
+        attachment_context=attachment_context,
+        stream=stream,
+        no_user_context=no_user_context,
+    )
     event = next(gen)
     while True:
         events.append(event)

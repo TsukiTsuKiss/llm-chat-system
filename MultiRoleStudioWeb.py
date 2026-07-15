@@ -25,7 +25,11 @@ from studio.web_ui import (
     workflow_dropdown_for_org,
     workflow_unavailable_note,
 )
-from web_input_utils import stream_default_from_config, temperature_default_from_config
+from web_input_utils import (
+    stream_default_from_config,
+    temperature_default_from_config,
+    user_context_default_from_config,
+)
 
 VERSION = "0.5.1"
 
@@ -75,6 +79,11 @@ STUDIO_WEB_CSS = """
 .studio-chat-footer {
   flex: 0 0 auto !important;
 }
+.studio-session-report-wrap {
+  max-height: clamp(12rem, calc(100dvh - 28rem), 65vh);
+  overflow-y: auto;
+  margin: 0.25rem 0 0.5rem;
+}
 /* セッションレポート Mermaid: ノード内文字のコントラスト確保（Gradio ダーク UI 対策） */
 .studio-session-report .mermaid foreignObject,
 .studio-session-report .mermaid foreignObject div,
@@ -100,7 +109,7 @@ CHATBOT_MIN_HEIGHT = 200
 # 初回表示でメッセージ欄・送信ボタンが viewport 内に収まる高さ（リサイズ可）
 CHATBOT_DEFAULT_HEIGHT = "clamp(200px, calc(100dvh - 22rem), 480px)"
 
-DEFAULT_MSG_PLACEHOLDER = "メッセージを入力…"
+DEFAULT_MSG_PLACEHOLDER = "メッセージを入力（Enter: 送信 / Shift+Enter: 改行）"
 
 
 def _msg_input_update(placeholder: str = DEFAULT_MSG_PLACEHOLDER) -> dict:
@@ -136,6 +145,7 @@ def build_ui(root: Path) -> gr.Blocks:
         studio_config = {}
     default_stream = stream_default_from_config(studio_config, default_value=True)
     default_temperature = temperature_default_from_config(studio_config, default_value=0.7)
+    default_user_context = user_context_default_from_config(studio_config, default_value=True)
     default_org = _default_org(root)
     wf_choices, default_wf = workflow_dropdown_for_org(root, default_org or "", "")
     upload_limits = upload_limits_from_config(studio_config)
@@ -147,7 +157,7 @@ def build_ui(root: Path) -> gr.Blocks:
 
         gr.Markdown(
             f"# MultiRoleStudio Web `{VERSION}`\n"
-            "Phase 4a: チャット / Phase 4b: 設定編集 / Phase 4c: ファイル添付 / Phase 4d: model_mapping フォーム / Phase 4e: セッション / Phase 5a: 再開"
+            "Phase 4a: チャット / Phase 4b: 設定編集 / Phase 4c: ファイル添付 / Phase 4d: model_mapping フォーム / Phase 4e: セッション / Phase 5a: 再開 / Phase 5d: user_context"
         )
 
         with gr.Tabs():
@@ -171,6 +181,10 @@ def build_ui(root: Path) -> gr.Blocks:
                             type="filepath",
                         )
                         stream_cb = gr.Checkbox(label="ストリーミング", value=default_stream)
+                        user_context_cb = gr.Checkbox(
+                            label="ユーザーコンテキスト",
+                            value=default_user_context,
+                        )
                         merge_cb = gr.Checkbox(
                             label="連続メッセージを1つにまとめる",
                             value=False,
@@ -201,7 +215,8 @@ def build_ui(root: Path) -> gr.Blocks:
                             msg_tb = gr.Textbox(
                                 label="メッセージ",
                                 placeholder=DEFAULT_MSG_PLACEHOLDER,
-                                lines=2,
+                                lines=1,
+                                max_lines=6,
                             )
                             send_btn = gr.Button("送信", variant="primary")
 
@@ -225,6 +240,7 @@ def build_ui(root: Path) -> gr.Blocks:
                     valid_wf_state=valid_wf_state,
                     pending_wf_hint_state=pending_wf_hint_state,
                     stream_cb=stream_cb,
+                    user_context_cb=user_context_cb,
                     temp_sl=temp_sl,
                 ),
                 demo,
@@ -268,6 +284,7 @@ def build_ui(root: Path) -> gr.Blocks:
             workflow_value: str,
             stream: bool,
             temperature: float,
+            user_context: bool,
             files,
         ):
             try:
@@ -278,6 +295,7 @@ def build_ui(root: Path) -> gr.Blocks:
                     workflow_value=workflow_value,
                     stream=stream,
                     temperature=temperature,
+                    user_context=user_context,
                     files=files,
                     upload_limits=upload_limits,
                 ):
@@ -322,6 +340,28 @@ def build_ui(root: Path) -> gr.Blocks:
                     _upload_input_update(clear_upload),
                 )
 
+        def sync_chat_prefs(session: WebSession, stream: bool, user_context: bool, temperature: float):
+            session.stream = True if stream is None else stream
+            session.user_context = True if user_context is None else user_context
+            session.temperature = 0.7 if temperature is None else temperature
+            return session
+
+        stream_cb.change(
+            sync_chat_prefs,
+            inputs=[session_state, stream_cb, user_context_cb, temp_sl],
+            outputs=[session_state],
+        )
+        user_context_cb.change(
+            sync_chat_prefs,
+            inputs=[session_state, stream_cb, user_context_cb, temp_sl],
+            outputs=[session_state],
+        )
+        temp_sl.change(
+            sync_chat_prefs,
+            inputs=[session_state, stream_cb, user_context_cb, temp_sl],
+            outputs=[session_state],
+        )
+
         org_dd.change(
             on_org_change,
             inputs=[org_dd, wf_dd],
@@ -355,6 +395,7 @@ def build_ui(root: Path) -> gr.Blocks:
             org_dd,
             wf_dd,
             stream_cb,
+            user_context_cb,
             temp_sl,
             upload_files,
         ]

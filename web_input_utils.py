@@ -86,6 +86,18 @@ def temperature_default_from_config(config: dict | None, default_value: float = 
     return t if t is not None else default_value
 
 
+def user_context_default_from_config(config: dict | None, default_value: bool = True) -> bool:
+    """config から user_context.enabled の初期値を解決する。"""
+    if not isinstance(config, dict):
+        return default_value
+    uc = config.get("user_context")
+    if isinstance(uc, dict):
+        b = to_bool(uc.get("enabled"))
+        if b is not None:
+            return b
+    return default_value
+
+
 def normalize_uploaded_files(uploaded_files) -> list[str]:
     if not uploaded_files:
         return []

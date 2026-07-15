@@ -23,6 +23,32 @@ _ACTION_BTN = dict(variant="primary", size="sm", elem_classes=["studio-action-bt
 _SAVE_BTN = dict(variant="primary", elem_classes=["studio-save-btn"])
 _DEFAULT_FLOW_THEME = "ダーク"
 
+_JS_AFTER_RESUME = """
+() => {
+  const activateChatTab = () => {
+    const tabs = Array.from(document.querySelectorAll('[role="tab"]'));
+    const chatTab = tabs.find((t) => (t.textContent || "").includes("チャット"));
+    if (chatTab && chatTab.getAttribute("aria-selected") !== "true") chatTab.click();
+  };
+  const scrollChatBottom = () => {
+    const root = document.getElementById("studio-chatbot");
+    if (!root) return;
+    const scrollAll = (el) => {
+      if (el.scrollHeight > el.clientHeight + 2) el.scrollTop = el.scrollHeight;
+      for (const child of el.children) scrollAll(child);
+    };
+    scrollAll(root);
+    const last = root.querySelector(".message:last-child, .bubble-wrap:last-child");
+    if (last) last.scrollIntoView({ block: "end", behavior: "instant" });
+  };
+  activateChatTab();
+  scrollChatBottom();
+  [50, 150, 400, 800].forEach((ms) => {
+    setTimeout(() => { activateChatTab(); scrollChatBottom(); }, ms);
+  });
+}
+"""
+
 
 @dataclass
 class SessionsHandles:
@@ -37,6 +63,7 @@ class SessionsHandles:
     valid_wf_state: Any
     pending_wf_hint_state: Any
     stream_cb: gr.Checkbox
+    user_context_cb: gr.Checkbox
     temp_sl: gr.Slider
 
 
@@ -55,7 +82,7 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
     )
 
     with gr.Tab("📄 セッション"):
-        with gr.Column(elem_classes=["studio-settings-panel"]):
+        with gr.Column(elem_id="studio-session-panel", elem_classes=["studio-settings-panel"]):
             gr.Markdown(
                 "`sessions/*.jsonl` の一覧表示、Markdown レポート閲覧、エクスポート（§8.5）。"
                 " 下段は **JSONL から生成したレポート**（生ログではありません）。"
@@ -78,8 +105,9 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
                     scale=1,
                 )
                 refresh_btn = gr.Button("一覧更新", **_ACTION_BTN)
-            report_md = gr.Markdown(initial_report, elem_classes=["studio-session-report"])
-            with gr.Row():
+            with gr.Column(elem_classes=["studio-session-report-wrap"]):
+                report_md = gr.Markdown(initial_report, elem_classes=["studio-session-report"])
+            with gr.Row(elem_id="studio-session-actions"):
                 resume_btn = gr.Button("再開", **_SAVE_BTN)
                 minutes_btn = gr.Button("議事録 (.json + .md)", **_SAVE_BTN)
                 export_btn = gr.Button("エクスポート (.md)", **_SAVE_BTN)
@@ -133,8 +161,6 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
     def on_resume(
         session_id: str | None,
         web_session,
-        stream: bool,
-        temperature: float,
     ):
         if not session_id:
             return (
@@ -165,8 +191,9 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
             ) = apply_session_resume(
                 web_session,
                 session_id,
-                stream=stream,
-                temperature=temperature,
+                stream=web_session.stream,
+                temperature=web_session.temperature,
+                user_context=web_session.user_context,
             )
         except StudioValidationError as exc:
             return (
@@ -184,8 +211,8 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
             )
         return (
             web_session,
-            messages,
-            status,
+            gr.update(value=messages),
+            gr.update(value=status),
             org_upd,
             wf_upd,
             talents,
@@ -242,8 +269,6 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
         inputs=[
             session_dd,
             handles.session_state,
-            handles.stream_cb,
-            handles.temp_sl,
         ],
         outputs=[
             handles.session_state,
@@ -258,6 +283,11 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
             handles.choice_row,
             session_msg,
         ],
+    ).then(
+        fn=None,
+        inputs=None,
+        outputs=None,
+        js=_JS_AFTER_RESUME,
     )
     minutes_btn.click(
         on_minutes,

@@ -133,6 +133,7 @@ def run_batch(args: argparse.Namespace) -> int:
         args.topic,
         attachment_context=attachment_context,
         stream=use_stream,
+        no_user_context=args.no_user_context,
     )
     for event in events:
         print_event(event, use_stream=use_stream)
@@ -161,7 +162,7 @@ def run_interactive(args: argparse.Namespace) -> int:
         if not user_text or user_text.lower() in {"q", "quit", "exit"}:
             break
 
-        gen = engine.run_turn(user_text, stream=use_stream)
+        gen = engine.run_turn(user_text, stream=use_stream, no_user_context=args.no_user_context)
         event = next(gen)
         while True:
             print_event(event, use_stream=use_stream)
@@ -220,6 +221,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--apply-branch",
         action="store_true",
         help="--apply 時に studio/<session_id> ブランチを作成してからコミット",
+    )
+    parser.add_argument(
+        "--no-user-context",
+        action="store_true",
+        help="ユーザーコンテキスト（付録D）を今回のセッションでは注入しない",
     )
     parser.add_argument("--version", action="version", version=f"MultiRoleStudio {VERSION}")
     return parser

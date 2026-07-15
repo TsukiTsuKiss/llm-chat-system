@@ -82,9 +82,10 @@
 **Phase 4e 追補（チャット workflow UX）:** 組織連動プルダウン、未設定 workflow の `— 未設定` ラベルと案内欄、検証エラー詳細表示  
 **Phase 5a（セッション再開）:** チャットタブへ履歴再現、分岐 jsonl（`parent_session_id`）  
 **Phase 5b（議事録）:** jsonl → `minutes/<org>/<topic>.json` + `.md` 同時保存（開発中 `minutes/` は `.gitignore`）  
-**Phase 5c（成果物採用）:** `sandbox/session_<id>/` → 作業ツリー + Git 1コミット（dirty 時は中断）
+**Phase 5c（成果物採用）:** `sandbox/session_<id>/` → 作業ツリー + Git 1コミット（dirty 時は中断）  
+**Phase 5d-a（user_context）:** `my_context.md` 注入、Web トグル / CLI `--no-user-context`
 
-**未実装:** `workflow_bindings` フォーム（§8.4 残）、Zenn 草稿 など（design.md 9章）
+**未実装:** user_context 更新承認（5d-b）、`workflow_bindings` フォーム（§8.4 残）、開発セッションのコスト表示（§7.5・Phase 8）、Zenn 草稿 など（design.md 9章）
 
 #### セットアップ
 
@@ -151,6 +152,7 @@ python MultiRoleStudioWeb.py --org trio --port 7863
 | `--topic` | 指定時は**バッチ**（1 発完走）。省略時は対話（`q` で終了） |
 | `--apply` | sandbox 成果物を作業ツリーへ適用し Git コミット（§7.6） |
 | `--apply-branch` | `--apply` 時に `studio/<session_id>` ブランチを作成 |
+| `--no-user-context` | ユーザーコンテキストを注入しない（付録D） |
 | `--stream off` | ストリーミング OFF（推奨: 速度比較・ログ確認） |
 
 各 step 終了時に `[assistant/model] | 秒 | in=… out=… (api/estimate) | tok/s | $…` を表示する。

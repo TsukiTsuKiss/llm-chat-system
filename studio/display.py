@@ -4,6 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
+SPEAKER_EMOJIS = [
+    "🔵", "🟠", "🟢", "🟣",
+    "🔴", "🟡", "🟤", "⚫",
+    "🔷", "🚨", "💠", "🟩",
+]
+
 
 def format_step_metrics_line(payload: dict[str, Any]) -> str:
     assistant = payload.get("assistant") or "?"

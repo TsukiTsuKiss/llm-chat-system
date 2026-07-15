@@ -80,7 +80,7 @@ def build_replay_messages(
     *,
     talent_names: dict[str, str],
 ) -> list[dict[str, str]]:
-    from studio.web_ui import SPEAKER_EMOJIS, format_step_metrics_line
+    from studio.display import SPEAKER_EMOJIS, format_step_metrics_line
 
     messages: list[dict[str, str]] = []
     emoji_index = 0

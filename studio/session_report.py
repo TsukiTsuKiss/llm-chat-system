@@ -302,6 +302,8 @@ def generate_session_markdown(
         temperature = generation.get("temperature")
         lines.append(f"- **stream**: {stream}")
         lines.append(f"- **temperature**: {temperature}")
+        if "user_context" in generation:
+            lines.append(f"- **user_context**: {generation.get('user_context')}")
 
     talents = meta.get("talents") or {}
     if talents:

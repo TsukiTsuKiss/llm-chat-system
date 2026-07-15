@@ -9,7 +9,7 @@ from typing import Generator, Iterator
 import gradio as gr
 
 from studio.assistants import MockAssistant
-from studio.display import format_session_end_lines, format_step_metrics_line
+from studio.display import format_session_end_lines, format_step_metrics_line, SPEAKER_EMOJIS
 from studio.engine import EngineEvent, SessionEngine
 from studio.loader import SessionContext, load_session_context, read_attachment_files
 from studio.validation import StudioValidationError
@@ -18,12 +18,6 @@ from web_input_utils import normalize_uploaded_files
 DIRECT_WORKFLOW_LABEL = "直接送信（全ロール）"
 DIRECT_WORKFLOW_VALUE = ""
 UNCONFIGURED_WORKFLOW_LABEL_SUFFIX = " — 未設定"
-
-SPEAKER_EMOJIS = [
-    "🔵", "🟠", "🟢", "🟣",
-    "🔴", "🟡", "🟤", "⚫",
-    "🔷", "🚨", "💠", "🟩",
-]
 
 UIUpdate = tuple[list[dict[str, str]], str, bool, str, bool]
 
@@ -342,6 +336,7 @@ class WebSession:
     workflow_id: str | None = None
     stream: bool = True
     temperature: float = 0.7
+    user_context: bool = True
     engine: SessionEngine | None = None
     pending: PendingInteraction | None = None
     renderer: ChatEventRenderer = field(default_factory=ChatEventRenderer)
@@ -394,14 +389,21 @@ class WebSession:
         *,
         stream: bool,
         temperature: float,
+        user_context: bool = True,
     ) -> None:
         import time
 
         from studio.engine import EngineState, SessionEngine
         from studio.session_resume import ResumedSession
+        from studio.user_context import resolve_user_context
 
         if not isinstance(resumed, ResumedSession):
             raise TypeError("resumed must be ResumedSession")
+        uc_resolution = resolve_user_context(
+            ctx.root,
+            ctx.studio_config,
+            no_user_context=not user_context,
+        )
         self.reset_chat()
         self.org_id = resumed.org_id
         self.workflow_id = resumed.workflow_id
@@ -426,6 +428,8 @@ class WebSession:
             step_number=resumed.step_number,
             stream=stream,
             temperature=temperature,
+            user_context_enabled=uc_resolution.enabled,
+            user_context_text=uc_resolution.text,
             parent_session_id=resumed.parent_session_id,
             session_wall_start=time.perf_counter(),
         )
@@ -437,6 +441,7 @@ def apply_session_resume(
     *,
     stream: bool,
     temperature: float,
+    user_context: bool = True,
 ) -> tuple[
     WebSession,
     list[dict[str, str]],
@@ -455,7 +460,7 @@ def apply_session_resume(
     workflow_value = resumed.workflow_id or ""
     ctx = load_session_context(resumed.org_id, web.root, workflow_id=resumed.workflow_id)
     MockAssistant.reset()
-    web.resume_branch(resumed, ctx, stream=stream, temperature=temperature)
+    web.resume_branch(resumed, ctx, stream=stream, temperature=temperature, user_context=user_context)
     choices, wf_value = workflow_dropdown_for_org(web.root, resumed.org_id, workflow_value)
     talents = load_org_panel(web.root, resumed.org_id, wf_value)[0]
     status = (
@@ -579,10 +584,14 @@ def run_user_message(
     workflow_value: str,
     stream: bool,
     temperature: float,
+    user_context: bool = True,
     attachment_context: str = "",
     attachment_names: list[str] | None = None,
 ) -> Generator[UIUpdate, None, None]:
     session.ensure_engine(org_id, workflow_value, stream, temperature)
+    session.stream = stream
+    session.temperature = temperature
+    session.user_context = user_context
     assert session.engine is not None
     session.renderer.add_user(display_text)
     yield (
@@ -599,6 +608,7 @@ def run_user_message(
         attachments=attachment_names,
         stream=stream,
         temperature=temperature,
+        no_user_context=not user_context,
     )
     yield from process_events(session, generator)
 
@@ -611,6 +621,7 @@ def handle_chat_submit(
     workflow_value: str,
     stream: bool,
     temperature: float,
+    user_context: bool = True,
     files=None,
     upload_limits: dict[str, int] | None = None,
 ) -> Generator[UIUpdate, None, None] | UIUpdate:
@@ -668,6 +679,7 @@ def handle_chat_submit(
         workflow_value=workflow_value,
         stream=stream,
         temperature=temperature,
+        user_context=user_context,
         attachment_context=attachment_context,
         attachment_names=attachment_names or None,
     )

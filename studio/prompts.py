@@ -23,6 +23,8 @@ def build_system_prompt(
     org: dict[str, Any],
     org_id: str,
     talent_id: str,
+    *,
+    user_context_text: str | None = None,
 ) -> str:
     parts: list[str] = []
     if talent.get("personality"):
@@ -32,6 +34,9 @@ def build_system_prompt(
     mission_or_culture = org.get("mission") or org.get("culture")
     if mission_or_culture:
         parts.append(build_org_context(org, org_id))
+
+    if user_context_text:
+        parts.append(f"【ユーザーコンテキスト】\n{user_context_text}")
 
     common = org.get("common_directives") or []
     if common:

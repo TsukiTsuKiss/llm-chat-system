@@ -130,6 +130,7 @@ minutes/
 studio_config.json
 organizations/*/model_mapping.json
 user_context/
+!user_context/my_context.example.md
 user_context/index/
 
 # � サンドボックス実行環境
