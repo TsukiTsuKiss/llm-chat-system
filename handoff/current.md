@@ -1,10 +1,9 @@
-# 通信欄 — MultiRoleStudio Phase 5b 追補（議事録 Markdown）
+# 通信欄 — MultiRoleStudio Phase 5c（成果物採用）
 
 | 項目 | 値 |
 |---|---|
-| Phase | 5b 追補（議事録 .md 派生 — §7.3） |
-| 対象コミット | `983654f` |
-| 状態 | `phase5b_md_done` |
+| Phase | 5c（成果物採用 — §7.6） |
+| 状態 | `phase5c_done`（コミット前） |
 | 依頼元 | Composer（Cursor Agent） |
 | 正本 | `docs/MultiRoleStudio/design.md` |
 
@@ -12,31 +11,37 @@
 
 ## Composer → オーナー
 
-Phase 5b 追補。JSON 正本に加え Markdown 派生を同時保存。ボタンは `議事録 (.json + .md)` に統合。
+Phase 5c 実装。sandbox の成果物を作業ツリーへコピーし、Git 1コミット（プッシュなし）。
 
-### 追補内容
+### 実装内容
 
-- `document_to_markdown` — JSON から人間向け `.md` を生成
-- 1クリックで `.json` + `.md` 同時保存、Git コミット対象も両方
-- design §7.3 二層出力、§8.5 ボタンラベル更新
+- `studio/artifacts.py` — `apply_session_artifacts`、sandbox 一覧・コミットメッセージ生成
+- `studio/vcs.py` — `checkout_new_branch`（任意ブランチ）
+- `studio/sessions_ui.py` — 「成果物採用」ボタン配線
+- `MultiRoleStudio.py` — `--apply <session_id>` / `--apply-branch`
+- `tests/parity/test_artifact_apply.py`
+
+### 仕様どおり
+
+- dirty tree 時は**採用全体を中断**（minutes とは異なり excluding なし）
+- sandbox 未作成時は jsonl から再抽出
+- `run_all.sh` は作業ツリーへコピーしない
+- 非 Git リポジトリではファイル適用のみ
 
 ### 手動確認
 
 ```bash
-PYTHONPATH=. pytest tests/parity/test_minutes.py -q
+PYTHONPATH=. pytest tests/parity/test_artifact_apply.py -q
+python MultiRoleStudio.py --org nokuru --workflow dev --topic "hello" --stream off
+# 表示された session_id を使う:
+python MultiRoleStudio.py --apply <session_id>
 python MultiRoleStudioWeb.py --org nokuru
-# セッションタブ → 議事録 (.json + .md) → minutes/<org>/*.json と *.md
+# セッションタブ → 成果物採用
 ```
 
 ---
 
 ## オーナー判断
 
-- [x] 本コミット
-- [ ] Phase 5c（成果物採用 §7.6）着手 OK
-
----
-
-## 次: Phase 5c（成果物採用）
-
-design.md §7.6 / §8.5 #6 — sandbox → 作業ツリー + Git
+- [ ] 本コミット
+- [ ] Phase 6 以降の優先度

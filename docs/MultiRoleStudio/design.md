@@ -1476,7 +1476,7 @@ Gradio 起動・終了の共通仕様（8.6 節）に従う。
 - **Markdown レポート**: jsonl からその場生成（Mermaid フロー + 応答時間表 + 会話ログ）。ファイルとしては保存しない
 - **フロー図テーマ**: ライト / ダーク切替（Mermaid `themeVariables` + CSS フォールバック）。既定はダーク
 - **エクスポート**: `sessions/exports/<session_id>.md` に出力（`.gitignore` 対象）
-- **Phase 5 ボタン**: 再開・議事録（5a/5b 実装済み）、成果物採用（5c プレースホルダ）
+- **Phase 5 ボタン**: 再開・議事録（5a/5b 実装済み）、成果物採用（5c 実装済み）
 - **parallel フロー図**: JSONL の `step_metrics.phase_type`（`serial` / `parallel`）に基づき Mermaid で fork/sync 表示。
   Phase 4e 以前の jsonl には `phase_type` が無く serial 直列表示になる
 
@@ -1507,6 +1507,15 @@ Gradio 起動・終了の共通仕様（8.6 節）に従う。
 - **開発中 `.gitignore`**: `minutes/` はローカルのみ。リリース前に解除（7.3.1 節）。サンプルは `samples/`（10.5 節）
 - **ボタンラベル**: `議事録 (.json + .md)` / `エクスポート (.md)` / `成果物採用`
 - **トピック**: 常時入力欄は置かず、最初の user 入力からファイル名 slug を自動生成
+
+**Phase 5c 実装フィードバック（2026-07-15）:**
+
+- **成果物採用**: `sandbox/session_<id>/` → 作業ツリーへコピー + Git 1コミット（プッシュなし）
+- **dirty tree**: 採用**前**に未コミット変更があれば全体中断（議事録とは異なり excluding なし）
+- **sandbox 未作成時**: jsonl から再抽出してから適用
+- **除外**: `run_all.sh` は sandbox 検証用のため作業ツリーへコピーしない
+- **CLI**: `--apply <session_id>` / 任意 `--apply-branch`（`studio/<session_id>`）
+- **UI**: Git 成否は message に載せない（議事録と同型）
 
 ### 8.4 設定編集タブ
 

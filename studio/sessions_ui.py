@@ -8,6 +8,7 @@ from typing import Any
 
 import gradio as gr
 
+from studio.artifacts import apply_session_artifacts
 from studio.minutes import save_minutes_from_session
 from studio.session_report import (
     FlowTheme,
@@ -59,7 +60,8 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
                 "`sessions/*.jsonl` の一覧表示、Markdown レポート閲覧、エクスポート（§8.5）。"
                 " 下段は **JSONL から生成したレポート**（生ログではありません）。"
                 " **再開** は分岐セッションとしてチャットタブへ読み込みます（§7.2）。"
-                " 議事録・採用は Phase 5b/5c。"
+                " **議事録** は JSON 正本 + Markdown 派生（§7.3）。"
+                " **成果物採用** は sandbox → 作業ツリー + Git コミット（§7.6）。"
             )
             with gr.Row():
                 session_dd = gr.Dropdown(
@@ -207,8 +209,13 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
             return result.message
         return f"**議事録** — {result.message}"
 
-    def phase5_notice(feature: str) -> str:
-        return f"**{feature}** は Phase 5 で実装予定です（design.md §8.5 / 9.1）。"
+    def on_adopt(session_id: str | None):
+        if not session_id:
+            return "セッションを選択してください"
+        result = apply_session_artifacts(root, session_id, commit=True)
+        if not result.ok:
+            return result.message
+        return f"**成果物採用** — {result.message}"
 
     refresh_btn.click(
         on_refresh,
@@ -258,6 +265,7 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
         outputs=[session_msg],
     )
     adopt_btn.click(
-        lambda: phase5_notice("成果物採用"),
+        on_adopt,
+        inputs=[session_dd],
         outputs=[session_msg],
     )

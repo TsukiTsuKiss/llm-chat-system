@@ -1,11 +1,18 @@
-"""Artifact extraction from session steps (design.md 7.5)."""
+"""Artifact extraction from session steps (design.md 7.5) and apply (7.6)."""
 
 from __future__ import annotations
 
 import re
+import shutil
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from studio.logging import StepMetrics, steps_from_jsonl
+from studio.session_report import read_jsonl, session_log_path
+from studio.vcs import GitResult, checkout_new_branch, commit_paths, has_uncommitted_changes, is_git_repo
+
+SANDBOX_SKIP_FILES = frozenset({"run_all.sh"})
 
 CODE_BLOCK_RE = re.compile(r"```(\w+)?\n(.*?)```", re.DOTALL)
 FILENAME_LINE_RE = re.compile(r"^ファイル名:\s*(\S+)\s*$")
@@ -259,3 +266,115 @@ def save_session_artifacts(
             lines.append("")
     run_script.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
     return session_dir
+
+
+@dataclass(frozen=True)
+class ApplyArtifactsResult:
+    ok: bool
+    message: str
+    paths: list[Path] | None = None
+    git: GitResult | None = None
+
+
+def sandbox_session_dir(root: Path, session_id: str) -> Path:
+    return root / "sandbox" / f"session_{session_id}"
+
+
+def list_sandbox_artifact_files(session_dir: Path) -> list[Path]:
+    if not session_dir.is_dir():
+        return []
+    files: list[Path] = []
+    for path in sorted(session_dir.rglob("*")):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(session_dir).as_posix()
+        if rel in SANDBOX_SKIP_FILES:
+            continue
+        if _safe_relative_path(rel) is None:
+            continue
+        files.append(path)
+    return files
+
+
+def _first_user_input(records: list[dict[str, Any]]) -> str:
+    for record in records:
+        if record.get("type") == "user_input":
+            return str(record.get("text") or "").strip()
+    return ""
+
+
+def apply_commit_message(session_id: str, records: list[dict[str, Any]]) -> str:
+    topic = _first_user_input(records)
+    summary = (topic[:80] or session_id).replace("\n", " ")
+    return f"apply: {summary} (session {session_id})"
+
+
+def _ensure_sandbox_artifacts(root: Path, session_id: str) -> Path | None:
+    session_dir = sandbox_session_dir(root, session_id)
+    if list_sandbox_artifact_files(session_dir):
+        return session_dir
+    log_path = session_log_path(root, session_id)
+    if not log_path.is_file():
+        return None
+    return save_session_artifacts(root, session_id, log_path=log_path)
+
+
+def apply_session_artifacts(
+    root: Path,
+    session_id: str,
+    *,
+    commit: bool = True,
+    new_branch: str | None = None,
+) -> ApplyArtifactsResult:
+    session_id = (session_id or "").strip()
+    if not session_id:
+        return ApplyArtifactsResult(False, "session_id が未指定です")
+
+    log_path = session_log_path(root, session_id)
+    if not log_path.is_file():
+        return ApplyArtifactsResult(False, f"セッション `{session_id}` が見つかりません")
+
+    root = root.resolve()
+    if is_git_repo(root) and has_uncommitted_changes(root):
+        return ApplyArtifactsResult(
+            False,
+            "作業ツリーに未コミットの変更があります。採用の前にコミットまたは退避してください。",
+        )
+
+    session_dir = _ensure_sandbox_artifacts(root, session_id)
+    if session_dir is None:
+        return ApplyArtifactsResult(False, f"セッション `{session_id}` の sandbox を用意できません")
+
+    source_files = list_sandbox_artifact_files(session_dir)
+    if not source_files:
+        return ApplyArtifactsResult(False, f"セッション `{session_id}` に採用可能な成果物がありません")
+
+    git_result: GitResult | None = None
+    if commit and new_branch and is_git_repo(root):
+        git_result = checkout_new_branch(root, new_branch)
+        if not git_result.ok:
+            return ApplyArtifactsResult(False, git_result.message, git=git_result)
+
+    dest_paths: list[Path] = []
+    rel_paths: list[str] = []
+    for src in source_files:
+        rel = src.relative_to(session_dir).as_posix()
+        dest = root / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dest)
+        dest_paths.append(dest)
+        rel_paths.append(rel)
+
+    message = f"{len(rel_paths)} 件を作業ツリーへ適用しました（`{', '.join(rel_paths[:5])}`"
+    if len(rel_paths) > 5:
+        message += f" … +{len(rel_paths) - 5}"
+    message += "）"
+
+    if commit and is_git_repo(root):
+        records = read_jsonl(log_path)
+        commit_msg = apply_commit_message(session_id, records)
+        git_result = commit_paths(root, dest_paths, commit_msg)
+    elif commit and not is_git_repo(root):
+        git_result = GitResult(False, "Git リポジトリではないためコミットをスキップしました")
+
+    return ApplyArtifactsResult(True, message, paths=dest_paths, git=git_result)

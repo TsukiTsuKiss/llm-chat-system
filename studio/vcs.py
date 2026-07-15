@@ -74,7 +74,7 @@ def commit_paths(
     if has_uncommitted_changes(root, excluding=set(rel_paths)):
         return GitResult(
             False,
-            "作業ツリーに未コミットの変更があります。議事録保存の前にコミットまたは退避してください。",
+            "作業ツリーに未コミットの変更があります。コミットまたは退避してください。",
         )
 
     for rel in rel_paths:
@@ -92,3 +92,22 @@ def commit_paths(
     show = _run_git(root, "rev-parse", "--short", "HEAD")
     commit_hash = show.stdout.strip() if show.returncode == 0 else None
     return GitResult(True, f"Git コミットを作成しました（{commit_hash or 'HEAD'}）", commit_hash)
+
+
+def checkout_new_branch(root: Path, branch: str) -> GitResult:
+    root = root.resolve()
+    branch = branch.strip()
+    if not branch:
+        return GitResult(False, "ブランチ名が空です")
+    if not is_git_repo(root):
+        return GitResult(False, "Git リポジトリではないためブランチを作成できません")
+    if has_uncommitted_changes(root):
+        return GitResult(
+            False,
+            "作業ツリーに未コミットの変更があるためブランチを作成できません",
+        )
+    result = _run_git(root, "checkout", "-b", branch)
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip()
+        return GitResult(False, detail or "git checkout -b に失敗しました")
+    return GitResult(True, f"ブランチ `{branch}` を作成しました")

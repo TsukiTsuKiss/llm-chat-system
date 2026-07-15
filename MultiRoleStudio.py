@@ -7,6 +7,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from studio.artifacts import apply_session_artifacts
 from studio.assistants import MockAssistant
 from studio.bindings import org_has_human_talent, workflow_participating_talent_ids
 from studio.display import format_session_end_lines, format_step_metrics_line
@@ -181,6 +182,21 @@ def run_interactive(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_apply(args: argparse.Namespace) -> int:
+    root = Path(args.root)
+    branch = f"studio/{args.apply}" if args.apply_branch else None
+    result = apply_session_artifacts(
+        root,
+        args.apply,
+        commit=True,
+        new_branch=branch,
+    )
+    print(result.message)
+    if result.git and not result.git.ok and result.ok:
+        print(result.git.message, file=sys.stderr)
+    return 0 if result.ok else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="MultiRoleStudio CLI")
     parser.add_argument("--org", default="solo", help="組織 ID")
@@ -194,6 +210,17 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="ストリーミング ON/OFF（未指定時は studio_config）",
     )
+    parser.add_argument(
+        "--apply",
+        metavar="SESSION_ID",
+        default=None,
+        help="sandbox 成果物を作業ツリーへ適用し Git コミット（7.6 節）",
+    )
+    parser.add_argument(
+        "--apply-branch",
+        action="store_true",
+        help="--apply 時に studio/<session_id> ブランチを作成してからコミット",
+    )
     parser.add_argument("--version", action="version", version=f"MultiRoleStudio {VERSION}")
     return parser
 
@@ -205,6 +232,9 @@ def main(argv: list[str] | None = None) -> int:
         args.stream = True
     elif args.stream == "off":
         args.stream = False
+
+    if args.apply:
+        return run_apply(args)
 
     if args.topic:
         return run_batch(args)

@@ -81,9 +81,10 @@
 **Phase 4e（セッションタブ）:** 一覧表示、JSONL から Markdown レポート生成・閲覧、エクスポート、parallel フロー図  
 **Phase 4e 追補（チャット workflow UX）:** 組織連動プルダウン、未設定 workflow の `— 未設定` ラベルと案内欄、検証エラー詳細表示  
 **Phase 5a（セッション再開）:** チャットタブへ履歴再現、分岐 jsonl（`parent_session_id`）  
-**Phase 5b（議事録）:** jsonl → `minutes/<org>/<topic>.json` + `.md` 同時保存（開発中 `minutes/` は `.gitignore`）
+**Phase 5b（議事録）:** jsonl → `minutes/<org>/<topic>.json` + `.md` 同時保存（開発中 `minutes/` は `.gitignore`）  
+**Phase 5c（成果物採用）:** `sandbox/session_<id>/` → 作業ツリー + Git 1コミット（dirty 時は中断）
 
-**未実装:** 成果物採用（Phase 5c）、`workflow_bindings` フォーム（§8.4 残）、Zenn 草稿 など（design.md 9章）
+**未実装:** `workflow_bindings` フォーム（§8.4 残）、Zenn 草稿 など（design.md 9章）
 
 #### セットアップ
 
@@ -120,6 +121,11 @@ python MultiRoleStudio.py --org nokuru --workflow dev --topic "hello 関数" --s
 cd sandbox/session_<session_id>
 ./run_all.sh    # pytest と __main__ 付きスクリプトを順に実行（PYTHONPATH=. 済み）
 
+# --- Phase 5c: 成果物採用（作業ツリーへ反映 + Git 1コミット）---
+python MultiRoleStudio.py --apply <session_id>
+python MultiRoleStudio.py --apply <session_id> --apply-branch   # studio/<session_id> ブランチでコミット
+# Web: セッションタブ → 「成果物採用」。dirty tree 時は中断（§7.6）
+
 # --- テスト（API キー不要）---
 python -m pytest tests/parity/ -v
 
@@ -143,6 +149,8 @@ python MultiRoleStudioWeb.py --org trio --port 7863
 | `--org` | 組織 ID（`solo`, `trio` 等） |
 | `--workflow` | 省略時は**直接送信**。`discussion` / `discussion_sourced` / `quiz` / `meeting` / `dev` |
 | `--topic` | 指定時は**バッチ**（1 発完走）。省略時は対話（`q` で終了） |
+| `--apply` | sandbox 成果物を作業ツリーへ適用し Git コミット（§7.6） |
+| `--apply-branch` | `--apply` 時に `studio/<session_id>` ブランチを作成 |
 | `--stream off` | ストリーミング OFF（推奨: 速度比較・ログ確認） |
 
 各 step 終了時に `[assistant/model] | 秒 | in=… out=… (api/estimate) | tok/s | $…` を表示する。
