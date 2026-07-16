@@ -52,17 +52,25 @@ class MockAssistant:
             cls._temp_error_used = True
             raise MockTemperatureError("temperature is not supported for mock model")
 
-        marker = os.environ.get("STUDIO_MOCK_MARKER")
-        if marker and ("集約" in action or "判断" in action or "終了条件" in action):
-            text = f"MOCK:{talent_id}:step{step_number} {marker}了"
-        elif os.environ.get("STUDIO_MOCK_JUDGE_EXIT") == "1" and "【判定】" in action:
+        text: str | None = None
+        loop_marker = os.environ.get("STUDIO_MOCK_MARKER")
+        if loop_marker and ("集約" in action or "判断" in action or "終了条件" in action):
+            text = f"MOCK:{talent_id}:step{step_number} {loop_marker}了"
+        interrupt_marker = os.environ.get("STUDIO_MOCK_INTERRUPT")
+        if text is None and interrupt_marker and (
+            os.environ.get("STUDIO_MOCK_INTERRUPT_ALWAYS") == "1"
+            or "確認" in action
+            or "質問" in action
+        ):
+            text = f"MOCK:{talent_id}:step{step_number} ご確認ください {interrupt_marker}"
+        elif text is None and os.environ.get("STUDIO_MOCK_JUDGE_EXIT") == "1" and "【判定】" in action:
             text = "【判定】終了\nMOCK: judge OK"
-        elif os.environ.get("STUDIO_MOCK_EMIT_CODE") == "1":
+        elif text is None and os.environ.get("STUDIO_MOCK_EMIT_CODE") == "1":
             text = (
                 f'MOCK:{talent_id}:step{step_number}\n'
                 "ファイル名: hello.py\n```python\nprint('hello')\n```"
             )
-        else:
+        elif text is None:
             text = f"MOCK:{talent_id}:step{step_number}"
         if stream and on_chunk:
             for ch in text:

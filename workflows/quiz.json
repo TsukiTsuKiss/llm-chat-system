@@ -1,6 +1,7 @@
 {
   "name": "クイズ",
   "description": "出題 → 全員並列回答 → 採点・講評",
+  "interrupt_on": "【ユーザー確認】",
   "slots": {
     "quizmaster": {
       "description": "出題者・採点者",
@@ -17,7 +18,7 @@
       "steps": [
         {
           "slot": "quizmaster",
-          "action": "問題を出題し、回答形式を確認する"
+          "action": "問題を出題し、回答形式を確認する。ユーザーへ確認が必要なときは末尾に【ユーザー確認】を付ける"
         }
       ]
     },

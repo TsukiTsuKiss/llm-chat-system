@@ -85,9 +85,10 @@
 **Phase 5c（成果物採用）:** `sandbox/session_<id>/` → 作業ツリー + Git 1コミット（dirty 時は中断）  
 **Phase 5d-a（user_context）:** `my_context.md` 注入、Web トグル / CLI `--no-user-context`  
 **Phase 5d-b（user_context 更新）:** 更新案生成・採用、要約（CLI / Web）  
-**Phase 4f 追補（workflow_bindings フォーム）:** 組織タブでスロット割当 UI（§8.4）。保存は「組織 config を保存」
+**Phase 4f 追補（workflow_bindings フォーム）:** 組織タブでスロット割当 UI（§8.4）。保存は「組織 config を保存」  
+**Phase 5e（ユーザー割り込み）:** workflow `interrupt_on` マーカー検出 → `await_text`（§6.7）。`quiz.json` にサンプル付与
 
-**未実装:** ユーザー割り込み（§6.7）、開発セッションのコスト表示（§7.5・Phase 8）、Zenn 草稿 など（design.md 9章）
+**未実装:** サンプル整備 / 旧版移行（§9.2）、開発セッションのコスト表示（§7.5・Phase 8）、Zenn 草稿 など（design.md 9章）
 
 #### セットアップ
 

@@ -12,6 +12,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from studio.assistants import invoke_llm_step, invoke_mock_step
 from studio.bindings import build_direct_bindings, build_direct_workflow, expand_step_to_talents
 from studio.history import ConversationHistory, RoleHistories
+from studio.interrupt import USER_INTERRUPT_DISPLAY, USER_INTERRUPT_TALENT, matched_interrupt_marker, resolve_interrupt_markers
 from studio.loader import SessionContext
 from studio.logging import SessionLogger, StepMetrics
 from studio.prompts import build_system_prompt, build_user_message
@@ -204,6 +205,43 @@ class SessionEngine:
 
     def _speaker_label(self, talent_id: str) -> str:
         return self.ctx.talents.get(talent_id, {}).get("name", talent_id)
+
+    def _handle_user_interrupt(
+        self,
+        state: EngineState,
+        outcome: StepOutcome,
+    ) -> Iterator[EngineEvent, None, str | None]:
+        workflow, _ = self._resolve_workflow()
+        markers = resolve_interrupt_markers(workflow, self.ctx.org)
+        marker = matched_interrupt_marker(outcome.text, markers)
+        if not marker:
+            return None
+
+        prior_speaker = self._speaker_label(outcome.talent_id)
+        payload = {
+            "talent_id": USER_INTERRUPT_TALENT,
+            "display_name": USER_INTERRUPT_DISPLAY,
+            "interrupt": True,
+            "marker": marker,
+            "prior_text": outcome.text,
+            "prior_speaker": prior_speaker,
+            "action": f"{prior_speaker} からの確認に答えてください",
+        }
+        response = yield EngineEvent("await_text", payload)
+        while not (response and str(response).strip()):
+            response = yield EngineEvent(
+                "await_text",
+                {**payload, "reprompt": True},
+            )
+        reply = str(response).strip()
+        assert state.logger is not None
+        state.logger.log_user_interrupt(
+            reply,
+            marker=marker,
+            prior_speaker=prior_speaker,
+            prior_text=outcome.text,
+        )
+        return reply
 
     def _run_phases(
         self,
@@ -522,6 +560,9 @@ class SessionEngine:
                 outcome = yield from gen
                 if outcome:
                     serial_prior.append((self._speaker_label(outcome.talent_id), outcome.text))
+                    interrupt_reply = yield from self._handle_user_interrupt(state, outcome)
+                    if interrupt_reply:
+                        serial_prior.append((USER_INTERRUPT_DISPLAY, interrupt_reply))
         turn_prior.extend(serial_prior)
 
     def _run_parallel_phase(
@@ -577,38 +618,6 @@ class SessionEngine:
                 for future in as_completed(futures):
                     outcomes.append(future.result())
 
-            outcomes.sort(key=lambda o: order.get(o.talent_id, 999))
-
-            for outcome in outcomes:
-                display_name = self.ctx.talents.get(outcome.talent_id, {}).get(
-                    "name", outcome.talent_id
-                )
-                yield EngineEvent(
-                    "step_start",
-                    {
-                        "talent_id": outcome.talent_id,
-                        "display_name": display_name,
-                        "action": outcome.action,
-                    },
-                )
-                yield EngineEvent(
-                    "step_done",
-                    {
-                        "talent_id": outcome.talent_id,
-                        "assistant": outcome.assistant,
-                        "model": outcome.model,
-                        "text": outcome.text,
-                        "elapsed": outcome.elapsed,
-                        "tokens": {
-                            "in": outcome.tokens_in,
-                            "out": outcome.tokens_out,
-                            "source": outcome.tokens_source,
-                        },
-                        "cost": outcome.cost,
-                        "stream": outcome.stream,
-                    },
-                )
-
         for talent_id, action in human_tasks:
             prior = turn_prior + [
                 (self._speaker_label(o.talent_id), o.text) for o in outcomes
@@ -626,7 +635,39 @@ class SessionEngine:
                 outcomes.append(outcome)
 
         outcomes.sort(key=lambda o: order.get(o.talent_id, 999))
-        turn_prior.extend((self._speaker_label(o.talent_id), o.text) for o in outcomes)
+        for outcome in outcomes:
+            display_name = self.ctx.talents.get(outcome.talent_id, {}).get(
+                "name", outcome.talent_id
+            )
+            yield EngineEvent(
+                "step_start",
+                {
+                    "talent_id": outcome.talent_id,
+                    "display_name": display_name,
+                    "action": outcome.action,
+                },
+            )
+            yield EngineEvent(
+                "step_done",
+                {
+                    "talent_id": outcome.talent_id,
+                    "assistant": outcome.assistant,
+                    "model": outcome.model,
+                    "text": outcome.text,
+                    "elapsed": outcome.elapsed,
+                    "tokens": {
+                        "in": outcome.tokens_in,
+                        "out": outcome.tokens_out,
+                        "source": outcome.tokens_source,
+                    },
+                    "cost": outcome.cost,
+                    "stream": outcome.stream,
+                },
+            )
+            turn_prior.append((self._speaker_label(outcome.talent_id), outcome.text))
+            interrupt_reply = yield from self._handle_user_interrupt(state, outcome)
+            if interrupt_reply:
+                turn_prior.append((USER_INTERRUPT_DISPLAY, interrupt_reply))
 
     def _run_step_sync(
         self,

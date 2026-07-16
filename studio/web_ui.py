@@ -313,6 +313,14 @@ class ChatEventRenderer:
 
         if event.type == "await_text":
             payload = event.payload
+            if payload.get("interrupt"):
+                speaker = payload.get("prior_speaker", "AI")
+                prior = payload.get("prior_text", "")
+                hint = f"**{speaker}** からの質問に答えてください。"
+                if prior:
+                    hint = f"{hint}\n\n--- 直前の発言 ---\n{prior}"
+                self._add_system_note(hint)
+                return "await_text"
             briefing = payload.get("briefing") or ""
             name = payload.get("display_name", payload.get("talent_id", "human"))
             hint = f"**{name}** として発言してください。"
@@ -516,6 +524,14 @@ def _idle_ui(session: WebSession) -> UIUpdate:
 
 def _pending_ui(session: WebSession, kind: str, event: EngineEvent) -> UIUpdate:
     if kind == "await_text":
+        if event.payload.get("interrupt"):
+            return (
+                session.renderer.copy_messages(),
+                "質問に答えてください",
+                False,
+                "回答を入力…",
+                False,
+            )
         name = event.payload.get("display_name", "human")
         return (
             session.renderer.copy_messages(),

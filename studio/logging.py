@@ -194,6 +194,24 @@ class SessionLogger:
             record["attachments"] = attachments
         self.write_line(record)
 
+    def log_user_interrupt(
+        self,
+        text: str,
+        *,
+        marker: str,
+        prior_speaker: str,
+        prior_text: str,
+    ) -> None:
+        self.write_line(
+            {
+                "type": "user_interrupt",
+                "text": text,
+                "marker": marker,
+                "prior_speaker": prior_speaker,
+                "prior_text": prior_text,
+            }
+        )
+
     def log_step(self, metrics: StepMetrics) -> None:
         self.steps.append(metrics)
         self.write_line(metrics.to_log_record())

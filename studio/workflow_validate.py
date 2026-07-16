@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
+from studio.interrupt import workflow_has_interrupt_on as _workflow_has_interrupt_on
 from studio.validation import StudioError, ValidationReport
+
+
+def workflow_has_interrupt_on(workflow: dict[str, Any]) -> bool:
+    return _workflow_has_interrupt_on(workflow)
 
 
 def workflow_has_user_exit(workflow: dict[str, Any]) -> bool:

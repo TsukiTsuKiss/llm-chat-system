@@ -1,33 +1,35 @@
-# 通信欄 — MultiRoleStudio workflow_bindings フォーム（§8.4）
+# 通信欄 — MultiRoleStudio ユーザー割り込み（§6.7）
 
 | 項目 | 値 |
 |---|---|
-| Phase | 4f 追補（Phase 5 残タスク 1） |
+| Phase | 5e（Phase 5 残タスク 2） |
 | 状態 | コミット待ち |
 | 依頼元 | Composer（Cursor Agent） |
-| 正本 | `docs/MultiRoleStudio/design.md` §8.4 / Phase 4e 追補 |
+| 正本 | `docs/MultiRoleStudio/design.md` §6.7 |
 
 ---
 
 ## Composer → オーナー
 
-`workflow_bindings` のスロット割当フォームを実装。組織タブの JSON 直編集を UI 化し、保存で `config.json` に反映。チャット workflow プルダウンも連動更新。
+workflow `interrupt_on` マーカー検出によるユーザー割り込みを実装。AI step 完了後に `await_text` で停止し、返答を `turn_prior` に載せて workflow を継続。
 
 ### 本コミットに含むもの
 
-- `studio/bindings_form.py` — 読込・正規化・ペイロード生成
-- `studio/settings_ui.py` — ラジオ / チェックボックス UI、`talent_ids` 連動
-- `tests/parity/test_bindings_form.py`（7件 PASS）
-- `docs/MultiRoleStudio/design.md` / `README.md` / `handoff/current.md`
+- `studio/interrupt.py` — マーカー解決・照合
+- `studio/engine.py` — step 後割り込み・`user_interrupt` ログ
+- `schemas/workflow.schema.json` — `interrupt_on`
+- `workflows/quiz.json` — サンプル宣言 + action 追記
+- Web / CLI 表示、`--topic` バッチ拒否（interrupt_on 時）
+- `tests/parity/test_user_interrupt.py`（6件 PASS）
 
-### 手動確認済み（オーナー）
+### 使い方
 
-- `nokuru` で `quiz` スロット割当 → 「組織 config を保存」→ チャットで `quiz` 選択可
-- `config.json` の操作差分はコミット対象外（破棄済み）
+1. workflow JSON に `"interrupt_on": "【ユーザー確認】"` を追加
+2. 人材の action / common_directives で、ユーザーへ聞くとき末尾にマーカーを付けるよう指示
+3. AI 応答にマーカーが含まれるとチャットが一時停止し、回答入力を求める
 
 ---
 
 ## 次: Phase 5 残
 
-- ユーザー割り込み（§6.7・マーカー方式）
 - サンプル整備 / 旧版移行（§9.2）

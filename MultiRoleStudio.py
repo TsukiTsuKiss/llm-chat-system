@@ -19,7 +19,7 @@ from studio.user_context_update import (
     save_summary_from_context,
 )
 from studio.validation import StudioError, StudioValidationError
-from studio.workflow_validate import workflow_has_user_exit
+from studio.workflow_validate import workflow_has_interrupt_on, workflow_has_user_exit
 
 VERSION = "0.3.0"
 
@@ -60,9 +60,16 @@ def print_event(event: EngineEvent, *, use_stream: bool) -> None:
         print(f"❌ {event.payload['talent_id']}: {event.payload['error']}")
     elif event.type == "await_text":
         p = event.payload
-        print(f"\n[{p['display_name']} として発言]")
-        if p.get("briefing"):
-            print(p["briefing"])
+        if p.get("interrupt"):
+            speaker = p.get("prior_speaker", "AI")
+            print(f"\n[{speaker} からの質問]")
+            if p.get("prior_text"):
+                print(f"--- {p['prior_text']}")
+            print("[あなたの回答]")
+        else:
+            print(f"\n[{p['display_name']} として発言]")
+            if p.get("briefing"):
+                print(p["briefing"])
     elif event.type == "session_done":
         for line in format_session_end_lines(event.payload):
             print(line)
@@ -105,6 +112,21 @@ def validate_batch_mode(ctx, topic: str | None) -> None:
                     target="--topic",
                     message=(
                         f"ワークフロー '{wf_label}' は exit.type \"user\" を含むため"
+                        " --topic による無人実行はできません"
+                    ),
+                )
+            ]
+        )
+
+    if ctx.workflow and workflow_has_interrupt_on(ctx.workflow):
+        wf_label = ctx.workflow_id or "ワークフロー"
+        raise StudioValidationError(
+            [
+                StudioError(
+                    code="E402",
+                    target="--topic",
+                    message=(
+                        f"ワークフロー '{wf_label}' は interrupt_on を含むため"
                         " --topic による無人実行はできません"
                     ),
                 )
