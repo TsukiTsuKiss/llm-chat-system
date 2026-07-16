@@ -83,9 +83,11 @@
 **Phase 5a（セッション再開）:** チャットタブへ履歴再現、分岐 jsonl（`parent_session_id`）  
 **Phase 5b（議事録）:** jsonl → `minutes/<org>/<topic>.json` + `.md` 同時保存（開発中 `minutes/` は `.gitignore`）  
 **Phase 5c（成果物採用）:** `sandbox/session_<id>/` → 作業ツリー + Git 1コミット（dirty 時は中断）  
-**Phase 5d-a（user_context）:** `my_context.md` 注入、Web トグル / CLI `--no-user-context`
+**Phase 5d-a（user_context）:** `my_context.md` 注入、Web トグル / CLI `--no-user-context`  
+**Phase 5d-b（user_context 更新）:** 更新案生成・採用、要約（CLI / Web）  
+**Phase 4f 追補（workflow_bindings フォーム）:** 組織タブでスロット割当 UI（§8.4）。保存は「組織 config を保存」
 
-**未実装:** user_context 更新承認（5d-b）、`workflow_bindings` フォーム（§8.4 残）、開発セッションのコスト表示（§7.5・Phase 8）、Zenn 草稿 など（design.md 9章）
+**未実装:** ユーザー割り込み（§6.7）、開発セッションのコスト表示（§7.5・Phase 8）、Zenn 草稿 など（design.md 9章）
 
 #### セットアップ
 

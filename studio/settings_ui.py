@@ -25,6 +25,14 @@ from studio.config_store import (
     load_config,
     save_config,
 )
+from studio.bindings_form import (
+    BindingSlotSpec,
+    build_bindings_payload,
+    load_binding_slot_specs,
+    normalize_bindings_state,
+    patch_bindings_slot,
+    prune_bindings_state,
+)
 from studio.mapping_form import (
     build_mapping_payload,
     merge_mapping_for_talents,
@@ -73,6 +81,13 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
     org_ids = list_configs("organization", root)
     wf_ids = list_configs("workflow", root)
     assistants_catalog = load_assistants_catalog(root)
+    binding_specs = load_binding_slot_specs(root)
+    binding_row_keys: list[tuple[str, str]] = [
+        (spec.workflow_id, spec.slot_name) for spec in binding_specs
+    ]
+    workflows_by_id = {
+        wf_id: load_config("workflow", wf_id, root) for wf_id in list_configs("workflow", root)
+    }
 
     with gr.Tab("⚙️ 設定編集"):
         with gr.Column(elem_classes=["studio-settings-panel"]):
@@ -138,11 +153,34 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
                         choices=talent_ids,
                         value=talent_ids[:1] if talent_ids else [],
                     )
-                    org_bindings_json = gr.Textbox(
-                        label="workflow_bindings（JSON）",
-                        lines=6,
-                        placeholder='{"discussion": {"participant": ["solo_bot"]}}',
+                    org_bindings_state = gr.State({})
+
+                    binding_rows: dict[tuple[str, str], tuple[Any, Any, BindingSlotSpec]] = {}
+                    gr.Markdown(
+                        "**workflow_bindings**（スロット割当）\n\n"
+                        "単一スロットのワークフローは省略可（`talent_ids` 全員が自動割当）。"
+                        "複数スロットは各スロットへの割当が必須です。"
+                        "変更後は下の **組織 config を保存** で `organizations/<id>/config.json` に書き込みます。"
                     )
+                    seen_workflows: list[str] = []
+                    for spec in binding_specs:
+                        if spec.workflow_id not in seen_workflows:
+                            seen_workflows.append(spec.workflow_id)
+                            optional = (
+                                " — 省略可（自動割当）"
+                                if not spec.multi_slot
+                                else " — 割当必須"
+                            )
+                            gr.Markdown(f"**{spec.workflow_id}** — {spec.workflow_name}{optional}")
+                        count_label = "1人" if spec.count == "1" else "1人以上"
+                        desc = f" — {spec.description}" if spec.description else ""
+                        label = f"{spec.slot_name}{desc}（{count_label}）"
+                        if spec.count == "1":
+                            ctrl = gr.Radio(label=label, choices=[], value=None, interactive=True)
+                        else:
+                            ctrl = gr.CheckboxGroup(label=label, choices=[], value=[], interactive=True)
+                        binding_rows[(spec.workflow_id, spec.slot_name)] = (ctrl, spec)
+
                     org_directives_json = gr.Textbox(
                         label="common_directives / role_directives（JSON）",
                         lines=6,
@@ -227,6 +265,48 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
             state.setdefault(talent_id, normalize_mapping_entry(None))
         return state, order
 
+    def _bindings_row_output_list() -> list:
+        return [binding_rows[key][0] for key in binding_row_keys]
+
+    def _noop_bindings_row_updates() -> list:
+        return [gr.update()] * len(binding_row_keys)
+
+    def _bindings_row_updates(selected: list[str], bindings_state: dict) -> list:
+        updates: list = []
+        for key in binding_row_keys:
+            spec = binding_rows[key][1]
+            wf_binding = (bindings_state or {}).get(spec.workflow_id, {})
+            assigned = [
+                talent_id
+                for talent_id in wf_binding.get(spec.slot_name, [])
+                if talent_id in (selected or [])
+            ]
+            choices = list(selected or [])
+            if spec.count == "1":
+                updates.append(
+                    gr.update(
+                        choices=choices,
+                        value=assigned[0] if assigned else None,
+                    )
+                )
+            else:
+                updates.append(gr.update(choices=choices, value=assigned))
+        return updates
+
+    def _empty_org_binding_fields():
+        empty_state = normalize_bindings_state({}, binding_specs)
+        return empty_state, *_bindings_row_updates([], empty_state)
+
+    def _refresh_org_dependent_rows(
+        selected: list[str],
+        mapping_state: dict,
+        bindings_state: dict,
+    ) -> list:
+        return [
+            *_mapping_row_updates(selected, mapping_state),
+            *_bindings_row_updates(selected, bindings_state),
+        ]
+
     def _mapping_row_output_list() -> list:
         outputs: list = []
         for talent_id in mapping_row_ids:
@@ -261,7 +341,7 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
         return updates
 
     def _empty_org_mapping_fields():
-        return {}, [], *_mapping_row_updates([], {})
+        return {}, [], *_refresh_org_dependent_rows([], {}, {})
 
     def _make_assistant_handler(talent_id: str):
         def handler(assistant_name: str, state: dict):
@@ -314,6 +394,26 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
             _make_model_handler(_tid),
             inputs=[model_dd, org_mapping_state],
             outputs=[org_mapping_state, org_mapping_note],
+        )
+
+    def _make_binding_handler(workflow_id: str, slot_name: str, count: str):
+        def handler(value, state: dict):
+            return patch_bindings_slot(
+                state,
+                workflow_id,
+                slot_name,
+                value,
+                count=count,
+            )
+
+        return handler
+
+    for key in binding_row_keys:
+        ctrl, spec = binding_rows[key]
+        ctrl.change(
+            _make_binding_handler(spec.workflow_id, spec.slot_name, spec.count),
+            inputs=[ctrl, org_bindings_state],
+            outputs=[org_bindings_state],
         )
 
     def _refresh_talent_choices(current: str | None = None):
@@ -404,12 +504,16 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
 
     def load_org(org_id: str):
         if not org_id:
-            base = ("", "", "", [], "{}", "{}", "", {}, [], "")
+            base = ("", "", "", [], {}, "{}", "", {}, [], "")
         else:
             data = load_config("organization", org_id, root)
             mapping = load_config("model_mapping", "", root, org_id=org_id)
             talent_ids_selected = data.get("talent_ids") or []
             merged, order = _mapping_load_bundle(talent_ids_selected, mapping)
+            bindings = normalize_bindings_state(
+                data.get("workflow_bindings") or {},
+                binding_specs,
+            )
             extra = {
                 "common_directives": data.get("common_directives", []),
                 "role_directives": data.get("role_directives", {}),
@@ -419,7 +523,7 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
                 data.get("mission", ""),
                 _list_to_lines(data.get("culture")),
                 talent_ids_selected,
-                json.dumps(data.get("workflow_bindings") or {}, ensure_ascii=False, indent=2),
+                bindings,
                 json.dumps(extra, ensure_ascii=False, indent=2),
                 data.get("default_workflow") or "",
                 merged,
@@ -433,7 +537,7 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
         mission: str,
         culture: str,
         talent_ids_selected: list[str],
-        bindings_json: str,
+        bindings_state: dict,
         directives_json: str,
         default_wf: str,
         talent_order: list[str],
@@ -454,10 +558,11 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
         culture_list = _lines_to_list(culture)
         if culture_list:
             config["culture"] = culture_list
-        try:
-            bindings = json.loads(bindings_json or "{}")
-        except json.JSONDecodeError as exc:
-            return None, f"workflow_bindings JSON エラー: {exc}"
+        bindings = build_bindings_payload(
+            bindings_state,
+            config["talent_ids"],
+            workflows_by_id,
+        )
         if bindings:
             config["workflow_bindings"] = bindings
         try:
@@ -472,10 +577,26 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
             config["default_workflow"] = str(default_wf).strip()
         return config, ""
 
-    def save_org(org_id: str, chat_wf: str, mapping_state: dict, talent_order: list[str], *fields):
+    def save_org(
+        org_id: str,
+        chat_wf: str,
+        mapping_state: dict,
+        talent_order: list[str],
+        *fields,
+    ):
         config, err = _build_org_config(*fields, talent_order)
         if config is None:
-            return err, gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), *_noop_row_updates()
+            return (
+                err,
+                gr.update(),
+                gr.update(),
+                gr.update(),
+                gr.update(),
+                gr.update(),
+                gr.update(),
+                *_noop_row_updates(),
+                *_noop_bindings_row_updates(),
+            )
         result = save_config("organization", org_id, config, root)
         orgs = list_configs("organization", root)
         org_upd = gr.update(
@@ -488,6 +609,10 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
         if result.ok:
             order = list(config["talent_ids"])
             state = _sync_mapping_state(order, mapping_state, order)[0]
+            bindings = normalize_bindings_state(
+                config.get("workflow_bindings") or {},
+                binding_specs,
+            )
             return (
                 result.message,
                 org_upd,
@@ -495,16 +620,28 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
                 talents_text,
                 state,
                 order,
+                bindings,
                 *_mapping_row_updates(order, state),
+                *_bindings_row_updates(order, bindings),
             )
-        return result.message, org_upd, wf_upd, talents_text, gr.update(), gr.update(), *_noop_row_updates()
+        return (
+            result.message,
+            org_upd,
+            wf_upd,
+            talents_text,
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            *_noop_row_updates(),
+            *_noop_bindings_row_updates(),
+        )
 
     org_fields = [
         org_name,
         org_mission,
         org_culture,
         org_talent_ids,
-        org_bindings_json,
+        org_bindings_state,
         org_directives_json,
         org_default_wf,
     ]
@@ -518,7 +655,9 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
             handles.talents_md,
             org_mapping_state,
             org_talent_ids_order,
+            org_bindings_state,
             *_mapping_row_output_list(),
+            *_bindings_row_output_list(),
         ],
     )
 
@@ -547,20 +686,31 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
         outputs=[org_msg, handles.talents_md, org_mapping_state, *_mapping_row_output_list()],
     )
 
-    def on_talent_ids_change(selected: list[str], mapping_state: dict, talent_order: list[str]):
-        return _sync_mapping_state(selected, mapping_state, talent_order)
+    def on_talent_ids_change(
+        selected: list[str],
+        mapping_state: dict,
+        talent_order: list[str],
+        bindings_state: dict,
+    ):
+        mapping_synced = _sync_mapping_state(selected, mapping_state, talent_order)
+        bindings_synced = prune_bindings_state(bindings_state, selected, binding_specs)
+        return (*mapping_synced, bindings_synced)
 
-    def refresh_mapping_rows(selected: list[str], mapping_state: dict):
-        return _mapping_row_updates(selected, mapping_state)
+    def refresh_org_dependent_rows(
+        selected: list[str],
+        mapping_state: dict,
+        bindings_state: dict,
+    ):
+        return _refresh_org_dependent_rows(selected, mapping_state, bindings_state)
 
     org_talent_ids.input(
         on_talent_ids_change,
-        inputs=[org_talent_ids, org_mapping_state, org_talent_ids_order],
-        outputs=[org_mapping_state, org_talent_ids_order],
+        inputs=[org_talent_ids, org_mapping_state, org_talent_ids_order, org_bindings_state],
+        outputs=[org_mapping_state, org_talent_ids_order, org_bindings_state],
     ).then(
-        refresh_mapping_rows,
-        inputs=[org_talent_ids, org_mapping_state],
-        outputs=_mapping_row_output_list(),
+        refresh_org_dependent_rows,
+        inputs=[org_talent_ids, org_mapping_state, org_bindings_state],
+        outputs=[*_mapping_row_output_list(), *_bindings_row_output_list()],
     )
 
     def on_org_create(new_id: str, initial_talent: str, name: str, chat_wf: str):
@@ -581,9 +731,25 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
                 chat_org_upd,
                 wf_upd,
                 *loaded,
-                *_mapping_row_updates(loaded[3], loaded[7]),
+                *_refresh_org_dependent_rows(loaded[3], loaded[7], loaded[4]),
             )
-        return (result.message, org_dd_upd, chat_org_upd, wf_upd, "", "", "", [], "{}", "{}", "", *_empty_org_mapping_fields())
+        empty_bindings = normalize_bindings_state({}, binding_specs)
+        return (
+            result.message,
+            org_dd_upd,
+            chat_org_upd,
+            wf_upd,
+            "",
+            "",
+            "",
+            [],
+            empty_bindings,
+            "{}",
+            "",
+            {},
+            [],
+            *_refresh_org_dependent_rows([], {}, empty_bindings),
+        )
 
     org_create_btn.click(
         on_org_create,
@@ -597,12 +763,13 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
             org_mission,
             org_culture,
             org_talent_ids,
-            org_bindings_json,
+            org_bindings_state,
             org_directives_json,
             org_default_wf,
             org_mapping_state,
             org_talent_ids_order,
             *_mapping_row_output_list(),
+            *_bindings_row_output_list(),
         ],
     )
 
@@ -613,6 +780,7 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
         org_dd_upd = gr.update(choices=orgs, value=next_org or None)
         chat_org_upd = org_dd_upd
         wf_upd = _chat_workflow_update(root, next_org, chat_wf)
+        empty_bindings = normalize_bindings_state({}, binding_specs)
         return (
             result.message,
             org_dd_upd,
@@ -622,10 +790,12 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
             "",
             "",
             [],
-            "{}",
+            empty_bindings,
             "{}",
             "",
-            *_empty_org_mapping_fields(),
+            {},
+            [],
+            *_refresh_org_dependent_rows([], {}, empty_bindings),
         )
 
     org_delete_btn.click(
@@ -640,12 +810,13 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
             org_mission,
             org_culture,
             org_talent_ids,
-            org_bindings_json,
+            org_bindings_state,
             org_directives_json,
             org_default_wf,
             org_mapping_state,
             org_talent_ids_order,
             *_mapping_row_output_list(),
+            *_bindings_row_output_list(),
         ],
     )
 
@@ -657,7 +828,7 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
             org_mission,
             org_culture,
             org_talent_ids,
-            org_bindings_json,
+            org_bindings_state,
             org_directives_json,
             org_default_wf,
             org_mapping_state,
@@ -665,9 +836,9 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
             org_msg,
         ],
     ).then(
-        refresh_mapping_rows,
-        inputs=[org_talent_ids, org_mapping_state],
-        outputs=_mapping_row_output_list(),
+        refresh_org_dependent_rows,
+        inputs=[org_talent_ids, org_mapping_state, org_bindings_state],
+        outputs=[*_mapping_row_output_list(), *_bindings_row_output_list()],
     )
 
     def load_workflow(wf_id: str):
@@ -727,11 +898,11 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
     ])
     demo.load(load_org, inputs=[org_id_dd], outputs=[
         org_name, org_mission, org_culture, org_talent_ids,
-        org_bindings_json, org_directives_json, org_default_wf,
+        org_bindings_state, org_directives_json, org_default_wf,
         org_mapping_state, org_talent_ids_order, org_msg,
     ]).then(
-        refresh_mapping_rows,
-        inputs=[org_talent_ids, org_mapping_state],
-        outputs=_mapping_row_output_list(),
+        refresh_org_dependent_rows,
+        inputs=[org_talent_ids, org_mapping_state, org_bindings_state],
+        outputs=[*_mapping_row_output_list(), *_bindings_row_output_list()],
     )
     demo.load(load_workflow, inputs=[wf_id_dd], outputs=[wf_json, wf_msg])
