@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from studio.assistants import MockAssistant
+from studio.assistants import MockAssistant, invoke_mock_step
 from studio.engine import SessionEngine, collect_events
 from studio.loader import load_session_context
 from studio.prompts import format_prior_responses
@@ -123,6 +123,28 @@ def test_quiz_serial_parallel_serial(trio_root: Path) -> None:
     parallel_steps = [e for e in events if e.type == "step_done" and e.payload["talent_id"] in parallel_ids]
     for step in parallel_steps:
         assert step.payload["stream"] is False
+
+
+def test_quiz_parallel_receives_turn_prior(
+    trio_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: list[tuple[str, str]] = []
+
+    def recording_invoke(talent_id: str, step_number: int, **kwargs: object) -> object:
+        captured.append((talent_id, str(kwargs.get("user_message", ""))))
+        return invoke_mock_step(talent_id, step_number, **kwargs)
+
+    monkeypatch.setattr("studio.engine.invoke_mock_step", recording_invoke)
+
+    MockAssistant.reset()
+    ctx = load_session_context("trio", trio_root, workflow_id="quiz")
+    collect_events(SessionEngine(ctx), "クイズ", stream=False)
+
+    parallel_msgs = [msg for tid, msg in captured if tid in {"beta", "gamma"}]
+    assert len(parallel_msgs) == 2
+    for msg in parallel_msgs:
+        assert "Alpha: MOCK:alpha:step1" in msg
+        assert "問題に回答する" in msg
 
 
 def test_quiz_binding_missing_reports_e301(trio_root: Path) -> None:

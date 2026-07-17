@@ -20,6 +20,10 @@
     "discussion_sourced": {
       "participant": ["hinata", "kaede"],
       "source_checker": ["satsuki"]
+    },
+    "quiz": {
+      "quizmaster": ["hinata"],
+      "answerer": ["satsuki", "kaede"]
     }
   },
   "common_directives": [

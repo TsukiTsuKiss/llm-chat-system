@@ -86,7 +86,8 @@
 **Phase 5d-a（user_context）:** `my_context.md` 注入、Web トグル / CLI `--no-user-context`  
 **Phase 5d-b（user_context 更新）:** 更新案生成・採用、要約（CLI / Web）  
 **Phase 4f 追補（workflow_bindings フォーム）:** 組織タブでスロット割当 UI（§8.4）。保存は「組織 config を保存」  
-**Phase 5e（ユーザー割り込み）:** workflow `interrupt_on` マーカー検出 → `await_text`（§6.7）。`quiz.json` にサンプル付与
+**Phase 5e（ユーザー割り込み）:** workflow `interrupt_on` マーカー検出 → `await_text`（§6.7）。`quiz.json` + nokuru バインディング例  
+**Phase 5e 追補:** 並列 answerer への `turn_prior` 伝播、割り込み返答のチャット表示、設定タブとチャットの組織/workflow 同期
 
 **未実装:** サンプル整備 / 旧版移行（§9.2）、開発セッションのコスト表示（§7.5・Phase 8）、Zenn 草稿 など（design.md 9章）
 
@@ -136,8 +137,20 @@ python -m pytest tests/parity/ -v
 # --- Phase 4: Web UI ---
 python MultiRoleStudioWeb.py --org solo          # チャット + 設定編集 + ファイル添付（port 7862）
 python MultiRoleStudioWeb.py --org trio --port 7863
+python MultiRoleStudioWeb.py --org nokuru      # quiz / meeting デモ（hinata, satsuki, kaede）
 # 終了: コンソールで q + Enter（design.md §8.6）
 ```
+
+**クイズ（Web UI）サンプル入力** — 組織 `nokuru`、ワークフロー `quiz`（詳細は design.md §6.7）:
+
+| 段階 | 例 |
+|---|---|
+| 初回 | `日本で2番目に面積の大きい都道府県は？` |
+| 割り込みを誘発 | `光の三原色は何？ 出題前に回答形式を確認して` |
+| 割り込み返答 | `選択肢4択でお願い` |
+| 割り込みなし | `月面着陸の年は？ 自由記述でそのまま出題して` |
+
+`quiz` は `interrupt_on` ありのため Web UI / 対話モードで試す（`--topic` バッチ不可）。
 
 `dev` ワークフローは implementer → reviewer → judge のループでコードを改善し、
 終了時に `studio/artifacts.py` がコードブロックを `sandbox/session_<id>/` へ抽出する。

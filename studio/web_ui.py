@@ -661,6 +661,14 @@ def handle_chat_submit(
                 f"{name} として発言…",
                 False,
             )
+        session.renderer.add_user(text)
+        yield (
+            session.renderer.copy_messages(),
+            "実行中…",
+            False,
+            "メッセージを入力…",
+            True,
+        )
         yield from resume_after_reply(session, text)
         return
 

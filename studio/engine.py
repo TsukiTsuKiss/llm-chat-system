@@ -516,6 +516,22 @@ class SessionEngine:
             cost=result.cost,
         )
 
+    def _interrupt_markers(self) -> list[str]:
+        workflow, _ = self._resolve_workflow()
+        return resolve_interrupt_markers(workflow, self.ctx.org)
+
+    def _inject_interrupt_action(self, action: str, markers: list[str]) -> str:
+        if not markers:
+            return action
+        marker = markers[0]
+        if marker in action and "割り込み" in action:
+            return action
+        return (
+            f"{action}\n\n"
+            f"（割り込み）ユーザーへ確認・質問するときは、"
+            f"応答の末尾に必ず「{marker}」を付けてください。"
+        )
+
     def _inject_marker_action(
         self,
         talent_id: str,
@@ -544,9 +560,11 @@ class SessionEngine:
         marker_text: str | None = None,
     ) -> Iterator[EngineEvent]:
         serial_prior: list[tuple[str, str]] = []
+        interrupt_markers = self._interrupt_markers()
         for step in phase.get("steps") or []:
             for talent_id, action in expand_step_to_talents(step, bindings):
                 action = self._inject_marker_action(talent_id, action, marker_target, marker_text)
+                action = self._inject_interrupt_action(action, interrupt_markers)
                 prior = turn_prior + serial_prior
                 gen = self._execute_step(
                     state,
@@ -581,9 +599,11 @@ class SessionEngine:
         if not tasks:
             return
 
+        interrupt_markers = self._interrupt_markers()
         ai_tasks: list[tuple[str, str]] = []
         human_tasks: list[tuple[str, str]] = []
         for talent_id, action in tasks:
+            action = self._inject_interrupt_action(action, interrupt_markers)
             assistant = self.ctx.model_mapping.get(talent_id, {}).get("assistant")
             if assistant == "human":
                 human_tasks.append((talent_id, action))
@@ -602,6 +622,7 @@ class SessionEngine:
                 state.step_number += 1
                 ai_step_numbers.append((talent_id, action, state.step_number))
 
+            parallel_prior = list(turn_prior)
             with ThreadPoolExecutor(max_workers=max_workers) as pool:
                 futures = {
                     pool.submit(
@@ -612,6 +633,7 @@ class SessionEngine:
                         action,
                         step_no,
                         "parallel",
+                        parallel_prior or None,
                     ): talent_id
                     for talent_id, action, step_no in ai_step_numbers
                 }
@@ -677,6 +699,7 @@ class SessionEngine:
         action: str,
         step_number: int,
         phase_type: str | None = None,
+        prior_responses: list[tuple[str, str]] | None = None,
     ) -> StepOutcome:
         talent = self.ctx.talents.get(talent_id, {})
         mapping = self.ctx.model_mapping.get(talent_id, {})
@@ -686,6 +709,7 @@ class SessionEngine:
             user_text,
             action=action,
             attachment_context=state.attachment_context,
+            prior_responses=prior_responses,
         )
         history = state.histories.for_talent(talent_id)
 

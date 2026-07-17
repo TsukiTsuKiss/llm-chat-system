@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -73,6 +74,11 @@ def _copy_nokuru_tree(studio_root: Path) -> None:
 
 def test_workflow_dropdown_choices_for_org_marks_unbound(studio_root: Path) -> None:
     _copy_nokuru_tree(studio_root)
+    config_path = studio_root / "organizations" / "nokuru" / "config.json"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config.get("workflow_bindings", {}).pop("quiz", None)
+    config_path.write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")
+
     choices = workflow_dropdown_choices_for_org(studio_root, "nokuru")
     labels = {label for label, _ in choices}
     values = {value for _, value in choices}
@@ -83,6 +89,14 @@ def test_workflow_dropdown_choices_for_org_marks_unbound(studio_root: Path) -> N
     assert workflow_available_for_org(studio_root, "nokuru", "quiz") is False
     assert workflow_available_for_org(studio_root, "nokuru", "meeting") is True
     assert workflow_available_for_org(studio_root, "nokuru", "discussion") is True
+
+
+def test_workflow_dropdown_nokuru_quiz_available(studio_root: Path) -> None:
+    _copy_nokuru_tree(studio_root)
+    assert workflow_available_for_org(studio_root, "nokuru", "quiz") is True
+    choices = workflow_dropdown_choices_for_org(studio_root, "nokuru")
+    quiz_labels = [label for label, value in choices if value == "quiz"]
+    assert quiz_labels == ["quiz"]
 
 
 def test_renderer_step_done_includes_display_name() -> None:

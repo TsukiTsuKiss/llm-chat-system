@@ -244,6 +244,8 @@ def build_ui(root: Path, *, cli_org: str | None = None) -> gr.Blocks:
                 root,
                 SettingsHandles(org_dd=org_dd, wf_dd=wf_dd, talents_md=talents_md),
                 demo,
+                chat_org=default_org,
+                chat_workflow=default_wf,
             )
 
             build_sessions_tab(

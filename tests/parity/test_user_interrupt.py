@@ -169,3 +169,7 @@ def test_web_interrupt_pending_and_resume(studio_root: Path, monkeypatch: pytest
         pass
     assert session.pending is None
     assert any("質問" in m.get("content", "") for m in final_messages)
+    assert any(
+        m.get("role") == "user" and "選択肢Aです" in m.get("content", "")
+        for m in final_messages
+    )

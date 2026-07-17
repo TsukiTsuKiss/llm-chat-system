@@ -76,7 +76,34 @@ def _chat_workflow_update(root: Path, org_id: str, current_wf: str = ""):
     return gr.update(choices=choices, value=value)
 
 
-def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) -> None:
+def _resolve_settings_workflow_id(
+    chat_workflow: str,
+    org_id: str,
+    wf_ids: list[str],
+    root: Path,
+) -> str | None:
+    """Map chat workflow dropdown value to workflows/<id> editor selection."""
+    if chat_workflow and chat_workflow in wf_ids:
+        return chat_workflow
+    if org_id:
+        try:
+            org = load_config("organization", org_id, root)
+            default = str(org.get("default_workflow") or "").strip()
+            if default in wf_ids:
+                return default
+        except (ValueError, OSError, KeyError):
+            pass
+    return wf_ids[0] if wf_ids else None
+
+
+def build_settings_tab(
+    root: Path,
+    handles: SettingsHandles,
+    demo: gr.Blocks,
+    *,
+    chat_org: str = "",
+    chat_workflow: str = "",
+) -> None:
     talent_ids = list_configs("talent", root)
     org_ids = list_configs("organization", root)
     wf_ids = list_configs("workflow", root)
@@ -88,6 +115,8 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
     workflows_by_id = {
         wf_id: load_config("workflow", wf_id, root) for wf_id in list_configs("workflow", root)
     }
+    initial_org = chat_org if chat_org in org_ids else (org_ids[0] if org_ids else None)
+    initial_wf = _resolve_settings_workflow_id(chat_workflow, chat_org or "", wf_ids, root)
 
     with gr.Tab("⚙️ 設定編集"):
         with gr.Column(elem_classes=["studio-settings-panel"]):
@@ -130,7 +159,7 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
                                 org_id_dd = gr.Dropdown(
                                     label="組織 ID",
                                     choices=org_ids,
-                                    value=org_ids[0] if org_ids else None,
+                                    value=initial_org,
                                     allow_custom_value=True,
                                     scale=4,
                                 )
@@ -227,7 +256,7 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
                                 wf_id_dd = gr.Dropdown(
                                     label="ワークフロー ID",
                                     choices=wf_ids,
-                                    value=wf_ids[0] if wf_ids else None,
+                                    value=initial_wf,
                                     allow_custom_value=True,
                                     scale=4,
                                 )
@@ -893,16 +922,76 @@ def build_settings_tab(root: Path, handles: SettingsHandles, demo: gr.Blocks) ->
         outputs=[wf_msg, wf_id_dd, handles.wf_dd, wf_json],
     )
 
+    def bootstrap_settings_from_chat(chat_org: str, chat_wf: str):
+        org_value = chat_org if chat_org in org_ids else (org_ids[0] if org_ids else "")
+        org_loaded = load_org(org_value)
+        wf_value = _resolve_settings_workflow_id(chat_wf, org_value, wf_ids, root)
+        wf_json, wf_msg = load_workflow(wf_value or "")
+        return (
+            gr.update(value=org_value or None),
+            *org_loaded,
+            *_refresh_org_dependent_rows(org_loaded[3], org_loaded[7], org_loaded[4]),
+            gr.update(value=wf_value),
+            wf_json,
+            wf_msg,
+        )
+
+    def sync_wf_editor_from_chat(chat_org: str, chat_wf: str):
+        org_value = chat_org if chat_org in org_ids else (org_ids[0] if org_ids else "")
+        wf_value = _resolve_settings_workflow_id(chat_wf, org_value, wf_ids, root)
+        wf_json, wf_msg = load_workflow(wf_value or "")
+        return gr.update(value=wf_value), wf_json, wf_msg
+
+    handles.org_dd.change(
+        bootstrap_settings_from_chat,
+        inputs=[handles.org_dd, handles.wf_dd],
+        outputs=[
+            org_id_dd,
+            org_name,
+            org_mission,
+            org_culture,
+            org_talent_ids,
+            org_bindings_state,
+            org_directives_json,
+            org_default_wf,
+            org_mapping_state,
+            org_talent_ids_order,
+            org_msg,
+            *_mapping_row_output_list(),
+            *_bindings_row_output_list(),
+            wf_id_dd,
+            wf_json,
+            wf_msg,
+        ],
+    )
+    handles.wf_dd.change(
+        sync_wf_editor_from_chat,
+        inputs=[handles.org_dd, handles.wf_dd],
+        outputs=[wf_id_dd, wf_json, wf_msg],
+    )
+
     demo.load(load_talent, inputs=[talent_id_dd], outputs=[
         talent_name, talent_personality, talent_tags, talent_prompt, talent_msg,
     ])
-    demo.load(load_org, inputs=[org_id_dd], outputs=[
-        org_name, org_mission, org_culture, org_talent_ids,
-        org_bindings_state, org_directives_json, org_default_wf,
-        org_mapping_state, org_talent_ids_order, org_msg,
-    ]).then(
-        refresh_org_dependent_rows,
-        inputs=[org_talent_ids, org_mapping_state, org_bindings_state],
-        outputs=[*_mapping_row_output_list(), *_bindings_row_output_list()],
+    demo.load(
+        bootstrap_settings_from_chat,
+        inputs=[handles.org_dd, handles.wf_dd],
+        outputs=[
+            org_id_dd,
+            org_name,
+            org_mission,
+            org_culture,
+            org_talent_ids,
+            org_bindings_state,
+            org_directives_json,
+            org_default_wf,
+            org_mapping_state,
+            org_talent_ids_order,
+            org_msg,
+            *_mapping_row_output_list(),
+            *_bindings_row_output_list(),
+            wf_id_dd,
+            wf_json,
+            wf_msg,
+        ],
     )
-    demo.load(load_workflow, inputs=[wf_id_dd], outputs=[wf_json, wf_msg])
