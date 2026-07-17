@@ -530,12 +530,12 @@ UI 初期値（stream / temperature）は組織 config には置かず、`studio
 
 シナリオ ID はファイル名から導出する（`scenarios/camp_planning.json` → `camp_planning`）。
 
-参照型の例（編成の一部差し替え + 生成パラメータ）：
+参照型の例（`scenarios/camp_planning.json` と同型 — 編成の一部差し替え + 生成パラメータ）：
 
 ```json
 {
   "organization": "nokuru",
-  "workflow": "discussion",
+  "workflow": "meeting",
   "talent_ids": ["hinata", "satsuki"],
   "generation": {
     "temperature": 0.65,
@@ -545,6 +545,8 @@ UI 初期値（stream / temperature）は組織 config には置かず、`studio
   }
 }
 ```
+
+（実ファイル `scenarios/camp_planning.json` は上記のうち `generation` のみ。§10.5 の camp デモは meeting 前提。）
 
 パラメータ運用の目安：
 
