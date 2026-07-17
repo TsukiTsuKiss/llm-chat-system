@@ -69,27 +69,24 @@
 
 [設計書](docs/MultiRoleStudio/design.md) に沿って構築中。
 
-**開発チーム通信欄:** [handoff/current.md](handoff/current.md)（Composer ↔ Copilot ↔ オーナー。使い方は [handoff/README.md](handoff/README.md)）
+**Phase 進捗一覧（正本）:** [design.md §9.0](docs/MultiRoleStudio/design.md#90-phase-進捗一覧正本)  
+**開発チーム通信欄:** [handoff/current.md](handoff/current.md)（Composer ↔ Copilot ↔ オーナー。[handoff/README.md](handoff/README.md)）
 
-**Phase 1（1 人 CLI）:** 直接送信、`mock` / 実 LLM、JSONL ログ  
-**Phase 2（複数人）:** `serial` / `parallel` ワークフロー、`discussion` / `quiz`、`human`（parallel では AI 先行→human 入力）  
-**Phase 3（進行制御）:** `loop` + `exit`（marker / judge / user）、`meeting` / `dev`、成果物抽出（`sandbox/`）  
-**Phase 4a（Web UI 最小）:** `MultiRoleStudioWeb.py` — チャットタブ（mock / 実 LLM）  
-**Phase 4b（設定編集）:** 人材・組織・ワークフローの CRUD（保存前バリデーション、チャットタブ連動）  
-**Phase 4c（ファイル添付）:** テキスト系ファイル取り込み（`upload_limits` / CLI `--files` と共用）  
-**Phase 4d（model_mapping フォーム）:** assistant / model プルダウン、API キー未設定 assistant の選択不可  
-**Phase 4e（セッションタブ）:** 一覧表示、JSONL から Markdown レポート生成・閲覧、エクスポート、parallel フロー図  
-**Phase 4e 追補（チャット workflow UX）:** 組織連動プルダウン、未設定 workflow の `— 未設定` ラベルと案内欄、検証エラー詳細表示  
-**Phase 5a（セッション再開）:** チャットタブへ履歴再現、分岐 jsonl（`parent_session_id`）  
-**Phase 5b（議事録）:** jsonl → `minutes/<org>/<topic>.json` + `.md` 同時保存（開発中 `minutes/` は `.gitignore`）  
-**Phase 5c（成果物採用）:** `sandbox/session_<id>/` → 作業ツリー + Git 1コミット（dirty 時は中断）  
-**Phase 5d-a（user_context）:** `my_context.md` 注入、Web トグル / CLI `--no-user-context`  
-**Phase 5d-b（user_context 更新）:** 更新案生成・採用、要約（CLI / Web）  
-**Phase 4f 追補（workflow_bindings フォーム）:** 組織タブでスロット割当 UI（§8.4）。保存は「組織 config を保存」  
-**Phase 5e（ユーザー割り込み）:** workflow `interrupt_on` マーカー検出 → `await_text`（§6.7）。`quiz.json` + nokuru バインディング例  
-**Phase 5e 追補:** 並列 answerer への `turn_prior` 伝播、割り込み返答のチャット表示、設定タブとチャットの組織/workflow 同期
+<details>
+<summary>Phase 一覧（§9.0 と同内容・折りたたみ）</summary>
 
-**未実装:** サンプル整備 / 旧版移行（§9.2）、開発セッションのコスト表示（§7.5・Phase 8）、Zenn 草稿 など（design.md 9章）
+| Phase | 状態 | 概要 |
+|---|---|---|
+| 1 | ✅ | 1人 CLI |
+| 2 | ✅ | 複数人 serial / parallel |
+| 3 | ✅ | loop / meeting / dev / sandbox |
+| 4a〜4f | ✅ | Web UI（チャット・設定・添付・mapping・セッション・bindings） |
+| 5a〜5f | ✅ | 再開・議事録・採用・user_context・割り込み・samples |
+| 5g | ⬜ | 旧版移行（§9.2） |
+| 5h | ⬜ | studio_dev（§10.4・任意） |
+| 6〜9 | ⬜ | 生成連携・考査・運用・外部連携 |
+
+</details>
 
 #### セットアップ
 
@@ -200,6 +197,7 @@ python MultiRoleStudioWeb.py --org nokuru      # quiz / meeting デモ（hinata,
 | `studio/settings_ui.py` | 設定編集タブ UI |
 | `studio/` | loader / engine / bindings / logging / artifacts |
 | `workflows/` | `discussion.json`, `discussion_sourced.json`, `quiz.json`, `meeting.json`, `dev.json` |
+| `samples/` | 固定デモ用 jsonl / 議事録（§10.5） |
 | `talents/*.json` | 人材定義（`hinata`, `satsuki`, `kaede` 等） |
 | `sandbox/session_<id>/` | dev 成果物と `run_all.sh`（**.gitignore**） |
 | `organizations/<org>/config.json` | 編成・バインディング |

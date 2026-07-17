@@ -1,6 +1,6 @@
 # MultiRoleStudio 設計書
 
-作成日: 2026-06-25 / 最終更新: 2026-07-17（クイズ・割り込みサンプル入力）
+作成日: 2026-06-25 / 最終更新: 2026-07-17（§9.0 Phase 進捗一覧）
 
 本書は MultiRoleStudio の仕様と設計判断をまとめたもの。
 確定した仕様（第2〜10章）と、構想段階のアイデア（付録A〜C、付録D の RAG 以降）を明確に分けて記載する。
@@ -1702,6 +1702,44 @@ Phase 4 で Gradio Web 版に共通して適用する。
 
 ## 9. ロードマップと移行方針
 
+### 9.0 Phase 進捗一覧（正本）
+
+**ここを見れば「今どこまで終わっているか」が分かる。** README の Phase 行は本表への要約リンク。
+状態の凡例: ✅ 完了 · 🔶 一部 / 任意残 · ⬜ 未着手
+
+| Phase | 名称 | 状態 | 概要 |
+|---|---|---|---|
+| **1** | 1人 CLI | ✅ | `studio/` + `MultiRoleStudio.py`、mock、JSONL ログ、parity |
+| **2** | 複数人 | ✅ | serial / parallel、`discussion` / `quiz`、`human` |
+| **3** | 進行制御 | ✅ | loop + exit、`meeting` / `dev`、sandbox 成果物抽出 |
+| **4a** | Web チャット | ✅ | `MultiRoleStudioWeb.py` チャットタブ |
+| **4b** | 設定編集 | ✅ | 人材・組織・workflow CRUD、バリデーション |
+| **4c** | ファイル添付 | ✅ | Web + CLI `--files`、`upload_limits` |
+| **4d** | model_mapping フォーム | ✅ | assistant / model プルダウン、キー未設定は選択不可 |
+| **4e** | セッションタブ | ✅ | 一覧、Markdown レポート、エクスポート、Mermaid |
+| **4e 追補** | workflow UX | ✅ | 組織連動プルダウン、`— 未設定` ラベル、案内欄 |
+| **4f 追補** | workflow_bindings フォーム | ✅ | 組織タブのスロット割当 UI（§8.4） |
+| **5a** | セッション再開 | ✅ | 分岐 jsonl、`parent_session_id`、チャット履歴再現 |
+| **5b** | 議事録 | ✅ | jsonl → `minutes/`（JSON + MD）。開発中は `.gitignore` |
+| **5c** | 成果物採用 | ✅ | sandbox → 作業ツリー + Git 1 コミット（§7.6） |
+| **5d-a** | user_context 注入 | ✅ | `my_context.md`、Web トグル / `--no-user-context` |
+| **5d-b** | user_context 更新 | ✅ | 更新案生成・採用・要約（CLI / Web） |
+| **5e** | ユーザー割り込み | ✅ | `interrupt_on` → `await_text`（§6.7）、`quiz.json` |
+| **5e 追補** | 割り込み・クイズ UX | ✅ | parallel `turn_prior`、返答のチャット表示、設定タブ同期 |
+| **5f** | サンプル整備 | ✅ | `samples/` 固定 jsonl + 議事録（§10.5） |
+| **5g** | 旧版移行 | ⬜ | MultiRoleChat / Chat → `legacy/`、README 差替（§9.2） |
+| **5h** | studio_dev メタサンプル | ⬜ | 自己改善開発チーム（§10.4・任意） |
+| **—** | Web 生成中キャンセル | ⬜ | 強制停止ボタン（§8.3。Phase 4 スコープ外として延期） |
+| **—** | sync-models CLI | 🔶 | Opper カタログ同期（§6.5・任意・未実装） |
+| **6** | 生成連携 | ⬜ | TTS / ナレーション、Zenn 草稿（§7.8）、user_context RAG（付録D.10） |
+| **7** | 考査支援 | ⬜ | 映像・音声・字幕のコンプラチェック |
+| **8** | 運用基盤 | ⬜ | 品質・遅延・コスト監視、`analyze-sessions`、dev セッションコスト表示 |
+| **9** | 連携拡張 | ⬜ | 外部ベンダー API 契約固定（付録C） |
+
+**現在の位置**: Phase **5** コアは完了。**残りは 5g（移行）と 5h（任意）**。Phase 6 以降は未着手。
+
+**通信欄**: 直近の作業メモは [handoff/current.md](../../handoff/current.md)。
+
 ### 9.1 段階導入ロードマップ
 
 実装は歴史（Chat.py → MultiRoleChat.py）をなぞり、**1人 → 複数人 → 進行制御**の順で進める。
@@ -1886,15 +1924,18 @@ Phase 1 では `organizations/solo/`（1人組織）+ `talents/` 1人 + 各 `.ex
 「judge ループと成果物抽出を使う dev」「編成差し替えを行う参照型シナリオ」の4パターンを網羅し、
 動作確認とドキュメントの実例を兼ねる。
 
-### 10.5 サンプル会話・議事録（Phase 5b 以降）
+### 10.5 サンプル会話・議事録（Phase 5b 以降・**整備済み**）
 
 開発中の試行会話（`sessions/`）やローカル議事録（`minutes/`）は `.gitignore` のため Git に載せない。
 代わりに **意図したデモ用データ**を `samples/` に置く（7.3.1 節）。
 
 | パス | 内容 |
 |---|---|
-| `samples/sessions/nokuru_camp_planning.jsonl` | nokuru + meeting + camp_planning 想定の短い会話（mock 生成可） |
-| `samples/minutes/nokuru/camp_planning.json` | 上記から議事録化した期待 JSON |
+| `samples/sessions/nokuru_camp_planning.jsonl` | nokuru + meeting + 「秋キャンプの行き先」（mock・`【結論】` で 1 反復終了） |
+| `samples/minutes/nokuru/camp_planning.json` | 上記に対応する期待議事録（参照セッション ID: `20260714_120000`） |
+| `samples/README.md` | 再生成手順 |
+
+`scenarios/camp_planning.json` は **workflow: meeting**（nokuru 既定の camp デモと一致）。
 
 用途:
 

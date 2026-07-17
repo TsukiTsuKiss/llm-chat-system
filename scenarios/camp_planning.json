@@ -1,6 +1,6 @@
 {
   "organization": "nokuru",
-  "workflow": "discussion",
+  "workflow": "meeting",
   "talent_ids": ["hinata", "satsuki"],
   "generation": {
     "temperature": 0.65
