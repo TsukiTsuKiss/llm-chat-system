@@ -24,6 +24,8 @@ import argparse
 from typing import Generator
 
 import gradio as gr
+
+from studio.gradio_template import use_japanese_html_template
 from langchain_core.prompts import (
     ChatPromptTemplate,
     SystemMessagePromptTemplate,
@@ -929,6 +931,7 @@ def main() -> None:
         DEFAULT_ASSISTANT = args.assistant
 
     print(f"[INFO] ChatWeb v{VERSION} 起動中...")
+    use_japanese_html_template()
     demo = build_ui()
     demo.launch(
         server_port=args.port,

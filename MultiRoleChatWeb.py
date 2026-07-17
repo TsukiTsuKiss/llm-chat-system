@@ -23,6 +23,8 @@ import time
 from datetime import datetime
 
 import gradio as gr
+
+from studio.gradio_template import use_japanese_html_template
 from langchain_core.prompts import (
     ChatPromptTemplate,
     SystemMessagePromptTemplate,
@@ -1279,6 +1281,7 @@ def main():
     args = parser.parse_args()
 
     print(f"[INFO] MultiRoleChatWeb v{VERSION} 起動中...")
+    use_japanese_html_template()
     demo = build_ui(default_org=args.org)
     demo.launch(server_port=args.port, share=args.share, inbrowser=True, css=_build_css(), prevent_thread_lock=True)
     print("[INFO] サーバーが起動しました。終了するには q + Enter を押してください。")
