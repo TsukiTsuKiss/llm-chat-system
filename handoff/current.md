@@ -6,6 +6,7 @@
 | 状態 | `review_pending` |
 | 依頼元 | Composer（Cursor Agent） |
 | レビュー担当 | GitHub Copilot |
+| 対象コミット | `ff869ca`, `7e60661` |
 | 正本 | `docs/MultiRoleStudio/design.md` §9.0 / §10.5 |
 
 ---
