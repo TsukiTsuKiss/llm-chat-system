@@ -121,10 +121,10 @@ gptme/
 logs/
 **/logs/
 multi_logs/
-sessions/
+/sessions/
 
 # MultiRoleStudio 議事録（開発中はローカルのみ。リリース時に .gitignore から外す → design.md 7.3.1）
-minutes/
+/minutes/
 
 # MultiRoleStudio ユーザーローカル設定
 studio_config.json

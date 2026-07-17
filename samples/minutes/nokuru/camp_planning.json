@@ -1,0 +1,29 @@
+{
+  "topic": "camp_planning",
+  "updated_at": "2026-07-14T12:00:00+09:00",
+  "source_sessions": ["20260714_120000"],
+  "minutes": {
+    "decisions": [
+      "議題: 秋キャンプの行き先"
+    ],
+    "open_issues": [
+      "予算上限の確定"
+    ],
+    "actions": [
+      {
+        "owner": "hinata",
+        "task": "候補地3件のアンケート作成",
+        "due": "2026-07-20"
+      }
+    ],
+    "evidence": [
+      {
+        "session": "20260714_120000",
+        "turns": [1, 2, 3, 4]
+      }
+    ],
+    "next_agenda": [
+      "最終行き先の決定"
+    ]
+  }
+}

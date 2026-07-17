@@ -1,0 +1,8 @@
+{"type": "session_meta", "organization": "nokuru", "workflow": "meeting", "parent_session_id": null, "talents": {"hinata": "ひなた", "satsuki": "さつき", "kaede": "かえで"}, "models": {"hinata": {"assistant": "mock"}, "satsuki": {"assistant": "mock"}, "kaede": {"assistant": "mock"}}, "generation": {"stream": false, "temperature": 0.7, "user_context": false}}
+{"type": "user_input", "text": "秋キャンプの行き先"}
+{"type": "step", "talent_id": "hinata", "assistant": "mock", "action": "議題を確認し、論点を3つ以内で提示する", "text": "MOCK:hinata:step1", "stream": false, "elapsed": 0.0, "tokens": {"in": 0, "out": 0, "source": "none"}, "cost": 0.0, "phase_type": "serial"}
+{"type": "step", "talent_id": "satsuki", "assistant": "mock", "action": "論点に対する意見と根拠を述べる", "text": "MOCK:satsuki:step2", "stream": false, "elapsed": 0.0, "tokens": {"in": 0, "out": 0, "source": "none"}, "cost": 0.0, "phase_type": "parallel"}
+{"type": "step", "talent_id": "kaede", "assistant": "mock", "action": "論点に対する意見と根拠を述べる", "text": "MOCK:kaede:step3", "stream": false, "elapsed": 0.0, "tokens": {"in": 0, "out": 0, "source": "none"}, "cost": 0.0, "phase_type": "parallel"}
+{"type": "step", "talent_id": "hinata", "assistant": "mock", "action": "意見を集約し、合意可能かを判断する。不足があれば追加論点を提示する\n\n（終了条件）合意・結論に至った場合は応答に「【結論】」を含めてください。", "text": "MOCK:hinata:step4 【結論】了", "stream": false, "elapsed": 0.0, "tokens": {"in": 0, "out": 0, "source": "none"}, "cost": 0.0, "phase_type": "serial"}
+{"type": "state_snapshot", "state": {"step_number": 4, "workflow": "meeting", "talent_ids": ["hinata", "satsuki", "kaede"]}}
+{"type": "session_end", "total_elapsed": 0.015, "total_cost": 0.0, "by_model": {}, "log_path": "samples/sessions/nokuru_camp_planning.jsonl"}
