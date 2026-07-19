@@ -96,7 +96,7 @@ cp organizations/solo/model_mapping.example.json organizations/solo/model_mappin
 cp organizations/trio/model_mapping.example.json organizations/trio/model_mapping.json
 cp organizations/nokuru/model_mapping.example.json organizations/nokuru/model_mapping.json
 cp organizations/studio_dev/model_mapping.example.json organizations/studio_dev/model_mapping.json
-# 実 LLM 用（model は ai_assistants_config.csv の model 列を引用）
+# 実 LLM 用（model は ai_assistants_config.json の models から引用）
 # cp organizations/trio/model_mapping.providers.example.json organizations/trio/model_mapping.json
 # nokuru も同様に organizations/nokuru/model_mapping.json を編集（hinata/satsuki/kaede ごとに assistant + model）
 ```
@@ -125,7 +125,7 @@ python MultiRoleStudio.py --org studio_dev --workflow meeting \
 python MultiRoleStudio.py --org studio_dev --workflow dev \
   --topic "loader の E204 mock 対応を実装" \
   --files user_context/corpus/design_summary.md schemas/ --stream off
-# design.md 全文（約145KB）は upload_limits の文字数上限を超えるため、corpus 要約 + --files を推奨
+# §10.4: design.md 全文の毎回注入は非推奨（corpus 要約 + 必要時 --files が推奨）
 # user_context: cp user_context/my_context.example.md user_context/my_context.md
 
 # dev 終了後: セッション出力に表示される成果物ディレクトリで検証

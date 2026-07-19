@@ -2677,10 +2677,9 @@ def parse_command(command):
     return cmd, args
 
 def main():
-    print_version_info()
-    
-    # コマンドライン引数を解析
+    # コマンドライン引数を解析（--help / --version はここで終了）
     args = parse_arguments()
+    print_version_info()
     
     # AI Assistants設定を読み込み
     ai_assistants = load_ai_assistants_config()

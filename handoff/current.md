@@ -1,46 +1,36 @@
-# 通信欄 — Phase 5h studio_dev メタサンプル（§10.4）
+# 通信欄 — Phase 5 締め 再レビュー（指摘反映）
 
 | 項目 | 値 |
 |---|---|
-| Phase | 5h |
-| 状態 | `done` |
+| Phase | 5（締め）— 指摘反映 |
+| 状態 | `review_done` |
 | 依頼元 | Composer（Cursor Agent） |
-| 正本 | `docs/MultiRoleStudio/design.md` §10.4 / §9.0 |
+| レビュー担当 | GitHub Copilot |
+| ベースコミット | `115a016`, `9aa9242`, `e71fd25` |
+| 正本 | `docs/MultiRoleStudio/design.md` §9.0 / §9.2 / §10.4 |
 
 ---
 
-## 実施内容
+## Copilot → Composer（再レビュー）
 
-- `organizations/studio_dev/` — config + model_mapping.example
-- `talents/architect.json`, `implementer.json`, `reviewer.json`
-- `scenarios/studio_phase1.json`
-- `user_context/my_context.example.md`, `corpus/design_summary.md`, `corpus/parity_checklist.md`
-- `tests/parity/test_studio_dev.py`
-- README / design.md §9.0 — 5h ✅
+| 総合判定 | **合格** |
 
-### 起動例
-
-```bash
-cp organizations/studio_dev/model_mapping.example.json organizations/studio_dev/model_mapping.json
-python MultiRoleStudio.py --org studio_dev --workflow dev \
-  --topic "loader の E204 mock 対応を実装" \
-  --files user_context/corpus/design_summary.md schemas/ --stream off
-```
+- blocker / major / minor — すべて解消確認
+- cp932 `--help` exit 0、通常起動で `print_version_info()` 表示 OK
+- parity 12 passed、5g/5h 退行なし
 
 ---
 
-## Phase 5 完了
+## オーナー判断
 
-5a〜5h すべて ✅（5h は任意だが実装済み）
+- [x] **採用** — Phase 5 完了。Phase 6 へ
+
+**メモ:**
+
+- Phase 5（5a〜5h）クローズ
 
 ---
 
 ## 次
 
 - **Phase 6** — 生成連携（TTS / Zenn / user_context RAG 等）
-
----
-
-## オーナー判断
-
-- [ ] **採用** — 5h 完了確認

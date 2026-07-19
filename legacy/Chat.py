@@ -833,9 +833,6 @@ def get_user_input():
     return chat_input.get_user_input()
 
 def main():
-    # バージョン情報を表示
-    print_version_info()
-    
     conversation_history = None
     conversation_log_filename = None
     ai_assistant = None
@@ -859,6 +856,7 @@ def main():
         model_specified = '-m' in sys.argv or '--model' in sys.argv
 
         args = parse_arguments(ai_assistants) # 引数を解析
+        print_version_info()
         ai_assistant = args.assistant
         model_name = args.model
         load_log_path = args.load_log
