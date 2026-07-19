@@ -1,4 +1,4 @@
-from MultiRoleChat import MultiRoleManager, load_ai_assistants_config
+from legacy.MultiRoleChat import MultiRoleManager, load_ai_assistants_config
 
 def test_final_code_saving():
     """最終コード保存機能のテスト"""

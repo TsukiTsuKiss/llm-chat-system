@@ -1,5 +1,5 @@
 import os
-from MultiRoleChat import MultiRoleManager, load_ai_assistants_config, load_organization_config
+from legacy.MultiRoleChat import MultiRoleManager, load_ai_assistants_config, load_organization_config
 
 def test_workflow_logging():
     """ワークフローのログ機能をテスト"""

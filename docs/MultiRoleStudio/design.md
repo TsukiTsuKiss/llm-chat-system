@@ -115,8 +115,11 @@ llm-chat-system/              ← この repo のまま
   schemas/
   tests/parity/
   MultiRoleStudio.py
-  MultiRoleChat.py              ← 並行維持（参照用・新機能は追加しない）
-  Chat.py
+  legacy/                       ← Phase 5g: Chat / MultiRoleChat 移行先
+    Chat.py
+    ChatWeb.py
+    MultiRoleChat.py
+    MultiRoleChatWeb.py
   ai_assistants_config.json     ← 共有
   model_costs.csv               ← 共有
   util/stream_render.py         ← 共有利用可
@@ -1729,7 +1732,7 @@ Phase 4 で Gradio Web 版に共通して適用する。
 | **5e** | ユーザー割り込み | ✅ | `interrupt_on` → `await_text`（§6.7）、`quiz.json` |
 | **5e 追補** | 割り込み・クイズ UX | ✅ | parallel `turn_prior`、返答のチャット表示、設定タブ同期 |
 | **5f** | サンプル整備 | ✅ | `samples/` 固定 jsonl + 議事録（§10.5） |
-| **5g** | 旧版移行 | ⬜ | MultiRoleChat / Chat → `legacy/`、README 差替（§9.2） |
+| **5g** | 旧版移行 | ✅ | MultiRoleChat / Chat → `legacy/`、README 差替（§9.2） |
 | **5h** | studio_dev メタサンプル | ⬜ | 自己改善開発チーム（§10.4・任意） |
 | **—** | Web 生成中キャンセル | ⬜ | 強制停止ボタン（§8.3。Phase 4 スコープ外として延期） |
 | **—** | sync-models CLI | 🔶 | Opper カタログ同期（§6.5・任意・未実装） |

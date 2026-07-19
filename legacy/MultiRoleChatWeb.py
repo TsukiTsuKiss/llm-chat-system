@@ -33,7 +33,7 @@ from langchain_core.prompts import (
 )
 from langchain_core.messages import HumanMessage, AIMessage
 
-from MultiRoleChat import (
+from legacy.MultiRoleChat import (
     load_ai_assistants_config,
     MultiRoleManager,
     load_organization_config,
@@ -754,7 +754,7 @@ def build_ui(default_org: str = "") -> gr.Blocks:
             """組織切替: ロールセット・ワークフロー候補をリセットする。"""
             try:
                 # まず org の org_config だけ先読みしてセット一覧を作成
-                from MultiRoleChat import load_organization_config as _loc
+                from legacy.MultiRoleChat import load_organization_config as _loc
                 org_config = _loc(org_name)
                 rs_choices = _list_role_sets(org_config)
                 rs_value = rs_choices[0] if rs_choices else ""

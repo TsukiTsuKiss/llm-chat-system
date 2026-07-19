@@ -15,7 +15,7 @@ VERSION = "1.0.0"
 VERSION_DATE = "2026-04-27"
 
 # Chat.py の LLM 接続ロジックをそのまま流用
-from Chat import load_ai_assistants_config, load_assistant
+from legacy.Chat import load_ai_assistants_config, load_assistant
 
 app = FastAPI()
 

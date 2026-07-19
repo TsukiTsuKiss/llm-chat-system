@@ -351,14 +351,14 @@ def test_config_consistency():
 
 def test_sample_execution():
     """サンプル実行テスト"""
-    print_test("MultiRoleChat.py サンプル実行テスト")
+    print_test("legacy/MultiRoleChat.py サンプル実行テスト")
     
-    # MultiRoleChat.pyの存在確認
-    if not Path("MultiRoleChat.py").exists():
-        print("❌ MultiRoleChat.py が見つかりません")
+    # legacy/MultiRoleChat.py の存在確認
+    if not Path("legacy/MultiRoleChat.py").exists():
+        print("❌ legacy/MultiRoleChat.py が見つかりません")
         return False
     
-    print("✅ MultiRoleChat.py が存在します")
+    print("✅ legacy/MultiRoleChat.py が存在します")
     
     # 依存関係の確認
     print("\n📋 必要な依存関係の確認:")
@@ -385,7 +385,7 @@ def test_sample_execution():
         result = subprocess.run([
             sys.executable, "-c", 
             "import sys; sys.path.append('.'); "
-            "from MultiRoleChat import parse_arguments, VERSION; "
+            "from legacy.MultiRoleChat import parse_arguments, VERSION; "
             "print(f'MultiRoleChat v{VERSION} インポート成功')"
         ], capture_output=True, text=True, timeout=10)
         
@@ -405,7 +405,7 @@ def test_sample_execution():
     print("\n📋 簡易構文チェック:")
     try:
         result = subprocess.run([
-            sys.executable, "-m", "py_compile", "MultiRoleChat.py"
+            sys.executable, "-m", "py_compile", "legacy/MultiRoleChat.py"
         ], capture_output=True, text=True, timeout=10)
         
         if result.returncode == 0:

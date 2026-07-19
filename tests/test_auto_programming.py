@@ -6,7 +6,7 @@ import sys
 import os
 sys.path.append('.')
 
-from MultiRoleChat import load_organization_config, setup_scenario_roles_from_org, MultiRoleManager
+from legacy.MultiRoleChat import load_organization_config, setup_scenario_roles_from_org, MultiRoleManager
 
 def test_auto_programming():
     """auto_programmingシナリオの動作テスト"""

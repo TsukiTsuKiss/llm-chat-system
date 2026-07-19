@@ -35,7 +35,7 @@ from langchain_core.prompts import (
 from langchain_core.messages import HumanMessage, AIMessage
 
 # Chat.py から LLM 接続ロジックを流用（MyPedia.py と同じ方式）
-from Chat import (
+from legacy.Chat import (
     CHAT_CONFIG_FILE,
     load_ai_assistants_config,
     load_chat_config,
