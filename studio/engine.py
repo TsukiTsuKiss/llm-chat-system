@@ -16,7 +16,8 @@ from studio.interrupt import USER_INTERRUPT_DISPLAY, USER_INTERRUPT_TALENT, matc
 from studio.loader import SessionContext
 from studio.logging import SessionLogger, StepMetrics
 from studio.prompts import build_system_prompt, build_user_message
-from studio.user_context import build_generation_options
+from studio.user_context import build_generation_options, resolve_session_rag
+from studio.user_context_rag import RagChunk, chunks_to_log
 from studio.validation import StudioError, StudioValidationError
 
 
@@ -37,6 +38,9 @@ class EngineState:
     attachment_context: str = ""
     user_context_enabled: bool = True
     user_context_text: str | None = None
+    user_context_rag_enabled: bool = False
+    user_context_rag_text: str | None = None
+    last_context_chunks: tuple[RagChunk, ...] = ()
     started: bool = False
     session_wall_start: float = 0.0
     parent_session_id: str | None = None
@@ -80,12 +84,14 @@ class SessionEngine:
         state: EngineState,
     ) -> str:
         text = state.user_context_text if state.user_context_enabled else None
+        rag_text = state.user_context_rag_text if state.user_context_rag_enabled else None
         return build_system_prompt(
             talent,
             self.ctx.org,
             self.ctx.org_id,
             talent_id,
             user_context_text=text,
+            user_context_rag_text=rag_text,
         )
 
     def run_turn(
@@ -97,6 +103,7 @@ class SessionEngine:
         stream: bool | None = None,
         temperature: float | None = None,
         no_user_context: bool = False,
+        no_user_context_rag: bool = False,
     ) -> Iterator[EngineEvent]:
         studio_config = self.ctx.studio_config
         use_stream = studio_config.get("stream", True) if stream is None else stream
@@ -109,6 +116,7 @@ class SessionEngine:
                 stream=use_stream,
                 temperature=use_temperature,
                 no_user_context=no_user_context,
+                no_user_context_rag=no_user_context_rag,
             )
             talent_ids = list(self.ctx.org.get("talent_ids") or [])
             logger = SessionLogger.create(
@@ -131,6 +139,7 @@ class SessionEngine:
                 attachment_context=attachment_context,
                 user_context_enabled=uc_resolution.enabled,
                 user_context_text=uc_resolution.text,
+                user_context_rag_enabled=generation["user_context_rag"],
                 session_wall_start=time.perf_counter(),
             )
         elif attachment_context:
@@ -159,6 +168,7 @@ class SessionEngine:
                         "stream": use_stream,
                         "temperature": use_temperature,
                         "user_context": state.user_context_enabled,
+                        "user_context_rag": state.user_context_rag_enabled,
                     },
                 )
             state.logger.start()
@@ -176,7 +186,20 @@ class SessionEngine:
             state.started = True
 
         assert state.logger is not None
-        state.logger.log_user_input(user_text, attachments=attachments)
+
+        rag_resolution = resolve_session_rag(
+            self.ctx.root,
+            studio_config,
+            user_text,
+            no_user_context=no_user_context,
+            no_user_context_rag=no_user_context_rag,
+        )
+        state.user_context_rag_enabled = rag_resolution.enabled
+        state.user_context_rag_text = rag_resolution.text
+        state.last_context_chunks = rag_resolution.chunks
+
+        context_chunks = chunks_to_log(rag_resolution.chunks) if rag_resolution.chunks else None
+        state.logger.log_user_input(user_text, attachments=attachments, context_chunks=context_chunks)
 
         workflow, bindings = self._resolve_workflow()
         turn_prior: list[tuple[str, str]] = []
@@ -937,6 +960,7 @@ def collect_events(
     attachment_context: str = "",
     stream: bool | None = None,
     no_user_context: bool = False,
+    no_user_context_rag: bool = False,
     responder: Callable[[EngineEvent], str | None] | None = None,
 ) -> list[EngineEvent]:
     events: list[EngineEvent] = []
@@ -945,6 +969,7 @@ def collect_events(
         attachment_context=attachment_context,
         stream=stream,
         no_user_context=no_user_context,
+        no_user_context_rag=no_user_context_rag,
     )
     event = next(gen)
     while True:

@@ -6,7 +6,13 @@
   "user_context": {
     "enabled": true,
     "path": "user_context/my_context.md",
-    "max_chars": 8000
+    "max_chars": 8000,
+    "rag": {
+      "enabled": false,
+      "corpus_dir": "user_context/corpus",
+      "index_dir": "user_context/index",
+      "top_k": 5
+    }
   },
   "upload_limits": {
     "max_files": 5,

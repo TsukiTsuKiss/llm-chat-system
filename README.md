@@ -84,7 +84,8 @@
 | 5a〜5f | ✅ | 再開・議事録・採用・user_context・割り込み・samples |
 | 5g | ✅ | 旧版移行（§9.2） |
 | 5h | ✅ | studio_dev（§10.4） |
-| 6〜9 | ⬜ | 生成連携・考査・運用・外部連携 |
+| 6 | 🔶 | user_context RAG（D.10）✅。TTS / Zenn は未着手 |
+| 7〜9 | ⬜ | 考査・運用・外部連携 |
 
 </details>
 
@@ -146,6 +147,7 @@ python MultiRoleStudioWeb.py --org solo          # チャット + 設定編集 +
 python MultiRoleStudioWeb.py --org trio --port 7863
 python MultiRoleStudioWeb.py --org nokuru      # quiz / meeting デモ（hinata, satsuki, kaede）
 # 終了: コンソールで q + Enter（design.md §8.6）
+# RAG（Phase 6）: studio_config で user_context.rag.enabled → Web「コンテキスト RAG」で index 再構築
 ```
 
 **クイズ（Web UI）サンプル入力** — 組織 `nokuru`、ワークフロー `quiz`（詳細は design.md §6.7）:
@@ -176,6 +178,8 @@ python MultiRoleStudioWeb.py --org nokuru      # quiz / meeting デモ（hinata,
 | `--apply` | sandbox 成果物を作業ツリーへ適用し Git コミット（§7.6） |
 | `--apply-branch` | `--apply` 時に `studio/<session_id>` ブランチを作成 |
 | `--no-user-context` | ユーザーコンテキストを注入しない（付録D） |
+| `--no-user-context-rag` | RAG のみ注入しない（付録D.10。`my_context` は維持） |
+| `--user-context-reindex` | `user_context/corpus/` から index 再構築 |
 | `--stream off` | ストリーミング OFF（推奨: 速度比較・ログ確認） |
 
 各 step 終了時に `[assistant/model] | 秒 | in=… out=… (api/estimate) | tok/s | $…` を表示する。

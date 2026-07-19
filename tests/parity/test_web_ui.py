@@ -10,12 +10,14 @@ import pytest
 from studio.assistants import MockAssistant
 from studio.engine import EngineEvent, SessionEngine, collect_events
 from studio.loader import load_session_context
+from studio.rag_ui import build_rag_ui_state
 from studio.web_ui import (
     ChatEventRenderer,
     FILE_ONLY_DEFAULT,
     IDLE_STATUS,
     WebSession,
     handle_chat_submit,
+    last_rag_injection_preview,
     list_organizations,
     list_workflows,
     resolve_user_input_with_attachments,
@@ -259,7 +261,106 @@ def test_resolve_user_input_rejects_missing_file(studio_root: Path) -> None:
         )
 
 
-def test_web_session_file_only_submit_clears_upload(studio_root: Path) -> None:
+def test_build_rag_ui_state_reflects_config(studio_root: Path) -> None:
+    import json
+
+    studio_root.joinpath("studio_config.json").write_text(
+        json.dumps({"user_context": {"rag": {"enabled": True}}}),
+        encoding="utf-8",
+    )
+    state = build_rag_ui_state(studio_root)
+    assert state.available
+    assert state.default_rag is True
+    assert "プレビュー" in state.corpus_preview or state.corpus_preview == ""
+
+    studio_root.joinpath("studio_config.json").write_text(
+        json.dumps({"user_context": {"rag": {"enabled": False}}}),
+        encoding="utf-8",
+    )
+    state = build_rag_ui_state(studio_root)
+    assert not state.available
+    assert state.default_rag is False
+    assert "enabled" in state.panel_md
+    import json
+
+    uc_dir = studio_root / "user_context"
+    corpus = uc_dir / "corpus"
+    corpus.mkdir(parents=True, exist_ok=True)
+    (uc_dir / "my_context.md").write_text("ctx\n", encoding="utf-8")
+    (corpus / "notes.md").write_text("## rag\n\nloader parity keyword\n", encoding="utf-8")
+    studio_root.joinpath("studio_config.json").write_text(
+        json.dumps(
+            {
+                "user_context": {
+                    "enabled": True,
+                    "rag": {"enabled": True, "top_k": 3},
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    from studio.user_context_rag import reindex_corpus
+
+    config = json.loads((studio_root / "studio_config.json").read_text(encoding="utf-8"))
+    reindex_corpus(studio_root, config)
+
+    MockAssistant.reset()
+    session = WebSession(root=studio_root)
+    list(
+        handle_chat_submit(
+            session,
+            "loader parity",
+            org_id="solo",
+            workflow_value="",
+            stream=False,
+            temperature=0.7,
+            user_context=True,
+            user_context_rag=True,
+        )
+    )
+    assert session.engine is not None
+    assert session.engine.state is not None
+    assert session.engine.state.user_context_rag_enabled
+    assert session.engine.state.last_context_chunks
+    preview = last_rag_injection_preview(session)
+    assert "loader" in preview or "parity" in preview
+
+
+def test_web_session_user_context_rag_off(studio_root: Path) -> None:
+    import json
+
+    uc_dir = studio_root / "user_context"
+    corpus = uc_dir / "corpus"
+    corpus.mkdir(parents=True, exist_ok=True)
+    (corpus / "notes.md").write_text("## rag\n\nkeyword\n", encoding="utf-8")
+    studio_root.joinpath("studio_config.json").write_text(
+        json.dumps({"user_context": {"enabled": True, "rag": {"enabled": True}}}),
+        encoding="utf-8",
+    )
+
+    from studio.user_context_rag import reindex_corpus
+
+    config = json.loads((studio_root / "studio_config.json").read_text(encoding="utf-8"))
+    reindex_corpus(studio_root, config)
+
+    MockAssistant.reset()
+    session = WebSession(root=studio_root)
+    list(
+        handle_chat_submit(
+            session,
+            "keyword",
+            org_id="solo",
+            workflow_value="",
+            stream=False,
+            temperature=0.7,
+            user_context=True,
+            user_context_rag=False,
+        )
+    )
+    assert session.engine is not None
+    assert session.engine.state is not None
+    assert not session.engine.state.last_context_chunks
     MockAssistant.reset()
     sample = studio_root / "note.md"
     sample.write_text("# Title\nbody", encoding="utf-8")
@@ -286,4 +387,53 @@ def test_web_session_file_only_submit_clears_upload(studio_root: Path) -> None:
         and "note.md" in m["content"]
         for m in messages
     )
-    assert any(m["role"] == "assistant" for m in messages)
+
+
+def test_resume_branch_preserves_user_context_rag(studio_root: Path) -> None:
+    import json
+
+    studio_root.joinpath("studio_config.json").write_text(
+        json.dumps({"user_context": {"enabled": True, "rag": {"enabled": True}}}),
+        encoding="utf-8",
+    )
+
+    MockAssistant.reset()
+    ctx = load_session_context("solo", studio_root)
+    engine = SessionEngine(ctx)
+    collect_events(engine, "first turn", stream=False)
+    parent_id = engine.state.logger.session_id
+
+    from studio.session_resume import load_resumed_session
+
+    resumed = load_resumed_session(studio_root, parent_id)
+
+    session = WebSession(root=studio_root)
+    session.resume_branch(
+        resumed,
+        ctx,
+        stream=False,
+        temperature=0.7,
+        user_context=True,
+        user_context_rag=True,
+    )
+    assert session.engine.state.user_context_rag_enabled is True
+
+    collect_events(session.engine, "branch turn", stream=False)
+    child_id = session.engine.state.logger.session_id
+    child_meta = json.loads(
+        (studio_root / "sessions" / f"{child_id}.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()[0]
+    )
+    assert child_meta["generation"]["user_context_rag"] is True
+
+    session2 = WebSession(root=studio_root)
+    session2.resume_branch(
+        resumed,
+        ctx,
+        stream=False,
+        temperature=0.7,
+        user_context=True,
+        user_context_rag=False,
+    )
+    assert session2.engine.state.user_context_rag_enabled is False

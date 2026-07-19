@@ -809,7 +809,7 @@ phases: [
 7. org.role_directives[id]   （あれば。箇条書きで追記。個別）
 ```
 
-`user_context` / `user_context_rag` の注入は Phase 5d-a / Phase 6 で実装（付録D）。`user_context_rag` は Phase 6 以降。
+`user_context` / `user_context_rag` の注入は Phase 5d-a / **Phase 6（RAG）** で実装（付録D）。
 
 組織コンテキストの注入形式（エンジンが `mission` / `culture` から生成する）：
 
@@ -1608,7 +1608,8 @@ Gradio 起動・終了の共通仕様（8.6 節）に従う。
 - **CLI**: `--user-context-draft` / `--user-context-apply` / `--user-context-summarize`
 - **Web**: セッションタブ「コンテキスト更新案」「コンテキスト採用」（プレビューは `session_msg` に Markdown 表示）
 - **要約（D.8）**: `studio_config.user_context.max_chars` 超過時は `my_context.summary.md` を注入（無ければ先頭 truncate + 案内）
-- **未実装**: RAG（D.10 / Phase 6）、要約の Web 専用ボタン（CLI のみ。必要なら追補可）
+- **未実装**: 要約の Web 専用ボタン（CLI のみ。必要なら追補可）
+- **Phase 6（D.10）**: RAG — corpus / index / top-k 注入 / `--user-context-reindex` / `--no-user-context-rag`（2026-07-19）
 
 **Phase 5d-b 追補（2026-07-15）:**
 
@@ -1736,12 +1737,12 @@ Phase 4 で Gradio Web 版に共通して適用する。
 | **5h** | studio_dev メタサンプル | ✅ | 自己改善開発チーム（§10.4・任意） |
 | **—** | Web 生成中キャンセル | ⬜ | 強制停止ボタン（§8.3。Phase 4 スコープ外として延期） |
 | **—** | sync-models CLI | 🔶 | Opper カタログ同期（§6.5・任意・未実装） |
-| **6** | 生成連携 | ⬜ | TTS / ナレーション、Zenn 草稿（§7.8）、user_context RAG（付録D.10） |
+| **6** | 生成連携 | 🔶 | **user_context RAG**（付録D.10）✅。**Web RAG UI**（D.10「6+」）✅。TTS / Zenn 草稿（§7.8）は未着手 |
 | **7** | 考査支援 | ⬜ | 映像・音声・字幕のコンプラチェック |
 | **8** | 運用基盤 | ⬜ | 品質・遅延・コスト監視、`analyze-sessions`、dev セッションコスト表示 |
 | **9** | 連携拡張 | ⬜ | 外部ベンダー API 契約固定（付録C） |
 
-**現在の位置**: Phase **5** コアは完了。**残りは 5g（移行）と 5h（任意）**。Phase 6 以降は未着手。
+**現在の位置**: Phase **6** 着手。**user_context RAG（D.10）** は CLI / エンジン注入 / **Web UI（6+）** まで実装済み。TTS / Zenn 草稿（§7.8）は未着手。
 
 **通信欄**: 直近の作業メモは [handoff/current.md](../../handoff/current.md)。
 
@@ -2273,7 +2274,7 @@ ON/OFF は jsonl に残し、後から「下地あり/なし」で分析でき�
 | 1〜4 | **実装しない**（1.5 節） | — |
 | **5d-a** | `my_context.md` 読み込み + ON/OFF + 5.1 注入 + Web トグル / CLI | **実装済み**（2026-07-15） |
 | **5d-b** | 更新案生成・承認 UI、要約版（D.7〜D.8） | **実装済み**（2026-07-15） |
-| **6** | **RAG 拡張**（D.10）：corpus / index / 関連 chunk 注入 | 未実装 |
+| **6** | **RAG 拡張**（D.10）：corpus / index / 関連 chunk 注入 | **実装済み**（2026-07-19。ローカル JSON index + キーワードスコア） |
 
 ### D.10 RAG 拡張（Phase 6 以降・構想）
 
@@ -2346,5 +2347,15 @@ user_context/index/            ← ローカルベクトル DB（Chroma / FAISS 
 | Phase | 内容 |
 |---|---|
 | 5 | RAG **なし**（`my_context.md` 注入のみ） |
-| **6** | corpus + ローカル index + 5.1 注入 + reindex CLI |
-| 6+ | Web UI で corpus 閲覧・検索結果プレビュー |
+| **6** | corpus + ローカル index + 5.1 注入 + reindex CLI | **実装済み**（2026-07-19） |
+| 6+ | Web UI で corpus 閲覧・検索結果プレビュー | **実装済み**（2026-07-19） |
+
+**Phase 6 実装フィードバック（2026-07-19）:**
+
+- **index**: `user_context/index/chunks.json`（Markdown を `##` 見出し単位で chunk 化。最大 2000 文字）
+- **検索**: キーワード / CJK 2-gram オーバーラップスコア（embedding なし。依存追加なし）
+- **CLI**: `--user-context-reindex` / `--no-user-context-rag`
+- **ログ**: `session_meta.generation.user_context_rag`、`user_input.context_chunks`（chunk_id / source / score）
+- **設定**: `studio_config.user_context.rag`（`enabled` 既定 `false`、`corpus_dir` / `index_dir` / `top_k`）
+- **未実装**: embedding ベクトル index（将来）
+- **Web（Phase 6+）**: チャット左ペイン「コンテキスト RAG」アコーディオン — トグル / reindex / corpus プレビュー / 検索プレビュー / 注入 chunk 表示（2026-07-19）

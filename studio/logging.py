@@ -188,10 +188,17 @@ class SessionLogger:
         )
         self._started = True
 
-    def log_user_input(self, text: str, attachments: list[str] | None = None) -> None:
+    def log_user_input(
+        self,
+        text: str,
+        attachments: list[str] | None = None,
+        context_chunks: list[dict[str, Any]] | None = None,
+    ) -> None:
         record: dict[str, Any] = {"type": "user_input", "text": text}
         if attachments:
             record["attachments"] = attachments
+        if context_chunks:
+            record["context_chunks"] = context_chunks
         self.write_line(record)
 
     def log_user_interrupt(

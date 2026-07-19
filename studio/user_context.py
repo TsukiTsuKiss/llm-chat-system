@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from studio.user_context_rag import RagResolution, session_rag_enabled
+
 DEFAULT_USER_CONTEXT_PATH = "user_context/my_context.md"
 DEFAULT_MAX_CHARS = 8000
 
@@ -103,11 +105,36 @@ def build_generation_options(
     stream: bool,
     temperature: float,
     no_user_context: bool = False,
+    no_user_context_rag: bool = False,
 ) -> tuple[dict[str, Any], UserContextResolution]:
     resolution = resolve_user_context(root, studio_config, no_user_context=no_user_context)
     generation: dict[str, Any] = {
         "stream": stream,
         "temperature": temperature,
         "user_context": resolution.enabled,
+        "user_context_rag": session_rag_enabled(
+            studio_config,
+            no_user_context=no_user_context,
+            no_user_context_rag=no_user_context_rag,
+        ),
     }
     return generation, resolution
+
+
+def resolve_session_rag(
+    root: Path,
+    studio_config: dict[str, Any],
+    query: str,
+    *,
+    no_user_context: bool = False,
+    no_user_context_rag: bool = False,
+) -> RagResolution:
+    from studio.user_context_rag import resolve_rag_context
+
+    return resolve_rag_context(
+        root,
+        studio_config,
+        query,
+        no_user_context=no_user_context,
+        no_user_context_rag=no_user_context_rag,
+    )

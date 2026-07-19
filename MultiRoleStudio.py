@@ -12,7 +12,8 @@ from studio.assistants import MockAssistant
 from studio.bindings import org_has_human_talent, workflow_participating_talent_ids
 from studio.display import format_session_end_lines, format_step_metrics_line
 from studio.engine import EngineEvent, SessionEngine, collect_events
-from studio.loader import load_session_context, read_attachment_files
+from studio.loader import load_session_context, load_studio_config, read_attachment_files
+from studio.user_context_rag import reindex_corpus
 from studio.user_context_update import (
     apply_context_draft,
     save_context_draft_from_session,
@@ -161,6 +162,7 @@ def run_batch(args: argparse.Namespace) -> int:
         attachment_context=attachment_context,
         stream=use_stream,
         no_user_context=args.no_user_context,
+        no_user_context_rag=args.no_user_context_rag,
     )
     for event in events:
         print_event(event, use_stream=use_stream)
@@ -189,7 +191,12 @@ def run_interactive(args: argparse.Namespace) -> int:
         if not user_text or user_text.lower() in {"q", "quit", "exit"}:
             break
 
-        gen = engine.run_turn(user_text, stream=use_stream, no_user_context=args.no_user_context)
+        gen = engine.run_turn(
+            user_text,
+            stream=use_stream,
+            no_user_context=args.no_user_context,
+            no_user_context_rag=args.no_user_context_rag,
+        )
         event = next(gen)
         while True:
             print_event(event, use_stream=use_stream)
@@ -246,6 +253,18 @@ def run_user_context_summarize(args: argparse.Namespace) -> int:
     return 0 if result.ok else 1
 
 
+def run_user_context_reindex(args: argparse.Namespace) -> int:
+    root = Path(args.root)
+    try:
+        studio_config = load_studio_config(root)
+    except StudioValidationError as exc:
+        print(exc.format_all(), file=sys.stderr)
+        return 1
+    result = reindex_corpus(root, studio_config)
+    print(result.message)
+    return 0 if result.ok else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="MultiRoleStudio CLI")
     parser.add_argument("--org", default="solo", help="組織 ID")
@@ -276,6 +295,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="ユーザーコンテキスト（付録D）を今回のセッションでは注入しない",
     )
     parser.add_argument(
+        "--no-user-context-rag",
+        action="store_true",
+        help="user_context RAG（付録D.10）のみ今回のセッションでは注入しない",
+    )
+    parser.add_argument(
         "--user-context-draft",
         metavar="SESSION_ID",
         default=None,
@@ -291,6 +315,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--user-context-summarize",
         action="store_true",
         help="my_context.md から要約版 my_context.summary.md を生成（付録D.8）",
+    )
+    parser.add_argument(
+        "--user-context-reindex",
+        action="store_true",
+        help="user_context/corpus を index 再構築（付録D.10）",
     )
     parser.add_argument("--version", action="version", version=f"MultiRoleStudio {VERSION}")
     return parser
@@ -310,6 +339,8 @@ def main(argv: list[str] | None = None) -> int:
         return run_user_context_apply(args)
     if args.user_context_summarize:
         return run_user_context_summarize(args)
+    if args.user_context_reindex:
+        return run_user_context_reindex(args)
 
     if args.apply:
         return run_apply(args)

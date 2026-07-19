@@ -203,6 +203,7 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
                 stream=web_session.stream,
                 temperature=web_session.temperature,
                 user_context=web_session.user_context,
+                user_context_rag=web_session.user_context_rag,
             )
         except StudioValidationError as exc:
             return (

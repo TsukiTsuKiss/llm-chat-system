@@ -14,10 +14,23 @@ from studio.loader import load_studio_config
 from studio.validation import StudioValidationError
 from studio.settings_ui import SettingsHandles, build_settings_tab
 from studio.sessions_ui import SessionsHandles, build_sessions_tab
+from studio.rag_ui import (
+    CORPUS_PREVIEW_PLACEHOLDER,
+    RAG_DISABLED_HINT,
+    build_rag_ui_state,
+    corpus_panel_markdown,
+    list_corpus_files,
+    load_studio_config_for_ui,
+    rag_available_in_config,
+    read_corpus_file,
+    run_reindex,
+    search_preview_markdown,
+)
 from studio.web_ui import (
     WebSession,
     handle_chat_submit,
     handle_choice,
+    last_rag_injection_preview,
     list_organizations,
     load_org_panel,
     upload_limits_from_config,
@@ -31,7 +44,7 @@ from web_input_utils import (
     user_context_default_from_config,
 )
 
-VERSION = "0.5.1"
+VERSION = "0.5.2"
 
 DEFAULT_ORG = os.getenv("MULTIROLESTUDIOWEB_ORG", "")
 DEFAULT_PORT = int(os.getenv("MULTIROLESTUDIOWEB_PORT", "7862"))
@@ -166,6 +179,11 @@ def build_ui(root: Path, *, cli_org: str | None = None) -> gr.Blocks:
     default_stream = stream_default_from_config(studio_config, default_value=True)
     default_temperature = temperature_default_from_config(studio_config, default_value=0.7)
     default_user_context = user_context_default_from_config(studio_config, default_value=True)
+    rag_ui = build_rag_ui_state(root)
+    default_user_context_rag = rag_ui.default_rag
+    rag_config_available = rag_ui.available
+    initial_corpus_files = rag_ui.corpus_files
+    initial_corpus_file = rag_ui.corpus_file
     default_org = _default_org(root, cli_org)
     wf_choices, default_wf = workflow_dropdown_for_org(root, default_org or "", "")
     upload_limits = upload_limits_from_config(studio_config)
@@ -177,7 +195,7 @@ def build_ui(root: Path, *, cli_org: str | None = None) -> gr.Blocks:
 
         gr.Markdown(
             f"# MultiRoleStudio Web `{VERSION}`\n"
-            "Phase 4a: チャット / Phase 4b: 設定編集 / Phase 4c: ファイル添付 / Phase 4d: model_mapping フォーム / Phase 4e: セッション / Phase 5a: 再開 / Phase 5d: user_context"
+            "Phase 4a: チャット / Phase 4b: 設定編集 / Phase 4c: ファイル添付 / Phase 4d: model_mapping フォーム / Phase 4e: セッション / Phase 5a: 再開 / Phase 5d: user_context / Phase 6: RAG"
         )
 
         with gr.Tabs():
@@ -205,10 +223,52 @@ def build_ui(root: Path, *, cli_org: str | None = None) -> gr.Blocks:
                             label="ユーザーコンテキスト",
                             value=default_user_context,
                         )
+                        user_context_rag_cb = gr.Checkbox(
+                            label="コンテキスト RAG",
+                            value=default_user_context_rag,
+                            interactive=rag_config_available,
+                        )
                         merge_cb = gr.Checkbox(
                             label="連続メッセージを1つにまとめる",
                             value=False,
                         )
+                        with gr.Accordion("RAG ツール（corpus / index）", open=False):
+                            rag_panel_md = gr.Markdown(rag_ui.panel_md)
+                            refresh_rag_btn = gr.Button(
+                                "設定を再読込",
+                                variant="secondary",
+                            )
+                            reindex_btn = gr.Button(
+                                "index 再構築",
+                                variant="secondary",
+                                interactive=rag_config_available,
+                            )
+                            rag_status_md = gr.Markdown(rag_ui.status_hint)
+                            corpus_dd = gr.Dropdown(
+                                label="corpus ファイル",
+                                choices=initial_corpus_files,
+                                value=initial_corpus_file,
+                                interactive=rag_config_available,
+                            )
+                            corpus_tb = gr.Textbox(
+                                label="corpus プレビュー",
+                                value=rag_ui.corpus_preview or CORPUS_PREVIEW_PLACEHOLDER,
+                                lines=6,
+                                max_lines=12,
+                                interactive=False,
+                            )
+                            rag_query_tb = gr.Textbox(
+                                label="検索プレビュー（クエリ）",
+                                placeholder="例: loader E204 parity",
+                                lines=1,
+                            )
+                            rag_search_btn = gr.Button(
+                                "検索プレビュー",
+                                variant="secondary",
+                                interactive=rag_config_available,
+                            )
+                            rag_search_md = gr.Markdown("_検索結果がここに表示されます_")
+                            rag_inject_md = gr.Markdown("_送信後に注入 chunk が表示されます_")
                         temp_sl = gr.Slider(
                             label="Temperature",
                             minimum=0.0,
@@ -307,6 +367,7 @@ def build_ui(root: Path, *, cli_org: str | None = None) -> gr.Blocks:
             stream: bool,
             temperature: float,
             user_context: bool,
+            user_context_rag: bool,
             files,
         ):
             try:
@@ -318,6 +379,7 @@ def build_ui(root: Path, *, cli_org: str | None = None) -> gr.Blocks:
                     stream=stream,
                     temperature=temperature,
                     user_context=user_context,
+                    user_context_rag=user_context_rag,
                     files=files,
                     upload_limits=upload_limits,
                 ):
@@ -328,6 +390,7 @@ def build_ui(root: Path, *, cli_org: str | None = None) -> gr.Blocks:
                         gr.update(visible=show_choice),
                         _msg_input_update(placeholder),
                         _upload_input_update(clear_upload),
+                        last_rag_injection_preview(session),
                     )
             except StudioValidationError as exc:
                 yield (
@@ -337,6 +400,7 @@ def build_ui(root: Path, *, cli_org: str | None = None) -> gr.Blocks:
                     gr.update(visible=False),
                     _msg_input_update(),
                     _upload_input_update(),
+                    gr.update(),
                 )
 
         def on_choice(session: WebSession, choice: str):
@@ -350,6 +414,7 @@ def build_ui(root: Path, *, cli_org: str | None = None) -> gr.Blocks:
                     gr.update(visible=show_choice),
                     _msg_input_update(placeholder),
                     _upload_input_update(clear_upload),
+                    last_rag_injection_preview(session),
                 )
                 return
             for messages, status, show_choice, placeholder, clear_upload in result:
@@ -360,28 +425,126 @@ def build_ui(root: Path, *, cli_org: str | None = None) -> gr.Blocks:
                     gr.update(visible=show_choice),
                     _msg_input_update(placeholder),
                     _upload_input_update(clear_upload),
+                    last_rag_injection_preview(session),
                 )
 
-        def sync_chat_prefs(session: WebSession, stream: bool, user_context: bool, temperature: float):
+        def sync_chat_prefs(
+            session: WebSession,
+            stream: bool,
+            user_context: bool,
+            user_context_rag: bool,
+            temperature: float,
+        ):
             session.stream = True if stream is None else stream
             session.user_context = True if user_context is None else user_context
+            session.user_context_rag = True if user_context_rag is None else user_context_rag
             session.temperature = 0.7 if temperature is None else temperature
             return session
 
+        def on_corpus_select(filename: str | None):
+            config = load_studio_config_for_ui(root)
+            return read_corpus_file(root, config, filename)
+
+        def refresh_rag_ui(preserve_rag_checked: bool):
+            state = build_rag_ui_state(root, load_corpus_preview=False)
+            rag_update = (
+                gr.update(value=preserve_rag_checked, interactive=state.available)
+                if preserve_rag_checked is not None
+                else gr.update(value=state.default_rag, interactive=state.available)
+            )
+            return (
+                state.panel_md,
+                rag_update,
+                gr.update(interactive=state.available),
+                gr.update(choices=state.corpus_files, value=state.corpus_file, interactive=state.available),
+                gr.update(value=CORPUS_PREVIEW_PLACEHOLDER if state.corpus_files else ""),
+                gr.update(interactive=state.available),
+                state.status_hint,
+            )
+
+        def on_refresh_rag_clicked(current_rag: bool):
+            return refresh_rag_ui(current_rag)
+
+        def on_reindex(current_rag: bool):
+            config = load_studio_config_for_ui(root)
+            message = run_reindex(root, config)
+            state = build_rag_ui_state(root, load_corpus_preview=False)
+            return (
+                message,
+                state.panel_md,
+                gr.update(choices=state.corpus_files, value=state.corpus_file, interactive=state.available),
+                gr.update(value=CORPUS_PREVIEW_PLACEHOLDER if state.corpus_files else ""),
+                gr.update(interactive=state.available),
+            )
+
+        def on_rag_search(
+            query: str,
+            user_context: bool,
+            user_context_rag: bool,
+        ):
+            config = load_studio_config_for_ui(root)
+            if not rag_available_in_config(config):
+                return RAG_DISABLED_HINT
+            return search_preview_markdown(
+                root,
+                config,
+                query,
+                user_context=user_context,
+                user_context_rag=user_context_rag,
+            )
+
         stream_cb.change(
             sync_chat_prefs,
-            inputs=[session_state, stream_cb, user_context_cb, temp_sl],
+            inputs=[session_state, stream_cb, user_context_cb, user_context_rag_cb, temp_sl],
             outputs=[session_state],
         )
         user_context_cb.change(
             sync_chat_prefs,
-            inputs=[session_state, stream_cb, user_context_cb, temp_sl],
+            inputs=[session_state, stream_cb, user_context_cb, user_context_rag_cb, temp_sl],
+            outputs=[session_state],
+        )
+        user_context_rag_cb.change(
+            sync_chat_prefs,
+            inputs=[session_state, stream_cb, user_context_cb, user_context_rag_cb, temp_sl],
             outputs=[session_state],
         )
         temp_sl.change(
             sync_chat_prefs,
-            inputs=[session_state, stream_cb, user_context_cb, temp_sl],
+            inputs=[session_state, stream_cb, user_context_cb, user_context_rag_cb, temp_sl],
             outputs=[session_state],
+        )
+        corpus_dd.change(on_corpus_select, inputs=[corpus_dd], outputs=[corpus_tb], queue=False)
+        refresh_rag_btn.click(
+            on_refresh_rag_clicked,
+            inputs=[user_context_rag_cb],
+            outputs=[
+                rag_panel_md,
+                user_context_rag_cb,
+                reindex_btn,
+                corpus_dd,
+                corpus_tb,
+                rag_search_btn,
+                rag_status_md,
+            ],
+            queue=False,
+        )
+        reindex_btn.click(
+            on_reindex,
+            inputs=[user_context_rag_cb],
+            outputs=[rag_status_md, rag_panel_md, corpus_dd, corpus_tb, rag_search_btn],
+            queue=False,
+        )
+        rag_search_btn.click(
+            on_rag_search,
+            inputs=[rag_query_tb, user_context_cb, user_context_rag_cb],
+            outputs=[rag_search_md],
+            queue=False,
+        )
+        rag_query_tb.submit(
+            on_rag_search,
+            inputs=[rag_query_tb, user_context_cb, user_context_rag_cb],
+            outputs=[rag_search_md],
+            queue=False,
         )
 
         org_dd.change(
@@ -417,11 +580,20 @@ def build_ui(root: Path, *, cli_org: str | None = None) -> gr.Blocks:
             org_dd,
             wf_dd,
             stream_cb,
-            user_context_cb,
             temp_sl,
+            user_context_cb,
+            user_context_rag_cb,
             upload_files,
         ]
-        submit_outputs = [chatbot, session_state, status_tb, choice_row, msg_tb, upload_files]
+        submit_outputs = [
+            chatbot,
+            session_state,
+            status_tb,
+            choice_row,
+            msg_tb,
+            upload_files,
+            rag_inject_md,
+        ]
 
         send_btn.click(on_submit, inputs=submit_inputs, outputs=submit_outputs)
         msg_tb.submit(on_submit, inputs=submit_inputs, outputs=submit_outputs)
@@ -429,12 +601,12 @@ def build_ui(root: Path, *, cli_org: str | None = None) -> gr.Blocks:
         continue_btn.click(
             on_choice,
             inputs=[session_state, gr.State("continue")],
-            outputs=[chatbot, session_state, status_tb, choice_row, msg_tb, upload_files],
+            outputs=[chatbot, session_state, status_tb, choice_row, msg_tb, upload_files, rag_inject_md],
         )
         exit_btn.click(
             on_choice,
             inputs=[session_state, gr.State("exit")],
-            outputs=[chatbot, session_state, status_tb, choice_row, msg_tb, upload_files],
+            outputs=[chatbot, session_state, status_tb, choice_row, msg_tb, upload_files, rag_inject_md],
         )
 
     return demo

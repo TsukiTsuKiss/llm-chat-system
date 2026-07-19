@@ -12,6 +12,7 @@ from studio.assistants import MockAssistant
 from studio.display import format_session_end_lines, format_step_metrics_line, SPEAKER_EMOJIS
 from studio.engine import EngineEvent, SessionEngine
 from studio.loader import SessionContext, load_session_context, read_attachment_files
+from studio.rag_ui import last_injection_markdown
 from studio.validation import StudioValidationError
 from web_input_utils import normalize_uploaded_files
 
@@ -345,6 +346,7 @@ class WebSession:
     stream: bool = True
     temperature: float = 0.7
     user_context: bool = True
+    user_context_rag: bool = True
     engine: SessionEngine | None = None
     pending: PendingInteraction | None = None
     renderer: ChatEventRenderer = field(default_factory=ChatEventRenderer)
@@ -398,12 +400,14 @@ class WebSession:
         stream: bool,
         temperature: float,
         user_context: bool = True,
+        user_context_rag: bool = True,
     ) -> None:
         import time
 
         from studio.engine import EngineState, SessionEngine
         from studio.session_resume import ResumedSession
         from studio.user_context import resolve_user_context
+        from studio.user_context_rag import session_rag_enabled
 
         if not isinstance(resumed, ResumedSession):
             raise TypeError("resumed must be ResumedSession")
@@ -412,6 +416,12 @@ class WebSession:
             ctx.studio_config,
             no_user_context=not user_context,
         )
+        rag_enabled = session_rag_enabled(
+            ctx.studio_config,
+            no_user_context=not user_context,
+            no_user_context_rag=not user_context_rag,
+        )
+        self.user_context_rag = user_context_rag
         self.reset_chat()
         self.org_id = resumed.org_id
         self.workflow_id = resumed.workflow_id
@@ -438,6 +448,7 @@ class WebSession:
             temperature=temperature,
             user_context_enabled=uc_resolution.enabled,
             user_context_text=uc_resolution.text,
+            user_context_rag_enabled=rag_enabled,
             parent_session_id=resumed.parent_session_id,
             session_wall_start=time.perf_counter(),
         )
@@ -450,6 +461,7 @@ def apply_session_resume(
     stream: bool,
     temperature: float,
     user_context: bool = True,
+    user_context_rag: bool = True,
 ) -> tuple[
     WebSession,
     list[dict[str, str]],
@@ -468,7 +480,14 @@ def apply_session_resume(
     workflow_value = resumed.workflow_id or ""
     ctx = load_session_context(resumed.org_id, web.root, workflow_id=resumed.workflow_id)
     MockAssistant.reset()
-    web.resume_branch(resumed, ctx, stream=stream, temperature=temperature, user_context=user_context)
+    web.resume_branch(
+        resumed,
+        ctx,
+        stream=stream,
+        temperature=temperature,
+        user_context=user_context,
+        user_context_rag=user_context_rag,
+    )
     choices, wf_value = workflow_dropdown_for_org(web.root, resumed.org_id, workflow_value)
     talents = load_org_panel(web.root, resumed.org_id, wf_value)[0]
     status = (
@@ -601,6 +620,7 @@ def run_user_message(
     stream: bool,
     temperature: float,
     user_context: bool = True,
+    user_context_rag: bool = True,
     attachment_context: str = "",
     attachment_names: list[str] | None = None,
 ) -> Generator[UIUpdate, None, None]:
@@ -608,7 +628,14 @@ def run_user_message(
     session.stream = stream
     session.temperature = temperature
     session.user_context = user_context
+    session.user_context_rag = user_context_rag
     assert session.engine is not None
+    try:
+        from studio.loader import load_studio_config
+
+        session.engine.ctx.studio_config = load_studio_config(session.root)
+    except StudioValidationError:
+        pass
     session.renderer.add_user(display_text)
     yield (
         session.renderer.copy_messages(),
@@ -625,6 +652,7 @@ def run_user_message(
         stream=stream,
         temperature=temperature,
         no_user_context=not user_context,
+        no_user_context_rag=not user_context_rag,
     )
     yield from process_events(session, generator)
 
@@ -638,6 +666,7 @@ def handle_chat_submit(
     stream: bool,
     temperature: float,
     user_context: bool = True,
+    user_context_rag: bool = True,
     files=None,
     upload_limits: dict[str, int] | None = None,
 ) -> Generator[UIUpdate, None, None] | UIUpdate:
@@ -704,6 +733,7 @@ def handle_chat_submit(
         stream=stream,
         temperature=temperature,
         user_context=user_context,
+        user_context_rag=user_context_rag,
         attachment_context=attachment_context,
         attachment_names=attachment_names or None,
     )
@@ -722,6 +752,12 @@ def handle_choice(
             False,
         )
     yield from resume_after_reply(session, choice)
+
+
+def last_rag_injection_preview(session: WebSession) -> str:
+    if session.engine is None or session.engine.state is None:
+        return last_injection_markdown(())
+    return last_injection_markdown(session.engine.state.last_context_chunks)
 
 
 def load_org_panel(root: Path, org_id: str, workflow_value: str) -> tuple[str, str]:

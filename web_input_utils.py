@@ -98,6 +98,21 @@ def user_context_default_from_config(config: dict | None, default_value: bool = 
     return default_value
 
 
+def user_context_rag_default_from_config(config: dict | None, default_value: bool = True) -> bool:
+    """config から user_context.rag.enabled の初期値を解決する。"""
+    if not isinstance(config, dict):
+        return default_value
+    uc = config.get("user_context")
+    if not isinstance(uc, dict):
+        return default_value
+    rag = uc.get("rag")
+    if isinstance(rag, dict):
+        b = to_bool(rag.get("enabled"))
+        if b is not None:
+            return b
+    return default_value
+
+
 def normalize_uploaded_files(uploaded_files) -> list[str]:
     if not uploaded_files:
         return []

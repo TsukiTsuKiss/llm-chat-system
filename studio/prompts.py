@@ -25,6 +25,7 @@ def build_system_prompt(
     talent_id: str,
     *,
     user_context_text: str | None = None,
+    user_context_rag_text: str | None = None,
 ) -> str:
     parts: list[str] = []
     if talent.get("personality"):
@@ -37,6 +38,9 @@ def build_system_prompt(
 
     if user_context_text:
         parts.append(f"【ユーザーコンテキスト】\n{user_context_text}")
+
+    if user_context_rag_text:
+        parts.append(user_context_rag_text)
 
     common = org.get("common_directives") or []
     if common:
