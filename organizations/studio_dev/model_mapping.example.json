@@ -1,0 +1,5 @@
+{
+  "architect": { "assistant": "mock" },
+  "implementer": { "assistant": "mock" },
+  "reviewer": { "assistant": "mock" }
+}

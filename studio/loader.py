@@ -11,6 +11,7 @@ from studio.bindings import validate_workflow_binding_talent_refs, validate_work
 from studio.schema_validate import load_json_file, validate_schema_document
 from studio.validation import StudioError, StudioValidationError, ValidationReport
 from studio.workflow_validate import validate_workflow_structure
+from web_input_utils import SUPPORTED_TEXT_EXTENSIONS
 
 RESERVED_ASSISTANTS = frozenset({"human", "mock"})
 AI_ASSISTANTS_FILE = "ai_assistants_config.json"
@@ -289,6 +290,29 @@ def load_session_context(
     )
 
 
+def _expand_attachment_path(path: Path) -> list[Path]:
+    """ファイルまたはディレクトリを添付読込用のファイル一覧に展開する。"""
+    if not path.exists():
+        return [path]
+    if path.is_file():
+        return [path]
+    if not path.is_dir():
+        return [path]
+
+    files: list[Path] = []
+    for child in sorted(path.rglob("*")):
+        if not child.is_file():
+            continue
+        rel_parts = child.relative_to(path).parts
+        if any(part.startswith(".") or part == "__pycache__" for part in rel_parts):
+            continue
+        ext = child.suffix.lower()
+        if ext and ext not in SUPPORTED_TEXT_EXTENSIONS:
+            continue
+        files.append(child)
+    return files
+
+
 def read_attachment_files(
     paths: list[Path],
     limits: dict[str, int],
@@ -311,46 +335,79 @@ def read_attachment_files(
     chunks: list[str] = []
     total_chars = 0
     for path in paths:
-        if not path.exists():
+        expanded = _expand_attachment_path(path)
+        if path.is_dir() and path.exists() and not expanded:
             report.add(
                 StudioError(
                     code="E101",
                     target=str(path),
-                    message="ファイルが見つかりません",
+                    message="ディレクトリに読み込み可能なテキストファイルがありません",
                 )
             )
             continue
-        size_kb = path.stat().st_size / 1024
-        if size_kb > max_file_size_kb:
-            report.add(
-                StudioError(
-                    code="E402",
-                    target=str(path),
-                    message=f"ファイルサイズが上限 ({max_file_size_kb}KB) を超えています",
+
+        for file_path in expanded:
+            if not file_path.exists():
+                report.add(
+                    StudioError(
+                        code="E101",
+                        target=str(file_path),
+                        message="ファイルが見つかりません",
+                    )
                 )
-            )
-            continue
-        try:
-            text = path.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
-            report.add(
-                StudioError(
-                    code="E101",
-                    target=str(path),
-                    message="UTF-8 テキストとして読み込めません",
+                continue
+            if not file_path.is_file():
+                report.add(
+                    StudioError(
+                        code="E101",
+                        target=str(file_path),
+                        message="ファイルではないパスです",
+                    )
                 )
-            )
-            continue
-        total_chars += len(text)
+                continue
+            size_kb = file_path.stat().st_size / 1024
+            if size_kb > max_file_size_kb:
+                report.add(
+                    StudioError(
+                        code="E402",
+                        target=str(file_path),
+                        message=f"ファイルサイズが上限 ({max_file_size_kb}KB) を超えています",
+                    )
+                )
+                continue
+            try:
+                text = file_path.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                report.add(
+                    StudioError(
+                        code="E101",
+                        target=str(file_path),
+                        message="UTF-8 テキストとして読み込めません",
+                    )
+                )
+                continue
+            except OSError as e:
+                report.add(
+                    StudioError(
+                        code="E101",
+                        target=str(file_path),
+                        message=f"読み込みに失敗しました: {e}",
+                    )
+                )
+                continue
+            total_chars += len(text)
+            if total_chars > max_total_chars:
+                report.add(
+                    StudioError(
+                        code="E402",
+                        target="--files",
+                        message=f"添付文字数合計が上限 ({max_total_chars}) を超えています",
+                    )
+                )
+                break
+            label = file_path.as_posix()
+            chunks.append(f"### {label}\n{text}")
         if total_chars > max_total_chars:
-            report.add(
-                StudioError(
-                    code="E402",
-                    target="--files",
-                    message=f"添付文字数合計が上限 ({max_total_chars}) を超えています",
-                )
-            )
             break
-        chunks.append(f"### {path.name}\n{text}")
 
     return "\n\n".join(chunks), report

@@ -83,7 +83,7 @@
 | 4a〜4f | ✅ | Web UI（チャット・設定・添付・mapping・セッション・bindings） |
 | 5a〜5f | ✅ | 再開・議事録・採用・user_context・割り込み・samples |
 | 5g | ✅ | 旧版移行（§9.2） |
-| 5h | ⬜ | studio_dev（§10.4・任意） |
+| 5h | ✅ | studio_dev（§10.4） |
 | 6〜9 | ⬜ | 生成連携・考査・運用・外部連携 |
 
 </details>
@@ -95,6 +95,7 @@ pip install -r requirements.txt          # .venv13 推奨
 cp organizations/solo/model_mapping.example.json organizations/solo/model_mapping.json
 cp organizations/trio/model_mapping.example.json organizations/trio/model_mapping.json
 cp organizations/nokuru/model_mapping.example.json organizations/nokuru/model_mapping.json
+cp organizations/studio_dev/model_mapping.example.json organizations/studio_dev/model_mapping.json
 # 実 LLM 用（model は ai_assistants_config.csv の model 列を引用）
 # cp organizations/trio/model_mapping.providers.example.json organizations/trio/model_mapping.json
 # nokuru も同様に organizations/nokuru/model_mapping.json を編集（hinata/satsuki/kaede ごとに assistant + model）
@@ -117,6 +118,15 @@ python MultiRoleStudio.py --org trio --workflow quiz --topic "日本の首都は
 # --- Phase 3: 会議・開発（nokuru）---
 python MultiRoleStudio.py --org nokuru --workflow meeting --topic "秋キャンプの行き先" --stream off
 python MultiRoleStudio.py --org nokuru --workflow dev --topic "hello 関数" --stream off
+
+# --- Phase 5h: 自己改善開発チーム（studio_dev）---
+python MultiRoleStudio.py --org studio_dev --workflow meeting \
+  --topic "次 Phase のスコープを design.md に沿って整理" --stream off
+python MultiRoleStudio.py --org studio_dev --workflow dev \
+  --topic "loader の E204 mock 対応を実装" \
+  --files user_context/corpus/design_summary.md schemas/ --stream off
+# design.md 全文（約145KB）は upload_limits の文字数上限を超えるため、corpus 要約 + --files を推奨
+# user_context: cp user_context/my_context.example.md user_context/my_context.md
 
 # dev 終了後: セッション出力に表示される成果物ディレクトリで検証
 #   例) 成果物: sandbox/session_20260713_180000
@@ -438,6 +448,7 @@ llm-chat-system/
 │   │   ├── config.json               # 3ワークフロー: quick_discussion/debate/issue_discussion
 │   │   └── roles/                    # リーダー・アナリスト・リスク評価・ファシリテーター
 │   ├── nokuru/                        # Phase 3 サンプル（meeting / dev、hinata・さつき・かえで）
+│   ├── studio_dev/                    # Phase 5h メタサンプル（自己改善開発チーム）
 │   │   ├── config.json               # workflow_bindings、role_directives
 │   │   ├── model_mapping.example.json
 │   │   └── roles/                    # 旧 MultiRoleChat 用（Studio は talents/*.json を使用）

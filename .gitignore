@@ -129,8 +129,11 @@ multi_logs/
 # MultiRoleStudio ユーザーローカル設定
 studio_config.json
 organizations/*/model_mapping.json
-user_context/
+user_context/*
 !user_context/my_context.example.md
+!user_context/corpus/
+user_context/corpus/*
+!user_context/corpus/**
 user_context/index/
 
 # � サンドボックス実行環境

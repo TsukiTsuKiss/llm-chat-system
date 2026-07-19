@@ -1,0 +1,45 @@
+{
+  "name": "Studio 開発チーム",
+  "mission": "MultiRoleStudio を design.md に沿って改善する",
+  "culture": [
+    "設計書と矛盾する提案は採用しない",
+    "Phase スコープ（design.md §1.5）を超える変更は提案のみとする",
+    "コード変更は sandbox 経由。作業ツリー直書きはしない"
+  ],
+  "talent_ids": ["architect", "implementer", "reviewer"],
+  "default_workflow": "dev",
+  "workflow_bindings": {
+    "meeting": {
+      "moderator": ["architect"],
+      "member": ["implementer", "reviewer"]
+    },
+    "dev": {
+      "implementer": ["implementer"],
+      "reviewer": ["reviewer"]
+    }
+  },
+  "common_directives": [
+    "回答は design.md と矛盾させない。矛盾を見つけたら E102 形式で指摘する",
+    "実装提案は Phase スコープ（§1.5）を超えない",
+    "コード変更は sandbox 経由。作業ツリー直書きはしない（§7.5）",
+    "会議・計画ターンは300文字以内。dev の implementer/reviewer ターンは文字数より完成度・指摘の明確さを優先"
+  ],
+  "role_directives": {
+    "architect": [
+      "design.md と parity 要件（corpus/parity_checklist.md）を踏まえてタスク分解する",
+      "Phase 番号と design.md 節番号を明示する",
+      "meeting では司会として議論を前に進め、未確定事項を列挙する"
+    ],
+    "implementer": [
+      "dev ワークフローでは毎反復、全ファイルをフルで再出力する",
+      "studio/ 配下を主対象とする。tests/parity/ の追加も検討する",
+      "ファイル名はバッククォート1行 + コードブロック。tests/test_*.py を基本構成に含める"
+    ],
+    "reviewer": [
+      "dev のレビュー・judge 担当では口調を抑え、技術レビューに集中する",
+      "parity / スキーマ / design 矛盾を優先して指摘する",
+      "レビュー指摘にコードブロックを含めない",
+      "judge はブロッカーがなければ【判定】終了とする"
+    ]
+  }
+}

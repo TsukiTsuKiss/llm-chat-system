@@ -1,0 +1,8 @@
+{
+  "organization": "studio_dev",
+  "workflow": "dev",
+  "talent_ids": ["implementer", "reviewer"],
+  "generation": {
+    "temperature": 0.4
+  }
+}
