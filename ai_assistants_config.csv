@@ -1,6 +1,6 @@
 assistant_name,module,class,model,fast_model
 Groq,langchain_groq,ChatGroq,openai/gpt-oss-120b,openai/gpt-oss-20b
-ChatGPT,langchain_openai,ChatOpenAI,gpt-5.5,gpt-5.4-mini
+ChatGPT,langchain_openai,ChatOpenAI,gpt-5.6-sol,gpt-5.6-luna
 Gemini,langchain_google_genai,ChatGoogleGenerativeAI,gemini-2.5-pro,gemini-3.5-flash
 Mistral,langchain_mistralai,ChatMistralAI,mistral-large-latest,mistral-small-latest
 Together,langchain_together,ChatTogether,meta-llama/Llama-3.3-70B-Instruct-Turbo,meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo
@@ -8,9 +8,9 @@ Anthropic,langchain_anthropic,ChatAnthropic,claude-fable-5,claude-sonnet-5
 Grok,langchain_xai,ChatXAI,grok-latest,grok-code-fast
 Opper,langchain_opperai,ChatOpperAI,groq/gpt-oss-120b,groq/gpt-oss-20b
 Opper-Anthropic,langchain_opperai,ChatOpperAI,anthropic/claude-fable-5,anthropic/claude-sonnet-5
-Opper-AWS,langchain_opperai,ChatOpperAI,aws/claude-opus-4-8,aws/claude-sonnet-4-6-eu
-Opper-Azure,langchain_opperai,ChatOpperAI,azure/claude-opus-4-8,azure/claude-sonnet-4-6
+Opper-AWS,langchain_opperai,ChatOpperAI,aws/claude-opus-5,aws/claude-sonnet-4-6-eu
+Opper-Azure,langchain_opperai,ChatOpperAI,azure/claude-opus-5,azure/claude-sonnet-4-6
 Opper-Grok,langchain_opperai,ChatOpperAI,xai/grok-4.20-reasoning,xai/grok-4.20-non-reasoning
 Opper-Groq,langchain_opperai,ChatOpperAI,groq/gpt-oss-120b,groq/gpt-oss-20b
 Opper-Mistral,langchain_opperai,ChatOpperAI,mistral/mistral-large,mistral/mistral-small
-Opper-Openai,langchain_opperai,ChatOpperAI,openai/gpt-5.5,openai/gpt-5.4
+Opper-Openai,langchain_opperai,ChatOpperAI,openai/gpt-5.6-sol,openai/gpt-5.6-luna
