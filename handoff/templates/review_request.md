@@ -6,7 +6,9 @@
 | 対象コミット | `` |
 | 状態 | `review_pending` |
 | 依頼元 | Composer |
+| 依頼元 Agent/モデル | |
 | レビュー担当 | GitHub Copilot |
+| レビュー担当 Agent/モデル | |
 | 正本 | `docs/MultiRoleStudio/design.md` |
 
 ---

@@ -18,10 +18,15 @@ git log --follow handoff/current.md
 
 ## 運用フロー
 
-1. **Composer** … 実装後、`current.md` のメタと「Composer → Copilot」を書く
-2. **Copilot** … レビューし「Copilot → Composer」に追記
+1. **Composer** … 実装後、`current.md` のメタと「Composer → Copilot」を書く（メタ表の「依頼元 Agent/モデル」も記入）
+2. **Copilot** … レビューし「Copilot → Composer」に追記（メタ表の「レビュー担当 Agent/モデル」も記入）
 3. **オーナー** … 「オーナー判断」に採用/却下を書く
 4. 次 Phase 前に `current.md` を上書き（またはテンプレから再作成）
+
+- 「Agent/モデル」欄は当時の実績記録。ツール側のアップデートで変わるため、Phase ごとに書き残す
+  （design.md §1.6 のプロジェクトメンバー表は概要のみのため、Phase 単位の実績は `current.md` の Git 履歴で追う）
+- 同じモデル名でも **経由（Copilot経由 / API直接 等）** によって挙動が異なりうるため、
+  「モデル名（経由）」の形式で書く（例: `Claude Sonnet 5（GitHub Copilot経由）`）
 
 ## Copilot への依頼
 

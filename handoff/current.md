@@ -6,7 +6,9 @@
 | 対象 | **working tree（未コミット）** — 初回レビュー指摘 3 件（major）を修正 |
 | 状態 | `reviewed`（合格 — オーナー判断待ち） |
 | 依頼元 | Composer |
+| 依頼元 Agent/モデル | 未記録 |
 | レビュー担当 | GitHub Copilot |
+| レビュー担当 Agent/モデル | Claude Sonnet 5（GitHub Copilot経由） |
 | 正本 | `docs/MultiRoleStudio/design.md` 付録 D.10 |
 
 ---
