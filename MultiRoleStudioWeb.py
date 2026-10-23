@@ -28,16 +28,19 @@ from studio.rag_ui import (
 )
 from studio.web_ui import (
     WebSession,
+    audio_finished_update,
     handle_chat_submit,
     handle_choice,
     last_rag_injection_preview,
     list_organizations,
     load_org_panel,
+    next_audio_update,
     upload_limits_from_config,
     workflow_available_for_org,
     workflow_dropdown_for_org,
     workflow_unavailable_note,
 )
+from studio.voice import DEFAULT_BASE_URL
 from web_input_utils import (
     stream_default_from_config,
     temperature_default_from_config,
@@ -170,7 +173,12 @@ def _default_org(root: Path, cli_org: str | None = None) -> str:
     return orgs[0]
 
 
-def build_ui(root: Path, *, cli_org: str | None = None) -> gr.Blocks:
+def build_ui(
+    root: Path,
+    *,
+    cli_org: str | None = None,
+    voicevox_url: str = DEFAULT_BASE_URL,
+) -> gr.Blocks:
     orgs = list_organizations(root)
     try:
         studio_config = load_studio_config(root)
@@ -189,7 +197,7 @@ def build_ui(root: Path, *, cli_org: str | None = None) -> gr.Blocks:
     upload_limits = upload_limits_from_config(studio_config)
 
     with gr.Blocks(title=f"MultiRoleStudio Web {VERSION}", fill_height=True) as demo:
-        session_state = gr.State(WebSession(root=root))
+        session_state = gr.State(WebSession(root=root, voicevox_url=voicevox_url))
         valid_wf_state = gr.State(default_wf)
         pending_wf_hint_state = gr.State("")
 
@@ -229,6 +237,13 @@ def build_ui(root: Path, *, cli_org: str | None = None) -> gr.Blocks:
                             interactive=rag_config_available,
                         )
                         web_search_cb = gr.Checkbox(label="ウェブ検索", value=False)
+                        voice_cb = gr.Checkbox(label="読み上げ（VOICEVOX）", value=False)
+                        audio_player = gr.Audio(
+                            label="読み上げ",
+                            type="numpy",
+                            autoplay=True,
+                            interactive=False,
+                        )
                         merge_cb = gr.Checkbox(
                             label="連続メッセージを1つにまとめる",
                             value=False,
@@ -371,6 +386,7 @@ def build_ui(root: Path, *, cli_org: str | None = None) -> gr.Blocks:
             user_context_rag: bool,
             files,
             web_search: bool,
+            voice: bool,
         ):
             try:
                 for messages, status, show_choice, placeholder, clear_upload in handle_chat_submit(
@@ -385,6 +401,7 @@ def build_ui(root: Path, *, cli_org: str | None = None) -> gr.Blocks:
                     files=files,
                     upload_limits=upload_limits,
                     web_search=bool(web_search),
+                    voice=bool(voice),
                 ):
                     yield (
                         messages,
@@ -588,6 +605,7 @@ def build_ui(root: Path, *, cli_org: str | None = None) -> gr.Blocks:
             user_context_rag_cb,
             upload_files,
             web_search_cb,
+            voice_cb,
         ]
         submit_outputs = [
             chatbot,
@@ -601,6 +619,15 @@ def build_ui(root: Path, *, cli_org: str | None = None) -> gr.Blocks:
 
         send_btn.click(on_submit, inputs=submit_inputs, outputs=submit_outputs)
         msg_tb.submit(on_submit, inputs=submit_inputs, outputs=submit_outputs)
+
+        # 発言ごとの音声は再生完了（stop）またはタイマーで順に渡す
+        audio_player.stop(
+            audio_finished_update, inputs=[session_state], outputs=[audio_player], queue=False, show_progress="hidden"
+        )
+        audio_timer = gr.Timer(1.0)
+        audio_timer.tick(
+            next_audio_update, inputs=[session_state], outputs=[audio_player], queue=False, show_progress="hidden"
+        )
 
         continue_btn.click(
             on_choice,
@@ -622,6 +649,17 @@ def main() -> None:
     parser.add_argument("--root", default=".", help="プロジェクトルート")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="ポート番号")
     parser.add_argument("--share", action="store_true", help="Gradio 公開トンネルを有効化")
+    parser.add_argument("--no-browser", action="store_true", help="起動時にブラウザを開かない")
+    parser.add_argument(
+        "--host",
+        default=None,
+        help="待ち受けアドレス（既定: この PC のみ。別 PC から開くなら 0.0.0.0）。認証はない",
+    )
+    parser.add_argument(
+        "--voicevox-url",
+        default=DEFAULT_BASE_URL,
+        help="VOICEVOX の接続先（既定: 環境変数 VOICEVOX_URL または http://127.0.0.1:50021）",
+    )
     parser.add_argument("--version", action="version", version=f"MultiRoleStudioWeb {VERSION}")
     args = parser.parse_args()
 
@@ -629,11 +667,14 @@ def main() -> None:
 
     print(f"[INFO] MultiRoleStudioWeb v{VERSION} 起動中 (root={root})")
     use_japanese_html_template()
-    demo = build_ui(root, cli_org=args.org)
+    demo = build_ui(root, cli_org=args.org, voicevox_url=args.voicevox_url)
+    if args.host and args.host not in {"127.0.0.1", "localhost"}:
+        print("[WARN] --host で外部から接続できます。認証はありません。信頼できるネットワーク内でのみ使ってください。")
     demo.launch(
+        server_name=args.host,
         server_port=args.port,
         share=args.share,
-        inbrowser=True,
+        inbrowser=not args.no_browser,
         theme=gr.themes.Soft(),
         css=STUDIO_WEB_CSS,
         prevent_thread_lock=True,

@@ -134,6 +134,11 @@ python MultiRoleStudio.py --org studio_dev --workflow dev \
 cd sandbox/session_<session_id>
 ./run_all.sh    # pytest と __main__ 付きスクリプトを順に実行（PYTHONPATH=. 済み）
 
+# --- ニュース番組（news_studio）+ VOICEVOX 読み上げ ---
+# 詳細は「ニュース番組と読み上げ」節
+python MultiRoleStudio.py --org news_studio --workflow news_show \
+  --topic "今日の日本のニュースをお願いします" --web-search --voice
+
 # --- Phase 5c: 成果物採用（作業ツリーへ反映 + Git 1コミット）---
 python MultiRoleStudio.py --apply <session_id>
 python MultiRoleStudio.py --apply <session_id> --apply-branch   # studio/<session_id> ブランチでコミット
@@ -146,6 +151,8 @@ python -m pytest tests/parity/ -v
 python MultiRoleStudioWeb.py --org solo          # チャット + 設定編集 + ファイル添付（port 7862）
 python MultiRoleStudioWeb.py --org trio --port 7863
 python MultiRoleStudioWeb.py --org nokuru      # quiz / meeting デモ（hinata, satsuki, kaede）
+python MultiRoleStudioWeb.py --org news_studio --no-browser --host 0.0.0.0 \
+  --voicevox-url http://192.168.1.20:50021   # サーバー用 PC（ブラウザは別 PC）
 # 終了: コンソールで q + Enter（design.md §8.6）
 # RAG（Phase 6）: studio_config で user_context.rag.enabled → Web「コンテキスト RAG」で index 再構築
 ```
@@ -181,6 +188,9 @@ python MultiRoleStudioWeb.py --org nokuru      # quiz / meeting デモ（hinata,
 | `--no-user-context-rag` | RAG のみ注入しない（付録D.10。`my_context` は維持） |
 | `--user-context-reindex` | `user_context/corpus/` から index 再構築 |
 | `--stream off` | ストリーミング OFF（推奨: 速度比較・ログ確認） |
+| `--web-search` | ウェブ検索を有効にする。`model_mapping` で `"web_search": true` の人材のみ。対応: Groq / OpenAI / xAI / Anthropic / Gemini |
+| `--voice` | VOICEVOX で発言を読み上げ、`sessions/audio/<session_id>/` に wav を保存 |
+| `--voicevox-url` | VOICEVOX の接続先（既定: 環境変数 `VOICEVOX_URL`、なければ `http://127.0.0.1:50021`） |
 
 各 step 終了時に `[assistant/model] | 秒 | in=… out=… (api/estimate) | tok/s | $…` を表示する。
 
@@ -196,6 +206,77 @@ python MultiRoleStudioWeb.py --org nokuru      # quiz / meeting デモ（hinata,
 `assistant` は `ai_assistants_config.json` のキー、`model` はその JSON 内の文字列。
 `.example` / `.providers.example` をコピーして編集する。CSV の `model` 列は**手動で写すときの参照用**（実行時には読まない）。
 
+#### ニュース番組と読み上げ（VOICEVOX）
+
+組織 `news_studio`（ワークフロー `news_show`）は、ディレクターが進行表を作り、メイン・サブ・コメンテーター・天気・スポーツの順に放送し、最後にディレクターが事実を点検する。
+ウェブ検索と VOICEVOX による読み上げに対応する。
+
+**準備**
+
+1. `organizations/news_studio/model_mapping.example.json`（mock）をコピーして `model_mapping.json` を作り、人材ごとに `assistant` / `model` を設定する。検索する人材には `"web_search": true` を付ける。
+2. [VOICEVOX](https://voicevox.hiroshiba.jp/) を起動しておく（アプリ版でも ENGINE 単体でもよい。既定は `http://127.0.0.1:50021`）。
+3. `voice_mapping.example.json` をコピーして `organizations/news_studio/voice_mapping.json` を作り、人材 ID ごとに話者 ID を設定する。
+
+```json
+{ "news_main": { "label": "冥鳴ひまり", "speaker": 14, "speed": 1.0 } }
+```
+
+- `speaker` は VOICEVOX の話者（スタイル）ID。一覧は `http://127.0.0.1:50021/speakers` で確認できる。
+- `speed` / `pitch` / `intonation` は任意（話速・高さ・抑揚）。`label` は人間用のメモで、読み込みには使わない。
+- マッピングのない人材（ディレクター等）は読み上げない。
+- 人材名と声のキャラ名は合わせる必要がない。声は組織ごとのファイルで紐づける（`talents/*.json` には書かない）。
+- `voice_mapping.json` は環境依存のため `.gitignore` 対象。コミットするのは `.example`。
+- 読みを直したい語は `organizations/<org>/voice_dictionary.json` に `"表記": "カタカナの読み"` で追加する（例: `"株探": "カブタン"`）。読み上げの直前に置換するだけで、画面とログの本文は変わらない。
+- 発言末尾の「（進行メモ）…」「ディレクター点検」以降、Markdown 記号、URL は読み上げない。
+
+**CLI**
+
+```bash
+python MultiRoleStudio.py --org news_studio --workflow news_show \
+  --topic "今日の東京株式市場の動きについて解説してください。" --web-search --voice
+```
+
+- `--workflow news_show` が必要（省略すると全員が順に話す直接送信になる）。
+- 全員の発言を生成してから読み上げが始まり、再生が終わるまでコマンドは終了しない。
+- VOICEVOX に接続できない場合は警告を出して読み上げなしで続行する。
+- 生成した wav は `sessions/audio/<session_id>/NN_<talent_id>.wav` に残る。
+
+**Web UI（ブラウザで再生）**
+
+```bash
+python MultiRoleStudioWeb.py --org news_studio
+```
+
+左の「ウェブ検索」「読み上げ（VOICEVOX）」にチェックを入れて送信する。発言ごとの音声が、読み上げプレイヤーで順に自動再生される。
+ブラウザの自動再生制限で音が出ない場合は、プレイヤーを一度手動で再生する。
+
+**3 台構成（Studio サーバー / VOICEVOX サーバー / ブラウザ）**
+
+```bash
+# Studio サーバー
+python MultiRoleStudioWeb.py --org news_studio --no-browser --host 0.0.0.0 \
+  --voicevox-url http://<VOICEVOX の PC>:50021
+# ブラウザ: http://<Studio サーバーの PC>:7862
+```
+
+- VOICEVOX 側は、外部からの接続を受ける設定で起動する。
+- **VOICEVOX / Web UI とも認証がない。** 信頼できる LAN 内でのみ使い、インターネットには公開しない（`--share` も使わない）。
+- 合成は Studio サーバーが VOICEVOX に依頼し、できた音声をブラウザへ渡す。ブラウザから VOICEVOX へは直接つながない。
+
+| Web 起動オプション | 説明 |
+|---|---|
+| `--org` | 初期の組織 ID |
+| `--port` | ポート番号（既定 7862） |
+| `--no-browser` | 起動時にブラウザを開かない |
+| `--host` | 待ち受けアドレス。既定は自分の PC のみ。別 PC から開くなら `0.0.0.0` |
+| `--voicevox-url` | VOICEVOX の接続先 |
+| `--share` | Gradio 公開トンネル（認証なしのため非推奨） |
+
+**注意**
+
+- VOICEVOX の音声は、キャラごとに利用規約とクレジット表記のルールがある。配信・公開する場合は確認する。
+- CPU 合成は遅いことがある（Core i7 2600K で数十秒〜）。発言を長くしすぎない。
+
 #### 主要ファイル
 
 | パス | 内容 |
@@ -207,6 +288,7 @@ python MultiRoleStudioWeb.py --org nokuru      # quiz / meeting デモ（hinata,
 | `studio/session_report.py` | セッション一覧・Markdown レポート生成（§8.5） |
 | `studio/sessions_ui.py` | セッションタブ UI |
 | `studio/web_ui.py` | エンジンイベント → Gradio 表示、組織別 workflow 選択肢 |
+| `studio/voice.py` | VOICEVOX 読み上げ（合成・保存・ブラウザ再生キュー・読み辞書） |
 | `studio/config_store.py` | 設定の保存・削除・バリデーション |
 | `studio/settings_ui.py` | 設定編集タブ UI |
 | `studio/` | loader / engine / bindings / logging / artifacts |

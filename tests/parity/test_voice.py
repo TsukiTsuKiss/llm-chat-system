@@ -112,3 +112,86 @@ def test_voice_reader_applies_dictionary(tmp_path: Path, monkeypatch):
     reader.handle(EngineEvent("step_done", {"talent_id": "a", "text": "（株探、10月23日）"}))
     reader.close()
     assert spoken == ["（カブタン、10月23日）"]
+
+
+def test_audio_relay_hands_out_one_at_a_time(tmp_path: Path):
+    first, second = tmp_path / "a.wav", tmp_path / "b.wav"
+    first.write_bytes(_wav(b"\x01\x00" * 10))
+    second.write_bytes(_wav(b"\x02\x00" * 10))
+    relay = voice.AudioRelay()
+    assert relay.next_if_idle() is None
+    relay.push(first)
+    relay.push(second)
+    assert relay.next_if_idle() == first
+    assert relay.next_if_idle() is None
+    relay.finished()
+    assert relay.next_if_idle() == second
+
+
+def test_load_wav_array_returns_rate_and_samples(tmp_path: Path):
+    path = tmp_path / "a.wav"
+    path.write_bytes(_wav(b"\x01\x00\x02\x00"))
+    rate, data = voice.load_wav_array(path)
+    assert rate == 24000
+    assert data.tolist() == [1, 2]
+
+
+def test_voice_reader_calls_on_utterance_with_saved_path(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(voice, "synthesize", lambda text, entry, base_url=voice.DEFAULT_BASE_URL: _wav(b"\x01\x00"))
+    seen: list[Path] = []
+    reader = VoiceReader(tmp_path, {"a": {"speaker": 1}}, play=False, on_utterance=seen.append)
+    reader.begin_session("s9")
+    reader.handle(EngineEvent("step_done", {"talent_id": "a", "text": "こんにちは"}))
+    reader.close()
+    assert seen == [tmp_path / "sessions" / "audio" / "s9" / "01_a.wav"]
+
+
+def test_web_session_voice_pushes_utterance_to_relay(studio_root: Path, monkeypatch):
+    import time
+
+    from studio import web_ui
+    from studio.loader import load_session_context
+    from studio.web_ui import WebSession, handle_chat_submit
+
+    talent_id = load_session_context("solo", studio_root).org["talent_ids"][0]
+    (studio_root / "organizations" / "solo" / "voice_mapping.json").write_text(
+        json.dumps({talent_id: {"speaker": 1}}), encoding="utf-8"
+    )
+    monkeypatch.setattr(voice, "synthesize", lambda text, entry, base_url=voice.DEFAULT_BASE_URL: _wav(b"\x01\x00"))
+    monkeypatch.setattr(web_ui, "engine_available", lambda url=None: True)
+
+    session = WebSession(root=studio_root)
+    list(
+        handle_chat_submit(
+            session, "こんにちは", org_id="solo", workflow_value="", stream=False, temperature=0.7, voice=True
+        )
+    )
+    path = None
+    for _ in range(100):
+        path = session.relay.next_if_idle()
+        if path:
+            break
+        time.sleep(0.05)
+    session.close_voice()
+
+    assert path is not None
+    assert path.parent.name == session.engine.state.logger.session_id
+
+
+def test_web_session_voice_without_mapping_adds_note(studio_root: Path):
+    from studio.web_ui import WebSession, handle_chat_submit
+
+    session = WebSession(root=studio_root)
+    updates = list(
+        handle_chat_submit(
+            session, "こんにちは", org_id="solo", workflow_value="", stream=False, temperature=0.7, voice=True
+        )
+    )
+    assert any("voice_mapping.json" in m["content"] for m in updates[-1][0])
+    assert session.voice is None
+
+
+def test_clean_for_speech_drops_backstage_notes():
+    assert clean_for_speech("本文です。\n\n（進行メモ）前の発言で日曜日とありました。\n続き") == "本文です。"
+    assert clean_for_speech("本文です。\n\n**ディレクター点検**\n- 未確認です") == "本文です。"
+    assert clean_for_speech("進行メモという言葉を含む本文です。") == "進行メモという言葉を含む本文です。"

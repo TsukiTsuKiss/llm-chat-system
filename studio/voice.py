@@ -1,26 +1,29 @@
-"""VOICEVOX による発言の読み上げ（CLI 用）。"""
+"""VOICEVOX による発言の読み上げ（CLI のスピーカー再生 / Web UI のブラウザ再生）。"""
 
 from __future__ import annotations
 
 import io
 import json
+import os
 import queue
 import re
 import sys
 import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
 import wave
+from collections import deque
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 try:
     import winsound
 except ImportError:  # Windows 以外は保存のみ
     winsound = None  # type: ignore[assignment]
 
-DEFAULT_BASE_URL = "http://127.0.0.1:50021"
+DEFAULT_BASE_URL = os.getenv("VOICEVOX_URL", "http://127.0.0.1:50021").rstrip("/")
 VOICE_MAPPING_FILES = ("voice_mapping.json", "voice_mapping.example.json")
 VOICE_DICTIONARY_FILE = "voice_dictionary.json"
 
@@ -28,12 +31,17 @@ _MD_LINK = re.compile(r"\[([^\]]*)\]\([^)]*\)")
 _URL = re.compile(r"https?://\S+")
 _MD_MARKS = re.compile(r"[*#`_>]+|^\s*[-・]\s+|^\s*\d+\.\s+", re.MULTILINE)
 _BLANKS = re.compile(r"\n{2,}")
+# 発言末尾に混ざる裏方メモ（この行以降を読み上げない）
+_BACKSTAGE = re.compile(
+    r"^[ \t]*(?:[（(【\[][ \t]*進行メモ[）)】\]]|[（(【\[]?[ \t]*ディレクター点検[）)】\]]?).*\Z",
+    re.MULTILINE | re.DOTALL,
+)
 
 
 def clean_for_speech(text: str) -> str:
+    text = _BACKSTAGE.sub("", _MD_MARKS.sub("", text))
     text = _MD_LINK.sub(r"\1", text)
     text = _URL.sub("", text)
-    text = _MD_MARKS.sub("", text)
     return _BLANKS.sub("\n", text).strip()
 
 
@@ -131,8 +139,62 @@ def engine_available(base_url: str = DEFAULT_BASE_URL) -> bool:
         return False
 
 
+class AudioRelay:
+    """ブラウザ再生用の順番待ち。再生中は次の音声を渡さない。"""
+
+    # end イベントが届かない場合に備え、長さに加える猛予
+    GRACE_SECONDS = 5.0
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._items: deque[Path] = deque()
+        self._playing_until: float | None = None
+
+    def push(self, path: Path) -> None:
+        with self._lock:
+            self._items.append(path)
+
+    def finished(self) -> None:
+        with self._lock:
+            self._playing_until = None
+
+    def next_if_idle(self) -> Path | None:
+        with self._lock:
+            now = time.monotonic()
+            if self._playing_until is not None and now < self._playing_until:
+                return None
+            if not self._items:
+                return None
+            path = self._items.popleft()
+            self._playing_until = now + wav_duration(path) + self.GRACE_SECONDS
+            return path
+
+    def clear(self) -> None:
+        with self._lock:
+            self._items.clear()
+            self._playing_until = None
+
+
+def wav_duration(path: Path) -> float:
+    with wave.open(str(path)) as reader:
+        return reader.getnframes() / reader.getframerate()
+
+
+def load_wav_array(path: Path):
+    """gr.Audio(type="numpy") へ渡す (sample_rate, ndarray)。ファイル配信の許可パスを避ける。"""
+    import numpy as np
+
+    with wave.open(str(path)) as reader:
+        frames = reader.readframes(reader.getnframes())
+        dtype = {1: np.uint8, 2: np.int16, 4: np.int32}[reader.getsampwidth()]
+        data = np.frombuffer(frames, dtype=dtype)
+        if reader.getnchannels() > 1:
+            data = data.reshape(-1, reader.getnchannels())
+        return reader.getframerate(), data
+
+
 class VoiceReader:
-    """step_done イベントを順に音声化し、wav を保存して再生する。"""
+    """step_done イベントを順に音声化し、wav を保存する。play=True でサーバー側スピーカーも鳴らす。"""
 
     def __init__(
         self,
@@ -142,12 +204,14 @@ class VoiceReader:
         base_url: str = DEFAULT_BASE_URL,
         play: bool = True,
         dictionary: dict[str, str] | None = None,
+        on_utterance: Callable[[Path], None] | None = None,
     ) -> None:
         self._root = root
         self._mapping = mapping
         self._dictionary = dictionary or {}
         self._base_url = base_url
         self._play = play and winsound is not None
+        self._on_utterance = on_utterance
         self._out_dir: Path | None = None
         self._count = 0
         self._failed = False
@@ -160,9 +224,13 @@ class VoiceReader:
         for worker in self._workers:
             worker.start()
 
+    def begin_session(self, session_id: str) -> None:
+        self._out_dir = self._root / "sessions" / "audio" / session_id
+        self._count = 0
+
     def handle(self, event: Any) -> None:
         if event.type == "session_start":
-            self._out_dir = self._root / "sessions" / "audio" / event.payload["session_id"]
+            self.begin_session(event.payload["session_id"])
             return
         if event.type != "step_done" or self._out_dir is None:
             return
@@ -174,10 +242,13 @@ class VoiceReader:
         path = self._out_dir / f"{self._count:02d}_{event.payload['talent_id']}.wav"
         self._queue.put((path, text, entry))
 
-    def close(self) -> None:
+    def close(self, *, wait: bool = True) -> None:
+        if not wait:
+            self._failed = True
         self._queue.put(None)
-        for worker in self._workers:
-            worker.join()
+        if wait:
+            for worker in self._workers:
+                worker.join()
 
     def _synthesize_loop(self) -> None:
         while (job := self._queue.get()) is not None:
@@ -196,10 +267,13 @@ class VoiceReader:
                     print(f"[voice] VOICEVOX に接続できないため読み上げを中止します: {exc}", file=sys.stderr)
                     break
                 wavs.append(wav)
-                self._playback.put(wav)
+                if self._play:
+                    self._playback.put(wav)
             if wavs:
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(join_wavs(wavs))
+                if self._on_utterance:
+                    self._on_utterance(path)
         self._playback.put(None)
 
     def _playback_loop(self) -> None:

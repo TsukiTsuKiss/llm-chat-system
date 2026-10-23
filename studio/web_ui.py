@@ -14,6 +14,15 @@ from studio.engine import EngineEvent, SessionEngine
 from studio.loader import SessionContext, load_session_context, read_attachment_files
 from studio.rag_ui import last_injection_markdown
 from studio.validation import StudioValidationError
+from studio.voice import (
+    DEFAULT_BASE_URL,
+    AudioRelay,
+    VoiceReader,
+    engine_available,
+    load_voice_dictionary,
+    load_voice_mapping,
+    load_wav_array,
+)
 from web_input_utils import normalize_uploaded_files
 
 DIRECT_WORKFLOW_LABEL = "直接送信（全ロール）"
@@ -252,6 +261,9 @@ class ChatEventRenderer:
     def _add_system_note(self, text: str) -> None:
         self.messages.append({"role": "assistant", "content": f"_{text}_"})
 
+    def add_note(self, text: str) -> None:
+        self._add_system_note(text)
+
     def apply(self, event: EngineEvent) -> str | None:
         if event.type == "session_start":
             payload = event.payload
@@ -350,6 +362,49 @@ class WebSession:
     engine: SessionEngine | None = None
     pending: PendingInteraction | None = None
     renderer: ChatEventRenderer = field(default_factory=ChatEventRenderer)
+    voicevox_url: str = DEFAULT_BASE_URL
+    # スレッドを持つため gr.State の deepcopy 後に遅延生成する
+    voice: VoiceReader | None = None
+    relay: AudioRelay | None = None
+    voice_enabled: bool = False
+
+    def close_voice(self) -> None:
+        if self.voice is not None:
+            self.voice.close(wait=False)
+        self.voice = None
+        self.voice_enabled = False
+        if self.relay is not None:
+            self.relay.clear()
+
+    def configure_voice(self, enabled: bool) -> str:
+        """読み上げを有効化。できないときは理由を返す。"""
+        self.voice_enabled = False
+        if not enabled:
+            return ""
+        if self.voice is None:
+            mapping = load_voice_mapping(self.root, self.org_id)
+            if not mapping:
+                return f"organizations/{self.org_id}/voice_mapping.json がないため読み上げません"
+            if not engine_available(self.voicevox_url):
+                return f"VOICEVOX ({self.voicevox_url}) に接続できないため読み上げません"
+            self.relay = self.relay or AudioRelay()
+            self.voice = VoiceReader(
+                self.root,
+                mapping,
+                base_url=self.voicevox_url,
+                play=False,
+                dictionary=load_voice_dictionary(self.root, self.org_id),
+                on_utterance=self.relay.push,
+            )
+            state = self.engine.state if self.engine is not None else None
+            if state is not None and state.logger is not None:
+                self.voice.begin_session(state.logger.session_id)
+        self.voice_enabled = True
+        return ""
+
+    def feed_voice(self, event: EngineEvent) -> None:
+        if self.voice_enabled and self.voice is not None:
+            self.voice.handle(event)
 
     def close_engine(self) -> str:
         if self.engine is None or self.engine.state is None or not self.engine.state.started:
@@ -360,6 +415,7 @@ class WebSession:
 
     def reset_chat(self) -> str:
         summary = self.close_engine()
+        self.close_voice()
         self.engine = None
         self.pending = None
         self.renderer = ChatEventRenderer()
@@ -576,6 +632,7 @@ def process_events(
     event = first_event if first_event is not None else next(generator)
     while True:
         pending_kind = session.renderer.apply(event)
+        session.feed_voice(event)
         if pending_kind:
             session.pending = PendingInteraction(pending_kind, event, generator)
             yield _pending_ui(session, pending_kind, event)
@@ -624,8 +681,12 @@ def run_user_message(
     attachment_context: str = "",
     attachment_names: list[str] | None = None,
     web_search: bool = False,
+    voice: bool = False,
 ) -> Generator[UIUpdate, None, None]:
     session.ensure_engine(org_id, workflow_value, stream, temperature)
+    voice_note = session.configure_voice(voice)
+    if voice_note:
+        session.renderer.add_note(f"⚠️ {voice_note}")
     session.stream = stream
     session.temperature = temperature
     session.user_context = user_context
@@ -672,6 +733,7 @@ def handle_chat_submit(
     files=None,
     upload_limits: dict[str, int] | None = None,
     web_search: bool = False,
+    voice: bool = False,
 ) -> Generator[UIUpdate, None, None] | UIUpdate:
     text = (user_text or "").strip()
 
@@ -744,7 +806,22 @@ def handle_chat_submit(
         attachment_context=attachment_context,
         attachment_names=attachment_names or None,
         web_search=web_search,
+        voice=voice,
     )
+
+
+def next_audio_update(session: WebSession):
+    """gr.Audio へ渡す次の発言音声。再生中・未生成なら gr.skip()。"""
+    path = session.relay.next_if_idle() if session.relay is not None else None
+    if path is None:
+        return gr.skip()
+    return load_wav_array(path)
+
+
+def audio_finished_update(session: WebSession):
+    if session.relay is not None:
+        session.relay.finished()
+    return next_audio_update(session)
 
 
 def handle_choice(

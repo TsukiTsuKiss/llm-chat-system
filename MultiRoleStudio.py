@@ -20,7 +20,7 @@ from studio.user_context_update import (
     save_summary_from_context,
 )
 from studio.validation import StudioError, StudioValidationError
-from studio.voice import VoiceReader, engine_available, load_voice_dictionary, load_voice_mapping
+from studio.voice import DEFAULT_BASE_URL, VoiceReader, engine_available, load_voice_dictionary, load_voice_mapping
 from studio.workflow_validate import workflow_has_interrupt_on, workflow_has_user_exit
 
 VERSION = "0.3.0"
@@ -143,10 +143,15 @@ def create_voice_reader(args: argparse.Namespace, ctx) -> VoiceReader | None:
     if not mapping:
         print(f"[voice] organizations/{ctx.org_id}/voice_mapping.json がないため読み上げません", file=sys.stderr)
         return None
-    if not engine_available():
-        print("[voice] VOICEVOX が起動していないため読み上げません", file=sys.stderr)
+    if not engine_available(args.voicevox_url):
+        print(f"[voice] VOICEVOX ({args.voicevox_url}) に接続できないため読み上げません", file=sys.stderr)
         return None
-    return VoiceReader(ctx.root, mapping, dictionary=load_voice_dictionary(ctx.root, ctx.org_id))
+    return VoiceReader(
+        ctx.root,
+        mapping,
+        base_url=args.voicevox_url,
+        dictionary=load_voice_dictionary(ctx.root, ctx.org_id),
+    )
 
 
 def run_batch(args: argparse.Namespace) -> int:
@@ -314,6 +319,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--voice",
         action="store_true",
         help="VOICEVOX で発言を読み上げ、sessions/audio/<session_id>/ に wav を保存する",
+    )
+    parser.add_argument(
+        "--voicevox-url",
+        default=DEFAULT_BASE_URL,
+        help="VOICEVOX の接続先（既定: 環境変数 VOICEVOX_URL または http://127.0.0.1:50021）",
     )
     parser.add_argument(
         "--apply",
