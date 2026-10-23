@@ -1,0 +1,8 @@
+{
+  "news_director": { "assistant": "mock" },
+  "news_main": { "assistant": "mock" },
+  "news_sub": { "assistant": "mock" },
+  "news_commentator": { "assistant": "mock" },
+  "news_weather": { "assistant": "mock" },
+  "news_sports": { "assistant": "mock" }
+}

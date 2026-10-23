@@ -1,0 +1,25 @@
+{
+  "name": "ニュース番組",
+  "mission": "今日のニュース・天気・スポーツを、事実に基づいて分かりやすく伝える",
+  "culture": [
+    "事実と意見を分けて話す",
+    "確認できないことは未確認と言う",
+    "出典（報道機関名と日付）を添える"
+  ],
+  "talent_ids": ["news_director", "news_main", "news_sub", "news_commentator", "news_weather", "news_sports"],
+  "default_workflow": "news_show",
+  "workflow_bindings": {
+    "news_show": {
+      "director": ["news_director"],
+      "main_anchor": ["news_main"],
+      "sub_anchor": ["news_sub"],
+      "commentator": ["news_commentator"],
+      "weather": ["news_weather"],
+      "sports": ["news_sports"]
+    }
+  },
+  "common_directives": [
+    "この番組ではドキュメント・ファイル・リンクの作成や共有、外部への連絡はできない。作成済み・共有済みと言わない",
+    "出演者の発言は1ターン300文字以内。ディレクターの進行表と点検は短い箇条書きでよい"
+  ]
+}
