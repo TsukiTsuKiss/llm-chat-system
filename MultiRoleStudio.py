@@ -20,6 +20,7 @@ from studio.user_context_update import (
     save_summary_from_context,
 )
 from studio.validation import StudioError, StudioValidationError
+from studio.voice import VoiceReader, engine_available, load_voice_mapping
 from studio.workflow_validate import workflow_has_interrupt_on, workflow_has_user_exit
 
 VERSION = "0.3.0"
@@ -135,6 +136,19 @@ def validate_batch_mode(ctx, topic: str | None) -> None:
         )
 
 
+def create_voice_reader(args: argparse.Namespace, ctx) -> VoiceReader | None:
+    if not args.voice:
+        return None
+    mapping = load_voice_mapping(ctx.root, ctx.org_id)
+    if not mapping:
+        print(f"[voice] organizations/{ctx.org_id}/voice_mapping.json がないため読み上げません", file=sys.stderr)
+        return None
+    if not engine_available():
+        print("[voice] VOICEVOX が起動していないため読み上げません", file=sys.stderr)
+        return None
+    return VoiceReader(ctx.root, mapping)
+
+
 def run_batch(args: argparse.Namespace) -> int:
     root = Path(args.root)
     try:
@@ -163,9 +177,15 @@ def run_batch(args: argparse.Namespace) -> int:
         stream=use_stream,
         no_user_context=args.no_user_context,
         no_user_context_rag=args.no_user_context_rag,
+        web_search=args.web_search,
     )
+    voice = create_voice_reader(args, ctx)
     for event in events:
         print_event(event, use_stream=use_stream)
+        if voice:
+            voice.handle(event)
+    if voice:
+        voice.close()
     return 0
 
 
@@ -180,6 +200,7 @@ def run_interactive(args: argparse.Namespace) -> int:
     MockAssistant.reset()
     engine = SessionEngine(ctx)
     use_stream = ctx.studio_config.get("stream", True) if args.stream is None else args.stream
+    voice = create_voice_reader(args, ctx)
 
     print("MultiRoleStudio 対話モード（終了: q）")
     while True:
@@ -196,10 +217,13 @@ def run_interactive(args: argparse.Namespace) -> int:
             stream=use_stream,
             no_user_context=args.no_user_context,
             no_user_context_rag=args.no_user_context_rag,
+            web_search=args.web_search,
         )
         event = next(gen)
         while True:
             print_event(event, use_stream=use_stream)
+            if voice:
+                voice.handle(event)
             if event.type in ("await_text", "await_choice"):
                 reply = drive_interactive_responder(event)
                 try:
@@ -213,7 +237,10 @@ def run_interactive(args: argparse.Namespace) -> int:
                 break
 
     if engine.state and engine.state.started:
-        print_event(engine.finish(), use_stream=use_stream)
+        end_event = engine.finish()
+        print_event(end_event, use_stream=use_stream)
+    if voice:
+        voice.close()
     return 0
 
 
@@ -277,6 +304,16 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("on", "off"),
         default=None,
         help="ストリーミング ON/OFF（未指定時は studio_config）",
+    )
+    parser.add_argument(
+        "--web-search",
+        action="store_true",
+        help="ウェブ検索を有効にする（model_mapping で web_search: true の人材のみ）",
+    )
+    parser.add_argument(
+        "--voice",
+        action="store_true",
+        help="VOICEVOX で発言を読み上げ、sessions/audio/<session_id>/ に wav を保存する",
     )
     parser.add_argument(
         "--apply",

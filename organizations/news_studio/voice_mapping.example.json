@@ -1,0 +1,7 @@
+{
+  "news_main": { "label": "冥鳴ひまり", "speaker": 14 },
+  "news_sub": { "label": "青山龍星", "speaker": 13 },
+  "news_commentator": { "label": "玄野武宏", "speaker": 11 },
+  "news_weather": { "label": "春日部つむぎ", "speaker": 8 },
+  "news_sports": { "label": "白上虎太郎", "speaker": 12 }
+}

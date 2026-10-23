@@ -967,6 +967,7 @@ def collect_events(
     stream: bool | None = None,
     no_user_context: bool = False,
     no_user_context_rag: bool = False,
+    web_search: bool = False,
     responder: Callable[[EngineEvent], str | None] | None = None,
 ) -> list[EngineEvent]:
     events: list[EngineEvent] = []
@@ -976,6 +977,7 @@ def collect_events(
         stream=stream,
         no_user_context=no_user_context,
         no_user_context_rag=no_user_context_rag,
+        web_search=web_search,
     )
     event = next(gen)
     while True:
