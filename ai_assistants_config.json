@@ -6,9 +6,7 @@
       "openai/gpt-oss-120b",
       "openai/gpt-oss-20b",
       "llama-3.1-8b-instant",
-      "llama-3.3-70b-versatile",
-      "groq/compound",
-      "groq/compound-mini"
+      "llama-3.3-70b-versatile"
     ]
   },
   "ChatGPT": {
@@ -84,7 +82,7 @@
     "models": [
       "groq/gpt-oss-120b",
       "groq/gpt-oss-20b",
-      "Openai/gpt-6.1-sol",
+      "openai/gpt-6.1-sol",
       "openai/gpt-6-sol",
       "openai/gpt-6-luna",
       "openai/gpt-6-astra",
