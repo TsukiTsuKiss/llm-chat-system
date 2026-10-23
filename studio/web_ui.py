@@ -674,22 +674,24 @@ def handle_chat_submit(
 
     if session.pending is not None:
         if session.pending.kind == "await_choice":
-            return (
+            yield (
                 session.renderer.copy_messages(),
                 "続行または終了ボタンを使ってください",
                 True,
                 "メッセージを入力…",
                 False,
             )
+            return
         if not text:
             name = session.pending.event.payload.get("display_name", "human")
-            return (
+            yield (
                 session.renderer.copy_messages(),
                 "発言を入力してください",
                 False,
                 f"{name} として発言…",
                 False,
             )
+            return
         session.renderer.add_user(text)
         yield (
             session.renderer.copy_messages(),
@@ -707,22 +709,24 @@ def handle_chat_submit(
             resolve_user_input_with_attachments(text, files, limits)
         )
     except StudioValidationError as exc:
-        return (
+        yield (
             session.renderer.copy_messages(),
             exc.format_all(),
             False,
             "メッセージを入力…",
             False,
         )
+        return
 
     if not prompt_text:
-        return (
+        yield (
             session.renderer.copy_messages(),
             "メッセージを入力してください",
             False,
             "メッセージを入力…",
             False,
         )
+        return
 
     yield from run_user_message(
         session,
@@ -744,13 +748,14 @@ def handle_choice(
     choice: str,
 ) -> Generator[UIUpdate, None, None] | UIUpdate:
     if session.pending is None or session.pending.kind != "await_choice":
-        return (
+        yield (
             session.renderer.copy_messages(),
             "選択待ちではありません",
             False,
             "メッセージを入力…",
             False,
         )
+        return
     yield from resume_after_reply(session, choice)
 
 
