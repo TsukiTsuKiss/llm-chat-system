@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import logging
 import os
 import time
 from dataclasses import dataclass
@@ -102,13 +103,33 @@ def content_to_text(content: Any) -> str:
     return str(content)
 
 
-def build_llm(assistant_cfg: dict[str, Any], model: str, temperature: float | None):
+logger = logging.getLogger(__name__)
+
+# langchain_groq 0.3.8 の bind_tools は dict ツールを変換できないため bind(tools=...) を使う
+WEB_SEARCH_TOOLS: dict[str, dict[str, Any]] = {
+    "ChatGroq": {"type": "browser_search"},
+}
+
+
+def build_llm(
+    assistant_cfg: dict[str, Any],
+    model: str,
+    temperature: float | None,
+    web_search: bool = False,
+):
     module = importlib.import_module(assistant_cfg["module"])
     cls = getattr(module, assistant_cfg["class"])
     kwargs: dict[str, Any] = {"model": model}
     if temperature is not None:
         kwargs["temperature"] = temperature
-    return cls(**kwargs)
+    llm = cls(**kwargs)
+    if web_search:
+        tool = WEB_SEARCH_TOOLS.get(assistant_cfg["class"])
+        if tool is None:
+            logger.warning("web_search は %s 未対応のため無視します", assistant_cfg["class"])
+        else:
+            llm = llm.bind(tools=[tool])
+    return llm
 
 
 def build_chain(system_prompt: str, history: ConversationHistory, llm):
@@ -150,6 +171,7 @@ def invoke_llm_step(
     stream: bool,
     costs: dict[str, dict[str, float]],
     on_chunk: Callable[[str], None] | None = None,
+    web_search: bool = False,
     max_retries: int = 3,
     retry_delay: float = 2.0,
 ) -> InvokeResult:
@@ -160,7 +182,7 @@ def invoke_llm_step(
 
     while attempt < max_retries:
         try:
-            llm = build_llm(assistant_cfg, model, effective_temperature)
+            llm = build_llm(assistant_cfg, model, effective_temperature, web_search)
             chain = build_chain(system_prompt, history, llm)
             messages = history.get_messages()
             payload = {"system_prompt": system_prompt, "history": messages, "input": user_message}

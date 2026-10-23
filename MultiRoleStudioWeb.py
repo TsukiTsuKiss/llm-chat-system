@@ -228,6 +228,7 @@ def build_ui(root: Path, *, cli_org: str | None = None) -> gr.Blocks:
                             value=default_user_context_rag,
                             interactive=rag_config_available,
                         )
+                        web_search_cb = gr.Checkbox(label="ウェブ検索", value=False)
                         merge_cb = gr.Checkbox(
                             label="連続メッセージを1つにまとめる",
                             value=False,
@@ -369,6 +370,7 @@ def build_ui(root: Path, *, cli_org: str | None = None) -> gr.Blocks:
             user_context: bool,
             user_context_rag: bool,
             files,
+            web_search: bool,
         ):
             try:
                 for messages, status, show_choice, placeholder, clear_upload in handle_chat_submit(
@@ -382,6 +384,7 @@ def build_ui(root: Path, *, cli_org: str | None = None) -> gr.Blocks:
                     user_context_rag=user_context_rag,
                     files=files,
                     upload_limits=upload_limits,
+                    web_search=bool(web_search),
                 ):
                     yield (
                         messages,
@@ -584,6 +587,7 @@ def build_ui(root: Path, *, cli_org: str | None = None) -> gr.Blocks:
             user_context_cb,
             user_context_rag_cb,
             upload_files,
+            web_search_cb,
         ]
         submit_outputs = [
             chatbot,

@@ -17,6 +17,8 @@ def normalize_mapping_entry(entry: dict[str, Any] | None) -> dict[str, str]:
         result["model"] = str(model).strip()
     elif assistant not in ("mock", "human"):
         result["model"] = ""
+    if entry.get("web_search") is True:
+        result["web_search"] = True
     return result
 
 

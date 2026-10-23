@@ -623,6 +623,7 @@ def run_user_message(
     user_context_rag: bool = True,
     attachment_context: str = "",
     attachment_names: list[str] | None = None,
+    web_search: bool = False,
 ) -> Generator[UIUpdate, None, None]:
     session.ensure_engine(org_id, workflow_value, stream, temperature)
     session.stream = stream
@@ -653,6 +654,7 @@ def run_user_message(
         temperature=temperature,
         no_user_context=not user_context,
         no_user_context_rag=not user_context_rag,
+        web_search=web_search,
     )
     yield from process_events(session, generator)
 
@@ -669,6 +671,7 @@ def handle_chat_submit(
     user_context_rag: bool = True,
     files=None,
     upload_limits: dict[str, int] | None = None,
+    web_search: bool = False,
 ) -> Generator[UIUpdate, None, None] | UIUpdate:
     text = (user_text or "").strip()
 
@@ -740,6 +743,7 @@ def handle_chat_submit(
         user_context_rag=user_context_rag,
         attachment_context=attachment_context,
         attachment_names=attachment_names or None,
+        web_search=web_search,
     )
 
 

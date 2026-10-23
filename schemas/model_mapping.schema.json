@@ -9,7 +9,8 @@
     "required": ["assistant"],
     "properties": {
       "assistant": { "type": "string", "minLength": 1 },
-      "model": { "type": "string" }
+      "model": { "type": "string" },
+      "web_search": { "type": "boolean" }
     }
   }
 }

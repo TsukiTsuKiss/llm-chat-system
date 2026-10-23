@@ -40,6 +40,7 @@ class EngineState:
     user_context_text: str | None = None
     user_context_rag_enabled: bool = False
     user_context_rag_text: str | None = None
+    web_search_enabled: bool = False
     last_context_chunks: tuple[RagChunk, ...] = ()
     started: bool = False
     session_wall_start: float = 0.0
@@ -104,6 +105,7 @@ class SessionEngine:
         temperature: float | None = None,
         no_user_context: bool = False,
         no_user_context_rag: bool = False,
+        web_search: bool = False,
     ) -> Iterator[EngineEvent]:
         studio_config = self.ctx.studio_config
         use_stream = studio_config.get("stream", True) if stream is None else stream
@@ -147,6 +149,7 @@ class SessionEngine:
 
         state = self.state
         assert state is not None
+        state.web_search_enabled = web_search
 
         if not state.started:
             if state.logger is None:
@@ -485,6 +488,7 @@ class SessionEngine:
                     temperature=state.temperature,
                     stream=False,
                     costs=state.logger.costs,
+                    web_search=state.web_search_enabled and bool(mapping.get("web_search")),
                 )
         except Exception as exc:
             yield EngineEvent(
@@ -758,6 +762,7 @@ class SessionEngine:
                 temperature=state.temperature,
                 stream=False,
                 costs=state.logger.costs,
+                web_search=state.web_search_enabled and bool(mapping.get("web_search")),
             )
 
         metrics = StepMetrics(
@@ -878,6 +883,7 @@ class SessionEngine:
                     stream=stream,
                     costs=state.logger.costs,
                     on_chunk=on_chunk if stream else None,
+                    web_search=state.web_search_enabled and bool(mapping.get("web_search")),
                 )
                 if stream:
                     for chunk in chunk_buffer:
