@@ -22,6 +22,7 @@ except ImportError:  # Windows 以外は保存のみ
 
 DEFAULT_BASE_URL = "http://127.0.0.1:50021"
 VOICE_MAPPING_FILES = ("voice_mapping.json", "voice_mapping.example.json")
+VOICE_DICTIONARY_FILE = "voice_dictionary.json"
 
 _MD_LINK = re.compile(r"\[([^\]]*)\]\([^)]*\)")
 _URL = re.compile(r"https?://\S+")
@@ -82,6 +83,21 @@ def load_voice_mapping(root: Path, org_id: str) -> dict[str, dict[str, Any]]:
     return {}
 
 
+def load_voice_dictionary(root: Path, org_id: str) -> dict[str, str]:
+    path = root / "organizations" / org_id / VOICE_DICTIONARY_FILE
+    if not path.is_file():
+        return {}
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return {k: v for k, v in data.items() if isinstance(k, str) and isinstance(v, str) and k}
+
+
+def apply_dictionary(text: str, dictionary: dict[str, str]) -> str:
+    # 長い表記を先に置換し、短い表記が一部を壊さないようにする
+    for surface in sorted(dictionary, key=len, reverse=True):
+        text = text.replace(surface, dictionary[surface])
+    return text
+
+
 def _post(url: str, data: bytes | None = None, *, timeout: float) -> bytes:
     headers = {"Content-Type": "application/json"} if data else {}
     request = urllib.request.Request(url, data=data, headers=headers, method="POST")
@@ -125,9 +141,11 @@ class VoiceReader:
         *,
         base_url: str = DEFAULT_BASE_URL,
         play: bool = True,
+        dictionary: dict[str, str] | None = None,
     ) -> None:
         self._root = root
         self._mapping = mapping
+        self._dictionary = dictionary or {}
         self._base_url = base_url
         self._play = play and winsound is not None
         self._out_dir: Path | None = None
@@ -149,7 +167,7 @@ class VoiceReader:
         if event.type != "step_done" or self._out_dir is None:
             return
         entry = self._mapping.get(event.payload["talent_id"])
-        text = clean_for_speech(event.payload["text"])
+        text = apply_dictionary(clean_for_speech(event.payload["text"]), self._dictionary)
         if entry is None or not text:
             return
         self._count += 1

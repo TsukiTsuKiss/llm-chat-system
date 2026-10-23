@@ -20,7 +20,7 @@ from studio.user_context_update import (
     save_summary_from_context,
 )
 from studio.validation import StudioError, StudioValidationError
-from studio.voice import VoiceReader, engine_available, load_voice_mapping
+from studio.voice import VoiceReader, engine_available, load_voice_dictionary, load_voice_mapping
 from studio.workflow_validate import workflow_has_interrupt_on, workflow_has_user_exit
 
 VERSION = "0.3.0"
@@ -146,7 +146,7 @@ def create_voice_reader(args: argparse.Namespace, ctx) -> VoiceReader | None:
     if not engine_available():
         print("[voice] VOICEVOX が起動していないため読み上げません", file=sys.stderr)
         return None
-    return VoiceReader(ctx.root, mapping)
+    return VoiceReader(ctx.root, mapping, dictionary=load_voice_dictionary(ctx.root, ctx.org_id))
 
 
 def run_batch(args: argparse.Namespace) -> int:

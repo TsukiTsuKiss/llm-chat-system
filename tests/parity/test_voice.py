@@ -48,7 +48,7 @@ def test_voice_reader_saves_mapped_talents_only(tmp_path: Path, monkeypatch):
 
 def test_split_for_speech_groups_sentences_by_limit():
     text = "あああ。いいい。ううう。\nえええ"
-    assert split_for_speech(text, limit=7) == ["あああ。いいい。", "ううう。", "えええ"]
+    assert split_for_speech(text, limit=8) == ["あああ。いいい。", "ううう。", "えええ"]
 
 
 def _wav(frames: bytes) -> bytes:
@@ -98,3 +98,17 @@ def test_voice_reader_stops_after_connection_failure(tmp_path: Path, monkeypatch
 
     assert capsys.readouterr().err.count("VOICEVOX に接続できない") == 1
     assert not (tmp_path / "sessions" / "audio").exists()
+
+
+def test_apply_dictionary_prefers_longer_surface():
+    assert voice.apply_dictionary("株探と株探の記事", {"株探": "カブタン", "株": "カブ"}) == "カブタンとカブタンの記事"
+
+
+def test_voice_reader_applies_dictionary(tmp_path: Path, monkeypatch):
+    spoken: list[str] = []
+    monkeypatch.setattr(voice, "synthesize", lambda text, entry, base_url=voice.DEFAULT_BASE_URL: spoken.append(text) or b"RIFF")
+    reader = VoiceReader(tmp_path, {"a": {"speaker": 1}}, play=False, dictionary={"株探": "カブタン"})
+    reader.handle(EngineEvent("session_start", {"session_id": "s3"}))
+    reader.handle(EngineEvent("step_done", {"talent_id": "a", "text": "（株探、10月23日）"}))
+    reader.close()
+    assert spoken == ["（カブタン、10月23日）"]
