@@ -114,6 +114,11 @@ WEB_SEARCH_TOOLS: dict[str, dict[str, Any]] = {
     "ChatGoogleGenerativeAI": {"google_search": {}},
 }
 
+# Anthropic は既定 1024 だと thinking/検索で使い切り本文が途切れる
+WEB_SEARCH_EXTRA_KWARGS: dict[str, dict[str, Any]] = {
+    "ChatAnthropic": {"max_tokens": 4096},
+}
+
 
 def build_llm(
     assistant_cfg: dict[str, Any],
@@ -126,6 +131,8 @@ def build_llm(
     kwargs: dict[str, Any] = {"model": model}
     if temperature is not None:
         kwargs["temperature"] = temperature
+    if web_search:
+        kwargs.update(WEB_SEARCH_EXTRA_KWARGS.get(assistant_cfg["class"], {}))
     llm = cls(**kwargs)
     if web_search:
         tool = WEB_SEARCH_TOOLS.get(assistant_cfg["class"])
