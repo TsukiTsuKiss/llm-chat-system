@@ -95,7 +95,7 @@ def content_to_text(content: Any) -> str:
         for block in content:
             if isinstance(block, dict) and block.get("type") == "text":
                 parts.append(str(block.get("text", "")))
-            elif isinstance(block, dict) and block.get("type") in ("thinking", "redacted_thinking"):
+            elif isinstance(block, dict):
                 continue
             else:
                 parts.append(str(block))
@@ -108,6 +108,10 @@ logger = logging.getLogger(__name__)
 # langchain_groq 0.3.8 の bind_tools は dict ツールを変換できないため bind(tools=...) を使う
 WEB_SEARCH_TOOLS: dict[str, dict[str, Any]] = {
     "ChatGroq": {"type": "browser_search"},
+    "ChatOpenAI": {"type": "web_search"},
+    "ChatXAI": {"type": "web_search"},
+    "ChatAnthropic": {"type": "web_search_20250305", "name": "web_search", "max_uses": 3},
+    "ChatGoogleGenerativeAI": {"google_search": {}},
 }
 
 
