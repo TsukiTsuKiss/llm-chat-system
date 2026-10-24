@@ -84,7 +84,7 @@
 | 5a〜5f | ✅ | 再開・議事録・採用・user_context・割り込み・samples |
 | 5g | ✅ | 旧版移行（§9.2） |
 | 5h | ✅ | studio_dev（§10.4） |
-| 6 | 🔶 | user_context RAG（D.10）✅。TTS / Zenn は未着手 |
+| 6 | 🔶 | user_context RAG（D.10）✅。VOICEVOX 読み上げ（§7.9）✅。Zenn 草稿は未着手 |
 | 7〜9 | ⬜ | 考査・運用・外部連携 |
 
 </details>
@@ -190,7 +190,7 @@ python MultiRoleStudioWeb.py --org news_studio --no-browser --host 0.0.0.0 \
 | `--stream off` | ストリーミング OFF（推奨: 速度比較・ログ確認） |
 | `--web-search` | ウェブ検索を有効にする。`model_mapping` で `"web_search": true` の人材のみ。対応: Groq / OpenAI / xAI / Anthropic / Gemini |
 | `--voice` | VOICEVOX で発言を読み上げ、`sessions/audio/<session_id>/` に wav を保存 |
-| `--voicevox-url` | VOICEVOX の接続先（既定: 環境変数 `VOICEVOX_URL`、なければ `http://127.0.0.1:50021`） |
+| `--voicevox-url` | VOICEVOX の接続先（既定: 環境変数 `VOICEVOX_URL`、なければ `http://127.0.0.1:50021`）。カンマ区切りで複数指定すると並列合成 |
 
 各 step 終了時に `[assistant/model] | 秒 | in=… out=… (api/estimate) | tok/s | $…` を表示する。
 
@@ -226,7 +226,9 @@ python MultiRoleStudioWeb.py --org news_studio --no-browser --host 0.0.0.0 \
 - マッピングのない人材（ディレクター等）は読み上げない。
 - 人材名と声のキャラ名は合わせる必要がない。声は組織ごとのファイルで紐づける（`talents/*.json` には書かない）。
 - `voice_mapping.json` は環境依存のため `.gitignore` 対象。コミットするのは `.example`。
-- 読みを直したい語は `organizations/<org>/voice_dictionary.json` に `"表記": "カタカナの読み"` で追加する（例: `"株探": "カブタン"`）。読み上げの直前に置換するだけで、画面とログの本文は変わらない。
+- 読みを直したい語は `voice_dictionary.json` に `"表記": "カタカナの読み"` で追加する（例: `"株探": "カブタン"`）。読み上げの直前に置換するだけで、画面とログの本文は変わらない。
+  - ルート直下は全組織共通、`organizations/<org>/voice_dictionary.json` は組織専用。同じ表記は組織側が優先される。
+- 出典の引用記号（`【1†L79-L84】` 等）は読み上げ時に誤読されるため、`news_studio` / `solo` の `common_directives` で「報道機関名を文章で言う」よう指示している。
 - 発言末尾の「（進行メモ）…」「ディレクター点検」以降、Markdown 記号、URL は読み上げない。
 
 **CLI**
@@ -262,6 +264,7 @@ python MultiRoleStudioWeb.py --org news_studio --no-browser --host 0.0.0.0 \
 - VOICEVOX 側は、外部からの接続を受ける設定で起動する。
 - **VOICEVOX / Web UI とも認証がない。** 信頼できる LAN 内でのみ使い、インターネットには公開しない（`--share` も使わない）。
 - 合成は Studio サーバーが VOICEVOX に依頼し、できた音声をブラウザへ渡す。ブラウザから VOICEVOX へは直接つながない。
+- `--voicevox-url` にカンマ区切りで複数の ENGINE を指定すると、発言内の文を空いている ENGINE に振り分けて並列合成する（例: `--voicevox-url http://pc1:50021,http://pc2:50021`）。接続できない ENGINE は外して続行する。全 ENGINE を同じ VOICEVOX バージョンに揃えること（speaker ID が違うと声が変わる）。
 
 | Web 起動オプション | 説明 |
 |---|---|

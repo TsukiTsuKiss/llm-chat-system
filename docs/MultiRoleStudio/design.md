@@ -1434,6 +1434,23 @@ AI の変更が常に1コミット=1セッションの粒度で履歴に残り�
 5. 生成結果は**会話履歴に含めない**（旧 ChatWeb と同様。トークン節約）
 6. 7.3 節の構造化議事録（`minutes/*.json`）とは用途が異なる（議事録 = 決定事項、Zenn = 執筆草稿）
 
+### 7.9 読み上げ（VOICEVOX・Phase 6 実装済み）
+
+発言ごとにキャラ別の声で音声合成する。実装は `studio/voice.py`。使い方は README「ニュース番組と読み上げ」、残課題は [backlog.md](backlog.md)。
+
+| 項目 | 内容 |
+|---|---|
+| 合成 | VOICEVOX ENGINE の `/audio_query` → `/synthesis`。既定の接続先は `http://127.0.0.1:50021`（`--voicevox-url` / 環境変数 `VOICEVOX_URL`） |
+| 声の割当 | `organizations/<org>/voice_mapping.json`（人材 ID → `speaker` + 任意の `speed` / `pitch` / `intonation`）。実設定は `.gitignore`、`voice_mapping.example.json` をコミット。`talents/*.json` には声を書かない。マッピングのない人材は読み上げない |
+| 読み辞書 | ルート直下 `voice_dictionary.json`（共通）に `organizations/<org>/voice_dictionary.json` を重ね、同じ表記は組織側を優先。合成直前に置換するだけで、表示・ログの本文は変えない |
+| 読み上げ前処理 | Markdown 記号・URL・発言末尾の裏方メモ（進行メモ / ディレクター点検）を除去し、文単位で約 60 文字ごとに分割して合成 |
+| 複数 ENGINE | `--voicevox-url` をカンマ区切りで複数指定すると、文を空いている ENGINE へ振り分けて並列合成。接続できない ENGINE は外して続行し、全滅時のみ読み上げを中止。ENGINE の VOICEVOX バージョンは揃える |
+| CLI | `--voice`。step 終了ごとに合成し、`sessions/audio/<session_id>/NN_<talent_id>.wav` に保存、Windows ではサーバー側スピーカーで再生。接続不可時は警告して読み上げなしで続行 |
+| Web | 「読み上げ（VOICEVOX）」チェック。発言ごとの wav を `AudioRelay` で順番待ちにし、ブラウザの `gr.Audio` で自動再生（再生終了で次発言へ） |
+| 構成 | Studio サーバー / VOICEVOX サーバー / ブラウザの 3 台に分離可能（`MultiRoleStudioWeb.py --no-browser --host`）。ブラウザから VOICEVOX へは直接つながない |
+
+**注意**: VOICEVOX・Web UI とも認証なし。`--host` で外部公開する場合は信頼できる LAN 内に限る。配信・公開時は使うキャラの利用規約とクレジット表記を確認する。
+
 ---
 
 ## 8. UI 仕様
@@ -1448,6 +1465,7 @@ AI の変更が常に1コミット=1セッションの粒度で履歴に残り�
   （Web 版のアップロードと同じ取り込みロジックを共用する）
 - **成果物の採用**: `--apply <session_id>` で sandbox の成果物を作業ツリーへ適用し、
   コミットを作成する（7.6 節。プッシュはしない）
+- **読み上げ**: `--voice` / `--voicevox-url` で VOICEVOX による発言の読み上げ（7.9 節）
 
 ```bash
 python MultiRoleStudio.py --org nokuru --workflow meeting --topic "秋キャンプの行き先を決める"
@@ -1687,6 +1705,8 @@ Phase 4 で Gradio Web 版に共通して適用する。
 | **日本語ページ・翻訳バー抑制** | Gradio 6 の HTML テンプレートは `<html lang="en">` 固定。`launch(head=…)` や JS だけでは view-source / Edge 翻訳バーに効かない。**`templates/gradio/frontend/index.html`（`lang="ja"` + `notranslate`）を Jinja2 ChoiceLoader で優先**（`studio/gradio_template.py`）。Gradio バージョンアップ時は asset ハッシュ要確認 | 4b |
 | **イベント JS の順序** | `click(..., js=...)` の `js` は **Python `fn` より先**に実行される。タブ切替・スクロール等「更新後にやりたい」クライアント処理は **`.then(fn=None, js=...)`** で後段に置く（Phase 5a 再開で実証） | 5a |
 | **起動時 `--org`** | `MultiRoleStudioWeb.py --org <id>` は `studio_config.default_org` より優先（8.3 節） | 5 |
+| **`--no-browser` / `--host` / `--voicevox-url`** | ブラウザ自動起動の抑止、待ち受けアドレス指定（別 PC から接続）、VOICEVOX 接続先（7.9 節） | 6 |
+| **読み上げ** | 「読み上げ（VOICEVOX）」チェック + 発言ごとの音声を順次自動再生（7.9 節） | 6 |
 
 **補足（Gradio 6 / Soft テーマ）:**
 
@@ -1738,12 +1758,12 @@ Phase 4 で Gradio Web 版に共通して適用する。
 | **—** | Web 生成中キャンセル | ⬜ | 強制停止ボタン（§8.3。Phase 4 スコープ外として延期） |
 | **—** | sync-models CLI | 🔶 | Opper カタログ同期（§6.5・任意・未実装） |
 | **—** | CLI パリティ拡充 | ⬜ | Web 専用機能の CLI 移植。優先順: ① セッション運用（一覧 / レポート閲覧 / MD エクスポート / 再開 / 議事録生成）② 設定編集のうち model_mapping / workflow_bindings ③ RAG（corpus 一覧 / プレビュー / 検索）。対話モード内は `/` 始まりの疑似コマンドで提供（例: `/attach <path>` / `/attach dir` / `/attach clear` / `/attach list` — 添付をセッション内に保持し各ターンで自動付与）。チャット系（組織・workflow 切替、stream、user_context、RAG トグル、添付 `--files`）は起動オプションとして実装済み |
-| **6** | 生成連携 | 🔶 | **user_context RAG**（付録D.10）✅。**Web RAG UI**（D.10「6+」）✅。TTS / Zenn 草稿（§7.8）は未着手 |
+| **6** | 生成連携 | 🔶 | **user_context RAG**（付録D.10）✅。**Web RAG UI**（D.10「6+」）✅。**VOICEVOX 読み上げ**（§7.9）✅。Zenn 草稿（§7.8）は未着手 |
 | **7** | 考査支援 | ⬜ | 映像・音声・字幕のコンプラチェック |
 | **8** | 運用基盤 | ⬜ | 品質・遅延・コスト監視、`analyze-sessions`、dev セッションコスト表示 |
 | **9** | 連携拡張 | ⬜ | 外部ベンダー API 契約固定（付録C） |
 
-**現在の位置**: Phase **6** 着手。**user_context RAG（D.10）** は CLI / エンジン注入 / **Web UI（6+）** まで実装済み。TTS / Zenn 草稿（§7.8）は未着手。
+**現在の位置**: Phase **6** 着手。**user_context RAG（D.10）** は CLI / エンジン注入 / **Web UI（6+）** まで実装済み。**VOICEVOX 読み上げ（§7.9）** は CLI / Web とも実装済み。Zenn 草稿（§7.8）は未着手。
 
 **通信欄**: 直近の作業メモは [handoff/current.md](../../handoff/current.md)。
 
