@@ -23,7 +23,7 @@ from studio.validation import StudioError, StudioValidationError
 from studio.voice import DEFAULT_BASE_URL, VoiceReader, engine_available, load_voice_dictionary, load_voice_mapping
 from studio.workflow_validate import workflow_has_interrupt_on, workflow_has_user_exit
 
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 
 
 def print_event(event: EngineEvent, *, use_stream: bool) -> None:
