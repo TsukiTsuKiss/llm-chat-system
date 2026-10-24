@@ -20,10 +20,17 @@ from studio.user_context_update import (
     save_summary_from_context,
 )
 from studio.validation import StudioError, StudioValidationError
-from studio.voice import DEFAULT_BASE_URL, VoiceReader, engine_available, load_voice_dictionary, load_voice_mapping
+from studio.voice import (
+    DEFAULT_BASE_URL,
+    VoiceReader,
+    engine_available,
+    load_voice_dictionary,
+    load_voice_mapping,
+    parse_voicevox_urls,
+)
 from studio.workflow_validate import workflow_has_interrupt_on, workflow_has_user_exit
 
-VERSION = "0.4.0"
+VERSION = "0.6.0"
 
 
 def print_event(event: EngineEvent, *, use_stream: bool) -> None:
@@ -143,13 +150,18 @@ def create_voice_reader(args: argparse.Namespace, ctx) -> VoiceReader | None:
     if not mapping:
         print(f"[voice] organizations/{ctx.org_id}/voice_mapping.json がないため読み上げません", file=sys.stderr)
         return None
-    if not engine_available(args.voicevox_url):
+    configured = parse_voicevox_urls(args.voicevox_url)
+    urls = [url for url in configured if engine_available(url)]
+    if not urls:
         print(f"[voice] VOICEVOX ({args.voicevox_url}) に接続できないため読み上げません", file=sys.stderr)
         return None
+    for url in configured:
+        if url not in urls:
+            print(f"[voice] 接続できない VOICEVOX を外しました: {url}", file=sys.stderr)
     return VoiceReader(
         ctx.root,
         mapping,
-        base_url=args.voicevox_url,
+        base_url=urls,
         dictionary=load_voice_dictionary(ctx.root, ctx.org_id),
     )
 
@@ -323,7 +335,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--voicevox-url",
         default=DEFAULT_BASE_URL,
-        help="VOICEVOX の接続先（既定: 環境変数 VOICEVOX_URL または http://127.0.0.1:50021）",
+        help="VOICEVOX の接続先（既定: 環境変数 VOICEVOX_URL または http://127.0.0.1:50021）。カンマ区切りで複数指定すると並列合成",
     )
     parser.add_argument(
         "--apply",

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""MultiRoleStudio Web UI (Phase 4a: chat, Phase 4b: settings, Phase 4c: attachments, Phase 4d: mapping form, Phase 4e: sessions)."""
+"""MultiRoleStudio Web UI."""
 
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 from pathlib import Path
 
@@ -47,7 +48,7 @@ from web_input_utils import (
     user_context_default_from_config,
 )
 
-VERSION = "0.6.0"
+VERSION = "0.8.0"
 
 DEFAULT_ORG = os.getenv("MULTIROLESTUDIOWEB_ORG", "")
 DEFAULT_PORT = int(os.getenv("MULTIROLESTUDIOWEB_PORT", "7862"))
@@ -201,10 +202,7 @@ def build_ui(
         valid_wf_state = gr.State(default_wf)
         pending_wf_hint_state = gr.State("")
 
-        gr.Markdown(
-            f"# MultiRoleStudio Web `{VERSION}`\n"
-            "Phase 4a: チャット / Phase 4b: 設定編集 / Phase 4c: ファイル添付 / Phase 4d: model_mapping フォーム / Phase 4e: セッション / Phase 5a: 再開 / Phase 5d: user_context / Phase 6: RAG"
-        )
+        gr.Markdown(f"# MultiRoleStudio Web `{VERSION}`")
 
         with gr.Tabs():
             with gr.Tab("💬 チャット"):
@@ -643,6 +641,16 @@ def build_ui(
     return demo
 
 
+def suppress_connection_reset_log() -> None:
+    # Windows の Proactor が、ブラウザ側切断時に出す無害なログだけを落とす
+    class _Filter(logging.Filter):
+        def filter(self, record: logging.LogRecord) -> bool:
+            exc = record.exc_info[1] if record.exc_info else None
+            return not isinstance(exc, ConnectionResetError)
+
+    logging.getLogger("asyncio").addFilter(_Filter())
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="MultiRoleStudio Web UI")
     parser.add_argument("--org", default=None, help="デフォルト組織 ID")
@@ -658,7 +666,7 @@ def main() -> None:
     parser.add_argument(
         "--voicevox-url",
         default=DEFAULT_BASE_URL,
-        help="VOICEVOX の接続先（既定: 環境変数 VOICEVOX_URL または http://127.0.0.1:50021）",
+        help="VOICEVOX の接続先（既定: 環境変数 VOICEVOX_URL または http://127.0.0.1:50021）。カンマ区切りで複数指定すると並列合成",
     )
     parser.add_argument("--version", action="version", version=f"MultiRoleStudioWeb {VERSION}")
     args = parser.parse_args()
@@ -667,6 +675,7 @@ def main() -> None:
 
     print(f"[INFO] MultiRoleStudioWeb v{VERSION} 起動中 (root={root})")
     use_japanese_html_template()
+    suppress_connection_reset_log()
     demo = build_ui(root, cli_org=args.org, voicevox_url=args.voicevox_url)
     if args.host and args.host not in {"127.0.0.1", "localhost"}:
         print("[WARN] --host で外部から接続できます。認証はありません。信頼できるネットワーク内でのみ使ってください。")

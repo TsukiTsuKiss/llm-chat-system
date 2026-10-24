@@ -19,7 +19,7 @@ def studio_root(tmp_path: Path) -> Path:
         dest = tmp_path / name
         if src.is_dir():
             dest.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copytree(src, dest, dirs_exist_ok=True)
+            shutil.copytree(src, dest, dirs_exist_ok=True, ignore=shutil.ignore_patterns("voice_*.json"))
 
     shutil.copy2(REPO_ROOT / "ai_assistants_config.json", tmp_path / "ai_assistants_config.json")
     if (REPO_ROOT / "model_costs.csv").exists():

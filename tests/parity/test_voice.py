@@ -100,6 +100,54 @@ def test_voice_reader_stops_after_connection_failure(tmp_path: Path, monkeypatch
     assert not (tmp_path / "sessions" / "audio").exists()
 
 
+def test_parse_voicevox_urls_splits_and_trims():
+    assert voice.parse_voicevox_urls(" http://a:50021/ , http://b:50021,, ") == ["http://a:50021", "http://b:50021"]
+
+
+def test_voice_reader_spreads_chunks_over_engines_in_order(tmp_path: Path, monkeypatch):
+    import time
+
+    used: set[str] = set()
+    index = {"a。": 1, "b。": 2, "c。": 3, "d。": 4}
+
+    def fake(text, entry, base_url=voice.DEFAULT_BASE_URL):
+        used.add(base_url)
+        if text == "a。":
+            time.sleep(0.2)
+        return _wav(bytes([index[text], 0]))
+
+    monkeypatch.setattr(voice, "synthesize", fake)
+    monkeypatch.setattr(voice, "split_for_speech", lambda text: ["a。", "b。", "c。", "d。"])
+    reader = VoiceReader(tmp_path, {"a": {"speaker": 1}}, play=False, base_url=["http://e1", "http://e2"])
+    reader.handle(EngineEvent("session_start", {"session_id": "m1"}))
+    reader.handle(EngineEvent("step_done", {"talent_id": "a", "text": "x"}))
+    reader.close()
+
+    assert used == {"http://e1", "http://e2"}
+    with wave.open(str(tmp_path / "sessions" / "audio" / "m1" / "01_a.wav")) as r:
+        assert r.readframes(r.getnframes()) == b"\x01\x00\x02\x00\x03\x00\x04\x00"
+
+
+def test_voice_reader_drops_unreachable_engine_and_continues(tmp_path: Path, monkeypatch, capsys):
+    def fake(text, entry, base_url=voice.DEFAULT_BASE_URL):
+        if base_url == "http://bad":
+            raise OSError("refused")
+        return _wav(b"\x01\x00")
+
+    monkeypatch.setattr(voice, "synthesize", fake)
+    monkeypatch.setattr(voice, "split_for_speech", lambda text: ["a。", "b。", "c。"])
+    reader = VoiceReader(tmp_path, {"a": {"speaker": 1}}, play=False, base_url=["http://bad", "http://good"])
+    reader.handle(EngineEvent("session_start", {"session_id": "m2"}))
+    reader.handle(EngineEvent("step_done", {"talent_id": "a", "text": "x"}))
+    reader.close()
+
+    err = capsys.readouterr().err
+    assert "http://bad に接続できない" in err
+    assert "読み上げを中止" not in err
+    with wave.open(str(tmp_path / "sessions" / "audio" / "m2" / "01_a.wav")) as r:
+        assert r.getnframes() == 3
+
+
 def test_apply_dictionary_prefers_longer_surface():
     assert voice.apply_dictionary("株探と株探の記事", {"株探": "カブタン", "株": "カブ"}) == "カブタンとカブタンの記事"
 

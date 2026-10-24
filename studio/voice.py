@@ -15,6 +15,8 @@ import urllib.parse
 import urllib.request
 import wave
 from collections import deque
+from collections.abc import Sequence
+from concurrent.futures import Future
 from pathlib import Path
 from typing import Any, Callable
 
@@ -91,12 +93,19 @@ def load_voice_mapping(root: Path, org_id: str) -> dict[str, dict[str, Any]]:
     return {}
 
 
-def load_voice_dictionary(root: Path, org_id: str) -> dict[str, str]:
-    path = root / "organizations" / org_id / VOICE_DICTIONARY_FILE
+def _read_dictionary(path: Path) -> dict[str, str]:
     if not path.is_file():
         return {}
     data = json.loads(path.read_text(encoding="utf-8"))
     return {k: v for k, v in data.items() if isinstance(k, str) and isinstance(v, str) and k}
+
+
+def load_voice_dictionary(root: Path, org_id: str) -> dict[str, str]:
+    # 共通辞書（ルート直下）に組織辞書を重ね、同じ表記は組織側を優先する
+    return {
+        **_read_dictionary(root / VOICE_DICTIONARY_FILE),
+        **_read_dictionary(root / "organizations" / org_id / VOICE_DICTIONARY_FILE),
+    }
 
 
 def apply_dictionary(text: str, dictionary: dict[str, str]) -> str:
@@ -129,6 +138,11 @@ def synthesize(text: str, entry: dict[str, Any], base_url: str = DEFAULT_BASE_UR
         json.dumps(query).encode("utf-8"),
         timeout=120,
     )
+
+
+def parse_voicevox_urls(value: str) -> list[str]:
+    urls = [item.strip().rstrip("/") for item in value.split(",")]
+    return [url for url in urls if url]
 
 
 def engine_available(base_url: str = DEFAULT_BASE_URL) -> bool:
@@ -194,14 +208,17 @@ def load_wav_array(path: Path):
 
 
 class VoiceReader:
-    """step_done イベントを順に音声化し、wav を保存する。play=True でサーバー側スピーカーも鳴らす。"""
+    """step_done イベントを順に音声化し、wav を保存する。play=True でサーバー側スピーカーも鳴らす。
+
+    base_url に複数の ENGINE を渡すと、発言内の文を空いている ENGINE に振り分けて並列に合成する。
+    """
 
     def __init__(
         self,
         root: Path,
         mapping: dict[str, dict[str, Any]],
         *,
-        base_url: str = DEFAULT_BASE_URL,
+        base_url: str | Sequence[str] = DEFAULT_BASE_URL,
         play: bool = True,
         dictionary: dict[str, str] | None = None,
         on_utterance: Callable[[Path], None] | None = None,
@@ -209,17 +226,25 @@ class VoiceReader:
         self._root = root
         self._mapping = mapping
         self._dictionary = dictionary or {}
-        self._base_url = base_url
+        urls = [base_url] if isinstance(base_url, str) else list(base_url)
+        self._idle_engines: queue.Queue[str] = queue.Queue()
+        for url in urls:
+            self._idle_engines.put(url)
+        self._alive_engines = len(urls)
+        self._engine_lock = threading.Lock()
         self._play = play and winsound is not None
         self._on_utterance = on_utterance
         self._out_dir: Path | None = None
         self._count = 0
         self._failed = False
         self._queue: queue.Queue[tuple[Path, str, dict[str, Any]] | None] = queue.Queue()
+        self._tasks: queue.Queue[tuple[str, dict[str, Any], Future[bytes | None]] | None] = queue.Queue()
         self._playback: queue.Queue[bytes | None] = queue.Queue()
+        self._engine_workers = [threading.Thread(target=self._engine_loop, daemon=True) for _ in urls]
         self._workers = [
             threading.Thread(target=self._synthesize_loop, daemon=True),
             threading.Thread(target=self._playback_loop, daemon=True),
+            *self._engine_workers,
         ]
         for worker in self._workers:
             worker.start()
@@ -255,17 +280,18 @@ class VoiceReader:
             if self._failed:
                 continue
             path, text, entry = job
-            wavs: list[bytes] = []
+            futures: list[Future[bytes | None]] = []
             for chunk in split_for_speech(text):
-                try:
-                    wav = synthesize(chunk, entry, self._base_url)
-                except urllib.error.HTTPError as exc:
-                    print(f"[voice] 合成に失敗したため一部を飛ばします: {exc}", file=sys.stderr)
-                    continue
-                except OSError as exc:
-                    self._failed = True
-                    print(f"[voice] VOICEVOX に接続できないため読み上げを中止します: {exc}", file=sys.stderr)
+                future: Future[bytes | None] = Future()
+                self._tasks.put((chunk, entry, future))
+                futures.append(future)
+            wavs: list[bytes] = []
+            for future in futures:
+                wav = future.result()
+                if self._failed:
                     break
+                if wav is None:
+                    continue
                 wavs.append(wav)
                 if self._play:
                     self._playback.put(wav)
@@ -274,7 +300,44 @@ class VoiceReader:
                 path.write_bytes(join_wavs(wavs))
                 if self._on_utterance:
                     self._on_utterance(path)
+        for _ in self._engine_workers:
+            self._tasks.put(None)
         self._playback.put(None)
+
+    def _engine_loop(self) -> None:
+        while (task := self._tasks.get()) is not None:
+            chunk, entry, future = task
+            try:
+                future.set_result(self._synthesize_chunk(chunk, entry))
+            except Exception as exc:
+                future.set_exception(exc)
+
+    def _synthesize_chunk(self, chunk: str, entry: dict[str, Any]) -> bytes | None:
+        """空いている ENGINE で合成する。None は飛ばした文、または全 ENGINE 停止（_failed）。"""
+        while not self._failed:
+            try:
+                url = self._idle_engines.get(timeout=1)
+            except queue.Empty:
+                continue
+            try:
+                wav = synthesize(chunk, entry, url)
+            except urllib.error.HTTPError as exc:
+                self._idle_engines.put(url)
+                print(f"[voice] 合成に失敗したため一部を飛ばします: {exc}", file=sys.stderr)
+                return None
+            except OSError as exc:
+                with self._engine_lock:
+                    self._alive_engines -= 1
+                    remaining = self._alive_engines
+                if remaining == 0:
+                    self._failed = True
+                    print(f"[voice] VOICEVOX に接続できないため読み上げを中止します: {exc}", file=sys.stderr)
+                    return None
+                print(f"[voice] {url} に接続できないため、この ENGINE を外して続けます: {exc}", file=sys.stderr)
+                continue
+            self._idle_engines.put(url)
+            return wav
+        return None
 
     def _playback_loop(self) -> None:
         while (wav := self._playback.get()) is not None:

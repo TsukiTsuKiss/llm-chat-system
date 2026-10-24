@@ -22,6 +22,7 @@ from studio.voice import (
     load_voice_dictionary,
     load_voice_mapping,
     load_wav_array,
+    parse_voicevox_urls,
 )
 from web_input_utils import normalize_uploaded_files
 
@@ -215,6 +216,7 @@ class ChatEventRenderer:
     messages: list[dict[str, str]] = field(default_factory=list)
     _emoji_map: dict[str, str] = field(default_factory=dict)
     _active_idx: int | None = None
+    _active_placeholder: str = ""
     _last_display_name: dict[str, str] = field(default_factory=dict)
 
     def copy_messages(self) -> list[dict[str, str]]:
@@ -237,11 +239,16 @@ class ChatEventRenderer:
         body = f"\n\n{placeholder}" if placeholder else ""
         self.messages.append({"role": "assistant", "content": f"{header}{body}"})
         self._active_idx = len(self.messages) - 1
+        self._active_placeholder = placeholder
 
     def _append_active(self, text: str) -> None:
         if self._active_idx is None:
             return
-        self.messages[self._active_idx]["content"] += text
+        content = self.messages[self._active_idx]["content"]
+        if self._active_placeholder:
+            content = content.removesuffix(self._active_placeholder)
+            self._active_placeholder = ""
+        self.messages[self._active_idx]["content"] = content + text
 
     def _set_active_body(
         self,
@@ -377,21 +384,27 @@ class WebSession:
             self.relay.clear()
 
     def configure_voice(self, enabled: bool) -> str:
-        """読み上げを有効化。できないときは理由を返す。"""
+        """読み上げを有効化。できないときは理由を返す（一部の ENGINE を外したときは通知を返して有効のまま）。"""
         self.voice_enabled = False
         if not enabled:
             return ""
+        note = ""
         if self.voice is None:
             mapping = load_voice_mapping(self.root, self.org_id)
             if not mapping:
                 return f"organizations/{self.org_id}/voice_mapping.json がないため読み上げません"
-            if not engine_available(self.voicevox_url):
+            configured = parse_voicevox_urls(self.voicevox_url)
+            urls = [url for url in configured if engine_available(url)]
+            if not urls:
                 return f"VOICEVOX ({self.voicevox_url}) に接続できないため読み上げません"
+            skipped = [url for url in configured if url not in urls]
+            if skipped:
+                note = f"接続できない VOICEVOX を外しました: {', '.join(skipped)}"
             self.relay = self.relay or AudioRelay()
             self.voice = VoiceReader(
                 self.root,
                 mapping,
-                base_url=self.voicevox_url,
+                base_url=urls,
                 play=False,
                 dictionary=load_voice_dictionary(self.root, self.org_id),
                 on_utterance=self.relay.push,
@@ -400,7 +413,7 @@ class WebSession:
             if state is not None and state.logger is not None:
                 self.voice.begin_session(state.logger.session_id)
         self.voice_enabled = True
-        return ""
+        return note
 
     def feed_voice(self, event: EngineEvent) -> None:
         if self.voice_enabled and self.voice is not None:
@@ -573,6 +586,8 @@ def _status_from_event(event: EngineEvent) -> str:
         return f"セッション {event.payload.get('session_id')}"
     if event.type == "step_start":
         return f"{event.payload.get('display_name')} が応答中…"
+    if event.type == "chunk":
+        return "応答を出力中…"
     if event.type == "step_done":
         return "応答完了"
     if event.type == "step_error":

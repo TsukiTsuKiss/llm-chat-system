@@ -1,4 +1,7 @@
 {
   "name": "ソロ",
-  "talent_ids": ["solo_bot"]
+  "talent_ids": ["solo_bot"],
+  "common_directives": [
+    "出典を示すときは【1†L79-L84】のような引用記号を本文に書かず、「○○によると」のように報道機関名や情報源の名前を文章で言う"
+  ]
 }
