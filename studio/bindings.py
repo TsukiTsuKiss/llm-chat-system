@@ -116,7 +116,8 @@ def build_direct_bindings(talent_ids: list[str]) -> dict[str, list[str]]:
 
 
 def build_direct_workflow(talent_ids: list[str]) -> dict[str, Any]:
-    steps = [{"slot": DIRECT_SLOT, "action": ""} for _ in talent_ids]
+    # _direct には全員が割り当たるため、1 ステップで全員が 1 回ずつ発話する
+    steps = [{"slot": DIRECT_SLOT, "action": ""}]
     return {
         "name": "直接送信",
         "slots": {DIRECT_SLOT: {"description": "直接送信", "count": "1+"}},

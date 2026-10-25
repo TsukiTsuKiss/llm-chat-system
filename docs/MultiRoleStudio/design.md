@@ -781,13 +781,13 @@ Phase 1（1人チャット = Chat.py 相当）の基本形。
 
 ```
 phases: [
-  { "type": "serial", "steps": [ { "slot": "_direct", "action": "" } × talent_ids の人数 ] }
+  { "type": "serial", "steps": [ { "slot": "_direct", "action": "" } ] }
 ]
 ```
 
 - スロット `_direct` はワークフロー JSON には書かない。エンジン内部の予約名
-- バインディング不要: `talent_ids` の全員を `_direct` に1人ずつ割り当てる
-- 各 talent は serial 順に1回ずつ発話（Phase 1 では実質1ステップ）
+- バインディング不要: `talent_ids` の全員を `_direct` に割り当てる
+- ステップは **1 つだけ**。`_direct` に全員が割り当たるため、各 talent は serial 順に 1 回ずつ発話する（人数分のステップを並べると人数 × 人数回発話するため不可）
 
 ---
 

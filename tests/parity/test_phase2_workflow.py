@@ -59,6 +59,15 @@ def test_discussion_serial_three_steps(trio_root: Path) -> None:
     assert types.count("phase_start") == 1
 
 
+def test_direct_send_each_talent_speaks_once(trio_root: Path) -> None:
+    MockAssistant.reset()
+    ctx = load_session_context("trio", trio_root)
+    events = collect_events(SessionEngine(ctx), "直接送信", stream=False)
+
+    speakers = [e.payload["talent_id"] for e in events if e.type == "step_done"]
+    assert speakers == ["alpha", "beta", "gamma"]
+
+
 def test_format_prior_responses_uses_speaker_labels() -> None:
     block = format_prior_responses([("ひなた", "意見A"), ("かえで", "意見B")])
     assert "ひなた:" in block
