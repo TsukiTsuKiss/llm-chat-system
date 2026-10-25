@@ -194,14 +194,17 @@ def validate_model_mapping(
 
 
 def validate_role_directives(org_id: str, org: dict[str, Any], report: ValidationReport) -> None:
-    talent_ids = set(org.get("talent_ids") or [])
+    # キーは人材 ID または workflow_bindings の役割（スロット名）
+    allowed = set(org.get("talent_ids") or [])
+    for bindings in (org.get("workflow_bindings") or {}).values():
+        allowed.update(bindings)
     for key in (org.get("role_directives") or {}):
-        if key not in talent_ids:
+        if key not in allowed:
             report.add(
                 StudioError(
                     code="E206",
                     target=f"organizations/{org_id}",
-                    message=f"role_directives の '{key}' が talent_ids に含まれていません",
+                    message=f"role_directives の '{key}' が talent_ids にも workflow_bindings のスロット名にもありません",
                 )
             )
 

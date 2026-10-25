@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Sequence
 
 
 def build_org_context(org: dict[str, Any], org_id: str) -> str:
@@ -24,6 +24,7 @@ def build_system_prompt(
     org_id: str,
     talent_id: str,
     *,
+    slots: Sequence[str] = (),
     user_context_text: str | None = None,
     user_context_rag_text: str | None = None,
 ) -> str:
@@ -47,7 +48,11 @@ def build_system_prompt(
         parts.append("【共通指示】")
         parts.extend(f"- {item}" for item in common)
 
-    role_directives = (org.get("role_directives") or {}).get(talent_id) or []
+    # 役割（スロット名）と人材 ID のどちらのキーでも指定できる。同じキーは 1 回だけ適用する
+    directive_map = org.get("role_directives") or {}
+    role_directives: list[str] = []
+    for key in dict.fromkeys([*slots, talent_id]):
+        role_directives.extend(directive_map.get(key) or [])
     if role_directives:
         parts.append("【個別指示】")
         parts.extend(f"- {item}" for item in role_directives)

@@ -326,7 +326,11 @@ curl http://<VOICEVOX の PC>:50021/version
 | 解説者 | `gou`（ごう） | 背景、深掘り、用語のかみ砕き |
 | 予想担当 | `yuuma`（ゆうま） | 見通し、2 つのシナリオ、確度と根拠 |
 
-人材 ID は人物名で、役割名・組織名を含めない。`news_studio` と同じ人物（みどり・あかり・そうた・ごう）を使い回しており、役割は `workflow_bindings`（スロットへの割当）と組織の `role_directives` で与える。
+人材 ID は人物名で、役割名・組織名を含めない。`news_studio` と同じ人物（みどり・あかり・そうた・ごう）を使い回しており、役割は `workflow_bindings`（スロットへの割当）と組織の `role_directives`（キーはスロット名）で与える。
+
+- 人材を入れ替えるときは、`organizations/topic_studio/config.json` の `workflow_bindings` を変える。役割の指示は新しい人材に自動でついていく。
+- `model_mapping.json` と `voice_mapping.json` は人材 ID で紐づいているため、新しい人材の分を足す。
+- 注意事項（同じキーの適用、複数スロット、直接送信など）は、[設計書 §3.3](docs/MultiRoleStudio/design.md) の「role_directives の使い方と注意事項」を参照。
 
 ```bash
 # model_mapping.json は .gitignore。初回は .example をコピーして編集

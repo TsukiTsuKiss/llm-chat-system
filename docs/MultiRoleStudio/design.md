@@ -378,7 +378,7 @@ ID はファイル名から導出する（`talents/hinata.json` → `hinata`）�
 2. `system_prompt`: 挙動仕様（何をどう出力するか）
 3. 挙動指示を `personality` に書かない。人格説明を `system_prompt` に重複して書かない
 4. 全人材共通の出力規約（文字数制限など）は人材に書かず、組織の `common_directives` に置く（3.3 節）
-5. **ID は人物名にし、役割名・組織名を含めない**（`midori` は可、`news_director` は不可）。同じ人材を複数の組織で使い回せるようにするため。役割は組織の `workflow_bindings`（スロットへの割当）と `role_directives`（組織内の役割指示）で与え、人材の `personality` / `system_prompt` には役割固有の手順を書かない
+5. **ID は人物名にし、役割名・組織名を含めない**（`midori` は可、`news_director` は不可）。同じ人材を複数の組織で使い回せるようにするため。役割は組織の `workflow_bindings`（スロットへの割当）と `role_directives`（役割ごとの指示。キーはスロット名）で与え、人材の `personality` / `system_prompt` には役割固有の手順を書かない
 
 ### 3.3 組織定義（organizations/<org>/config.json）
 
@@ -427,7 +427,32 @@ ID はファイル名から導出する（`talents/hinata.json` → `hinata`）�
 | `default_workflow` | 任意 | UI 起動時に選択されるワークフロー |
 | `workflow_bindings` | 任意 | ワークフローのスロットへの人材割当（4.2 節）。省略時はデフォルト規則を適用 |
 | `common_directives` | 任意 | 編成メンバー**全員**への追加指示（出力規約など）。最終プロンプトに追記される（5章）。共通プロンプトのファイル参照層は作らない（旧 `inherit/append` の複雑さを持ち込まないため、この1層のみ） |
-| `role_directives` | 任意 | 人材**個別**への組織内追加指示。最終プロンプトに追記される（5章） |
+| `role_directives` | 任意 | 組織内の役割ごとの追加指示。キーは**役割（`workflow_bindings` のスロット名）または人材 ID**。役割で書けば、人材を入れ替えても指示を書き直さない。最終プロンプトに追記される（5章）。使い方と注意事項は下記 |
+
+#### role_directives の使い方と注意事項
+
+役割の指示は、人材ではなく**役割（スロット名）**をキーに書く。人材を入れ替えるときは `workflow_bindings` を変えるだけで、指示は新しい人材に自動でついていく。
+
+```json
+{
+  "workflow_bindings": { "news_show": { "director": ["midori"], "commentator": ["gou"] } },
+  "role_directives": {
+    "director": ["この番組での役割はディレクター", "放送後は出演者の発言を点検する"],
+    "commentator": ["この役だけ1ターン400文字以内とする"]
+  }
+}
+```
+
+ディレクターを別の人に替えるなら、`"director": ["midori"]` を書き換えるだけでよい。
+
+注意事項：
+
+1. **同じキーは 1 回だけ適用する。** 人材 ID とスロット名が同名（`studio_dev` の `implementer` など）でも、指示は二重にならない。適用順はスロット名、続いて人材 ID
+2. **人材が複数のスロットに入っているときは、該当するすべてのスロットの指示を適用する。** ステップごとに現在の役割だけを選ぶわけではないため、複数の役割の指示が混ざる
+3. **スロット名の意味は、組織内のワークフロー間でそろえる。** 指示はスロット名で共有される。同じ名前を別の意味で使う場合は、人材 ID をキーにする
+4. **`workflow_bindings` を省略して自動割当にした組織では、スロット名をキーにできない。** 検証（E206）がスロット名を認識するのは `workflow_bindings` に書かれたものだけなので、人材 ID で書く
+5. **直接送信（4.4 節）にはスロットがない。** 役割キーの指示は適用されず、人材 ID キーの指示だけが効く
+6. 画面に表示する「みどり（director）」の役割は、表示専用で LLM には渡さない。複数スロットに入っている人材は、最初の 1 つだけ表示する
 
 `mission` / `culture` と `common_directives` の役割分担は、人材の `personality` / `system_prompt` と対になる：
 
@@ -808,7 +833,7 @@ phases: [
 4. user_context              （付録D。有効時のみ。ユーザーの興味・用語定義・思考系譜）
 5. user_context_rag          （付録D.10。有効時のみ。corpus から関連 chunk を検索注入）
 6. org.common_directives     （あれば。箇条書きで追記。全員共通）
-7. org.role_directives[id]   （あれば。箇条書きで追記。個別）
+7. org.role_directives[slot / id]   （あれば。箇条書きで追記。役割（スロット名）の指示、続いて人材 ID の指示。同じキーは1回だけ）
 ```
 
 `user_context` / `user_context_rag` の注入は Phase 5d-a / **Phase 6（RAG）** で実装（付録D）。
@@ -844,7 +869,7 @@ phases: [
    `mock` / `human` は `ai_assistants_config.json` に登録不要 — エンジンが予約名として処理する）
 5. ワークフローのスロットバインディングを検証（4.2 節の規則）。
    加えて **`workflow_bindings` に登場する ID がすべて `talent_ids` に含まれること**を検証する
-6. `role_directives` のキーが `talent_ids` に含まれることを検証する
+6. `role_directives` のキーが `talent_ids` または `workflow_bindings` のスロット名に含まれることを検証する
 7. UI からの保存時にも同じバリデーションを実行する
 
 ### 5.3 エラー仕様
@@ -866,7 +891,7 @@ phases: [
 | E203 | assistant 不明 | `[E203] model_mapping: 'Gorq' は ai_assistants_config.json にありません（'Groq' の誤りではありませんか）` |
 | E204 | model 未指定 | `[E204] model_mapping: 'hinata' の model が未指定です（assistant が human / mock 以外の場合は必須）` |
 | E205 | binding の ID が編成外 | `[E205] 組織 'nokuru': workflow_bindings の 'momiji' が talent_ids に含まれていません` |
-| E206 | role_directives のキーが編成外 | `[E206] 組織 'nokuru': role_directives の 'momiji' が talent_ids に含まれていません` |
+| E206 | role_directives のキーが編成外 | `[E206] 組織 'nokuru': role_directives の 'momiji' が talent_ids にも workflow_bindings のスロット名にもありません` |
 | E207 | workflow 不明 | `[E207] 組織 'nokuru': default_workflow 'meating' が workflows/ にありません` |
 | E301 | スロット未バインド | `[E301] workflow 'meeting': スロット 'moderator' への割当がありません（workflow_bindings に追加してください）` |
 | E302 | スロット人数違反 | `[E302] workflow 'meeting': スロット 'moderator'（count "1"）に2人が割り当てられています` |

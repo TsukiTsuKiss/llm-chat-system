@@ -91,6 +91,7 @@ class SessionEngine:
             self.ctx.org,
             self.ctx.org_id,
             talent_id,
+            slots=self._slots_of(talent_id),
             user_context_text=text,
             user_context_rag_text=rag_text,
         )
@@ -229,13 +230,18 @@ class SessionEngine:
         talent_ids = list(self.ctx.org.get("talent_ids") or [])
         return build_direct_workflow(talent_ids), build_direct_bindings(talent_ids)
 
+    def _slots_of(self, talent_id: str) -> list[str]:
+        return [
+            slot
+            for slot, talent_ids in (self.ctx.slot_bindings or {}).items()
+            if talent_id in talent_ids
+        ]
+
     def _display_name(self, talent_id: str) -> str:
         # 表示専用。LLM へ渡す発言者ラベル（_speaker_label）には役割を付けない
         name = self.ctx.talents.get(talent_id, {}).get("name", talent_id)
-        for slot, talent_ids in (self.ctx.slot_bindings or {}).items():
-            if talent_id in talent_ids:
-                return f"{name}（{slot}）"
-        return name
+        slots = self._slots_of(talent_id)
+        return f"{name}（{slots[0]}）" if slots else name
 
     def _speaker_label(self, talent_id: str) -> str:
         return self.ctx.talents.get(talent_id, {}).get("name", talent_id)

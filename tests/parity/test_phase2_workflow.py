@@ -83,6 +83,39 @@ def test_direct_send_each_talent_speaks_once(trio_root: Path) -> None:
     assert speakers == ["alpha", "beta", "gamma"]
 
 
+def test_role_directives_by_slot_and_talent_apply_once() -> None:
+    from studio.prompts import build_system_prompt
+
+    talent = {"name": "x", "system_prompt": "s"}
+    org = {"role_directives": {"director": ["SLOT-D"], "midori": ["TALENT-M"], "implementer": ["IMPL"]}}
+
+    p = build_system_prompt(talent, org, "o", "midori", slots=["director"])
+    assert "- SLOT-D" in p and "- TALENT-M" in p
+
+    same_key = build_system_prompt(talent, org, "o", "implementer", slots=["implementer"])
+    assert same_key.count("- IMPL") == 1
+
+    swapped = build_system_prompt(talent, org, "o", "other", slots=["director"])
+    assert "- SLOT-D" in swapped and "TALENT-M" not in swapped
+
+    assert "【個別指示】" not in build_system_prompt(talent, org, "o", "other", slots=[])
+
+
+def test_validate_role_directives_accepts_slot_names() -> None:
+    from studio.loader import validate_role_directives
+    from studio.validation import ValidationReport
+
+    org = {
+        "talent_ids": ["a"],
+        "workflow_bindings": {"wf": {"director": ["a"]}},
+        "role_directives": {"director": ["x"], "a": ["y"], "ghost": ["z"]},
+    }
+    report = ValidationReport()
+    validate_role_directives("o", org, report)
+    assert [e.code for e in report.errors] == ["E206"]
+    assert "ghost" in report.errors[0].message
+
+
 def test_format_prior_responses_uses_speaker_labels() -> None:
     block = format_prior_responses([("ひなた", "意見A"), ("かえで", "意見B")])
     assert "ひなた:" in block
