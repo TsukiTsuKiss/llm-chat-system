@@ -35,13 +35,18 @@ _MD_MARKS = re.compile(r"[*#`_>]+|^\s*[-・]\s+|^\s*\d+\.\s+", re.MULTILINE)
 _BLANKS = re.compile(r"\n{2,}")
 # 発言末尾に混ざる裏方メモ（この行以降を読み上げない）
 _BACKSTAGE = re.compile(
-    r"^[ \t]*(?:[（(【\[][ \t]*進行メモ[）)】\]]|[（(【\[]?[ \t]*ディレクター点検[）)】\]]?).*\Z",
+    r"^[ \t]*(?:"
+    r"[（(【\[][^）)】\]\n]*(?:進行メモ|運用メモ|リサーチメモ|読み上げ対象外|放送用ではありません)"
+    r"|[（(【\[]?[ \t]*ディレクター[・･]?(?:点検|リサーチメモ)"
+    r").*\Z",
     re.MULTILINE | re.DOTALL,
 )
 
 
-def clean_for_speech(text: str) -> str:
-    text = _BACKSTAGE.sub("", _MD_MARKS.sub("", text))
+def clean_for_speech(text: str, *, strip_backstage: bool = True) -> str:
+    text = _MD_MARKS.sub("", text)
+    if strip_backstage:
+        text = _BACKSTAGE.sub("", text)
     text = _MD_LINK.sub(r"\1", text)
     text = _URL.sub("", text)
     return _BLANKS.sub("\n", text).strip()
@@ -237,6 +242,7 @@ class VoiceReader:
         self._out_dir: Path | None = None
         self._count = 0
         self._failed = False
+        self._actions: dict[str, str] = {}
         self._queue: queue.Queue[tuple[Path, str, dict[str, Any]] | None] = queue.Queue()
         self._tasks: queue.Queue[tuple[str, dict[str, Any], Future[bytes | None]] | None] = queue.Queue()
         self._playback: queue.Queue[bytes | None] = queue.Queue()
@@ -257,14 +263,26 @@ class VoiceReader:
         if event.type == "session_start":
             self.begin_session(event.payload["session_id"])
             return
+        if event.type == "step_start":
+            self._actions[event.payload["talent_id"]] = event.payload.get("action") or ""
+            return
         if event.type != "step_done" or self._out_dir is None:
             return
-        entry = self._mapping.get(event.payload["talent_id"])
-        text = apply_dictionary(clean_for_speech(event.payload["text"]), self._dictionary)
-        if entry is None or not text:
+        talent_id = event.payload["talent_id"]
+        entry = self._mapping.get(talent_id)
+        if entry is None:
+            return
+        # when_action 指定時は、その文字列を含む step だけを本文全体で読む（同じ人材の別 step は読まない）
+        when_action = entry.get("when_action")
+        if when_action and when_action not in self._actions.get(talent_id, ""):
+            return
+        text = apply_dictionary(
+            clean_for_speech(event.payload["text"], strip_backstage=not when_action), self._dictionary
+        )
+        if not text:
             return
         self._count += 1
-        path = self._out_dir / f"{self._count:02d}_{event.payload['talent_id']}.wav"
+        path = self._out_dir / f"{self._count:02d}_{talent_id}.wav"
         self._queue.put((path, text, entry))
 
     def close(self, *, wait: bool = True) -> None:

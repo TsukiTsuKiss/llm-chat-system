@@ -46,6 +46,27 @@ def test_voice_reader_saves_mapped_talents_only(tmp_path: Path, monkeypatch):
     assert (tmp_path / "sessions" / "audio" / "s1" / "01_news_main.wav").read_bytes() == b"RIFF"
 
 
+def test_voice_reader_when_action_reads_only_matching_step(tmp_path: Path, monkeypatch):
+    calls: list[str] = []
+
+    def fake_synthesize(text, entry, base_url=voice.DEFAULT_BASE_URL):
+        calls.append(text)
+        return _wav(b"\x01\x00")
+
+    monkeypatch.setattr(voice, "synthesize", fake_synthesize)
+    mapping = {"news_director": {"speaker": 2, "when_action": "放送後"}}
+    reader = VoiceReader(tmp_path, mapping, play=False)
+    reader.handle(EngineEvent("session_start", {"session_id": "s4"}))
+    reader.handle(EngineEvent("step_start", {"talent_id": "news_director", "action": "放送前。進行表を作る"}))
+    reader.handle(EngineEvent("step_done", {"talent_id": "news_director", "text": "進行表"}))
+    reader.handle(EngineEvent("step_start", {"talent_id": "news_director", "action": "放送後の点検"}))
+    reader.handle(EngineEvent("step_done", {"talent_id": "news_director", "text": "**ディレクター点検**\n- 数字が未確認です。"}))
+    reader.close()
+
+    assert calls == ["ディレクター点検", "数字が未確認です。"]
+    assert (tmp_path / "sessions" / "audio" / "s4" / "01_news_director.wav").exists()
+
+
 def test_split_for_speech_groups_sentences_by_limit():
     text = "あああ。いいい。ううう。\nえええ"
     assert split_for_speech(text, limit=8) == ["あああ。いいい。", "ううう。", "えええ"]
@@ -243,3 +264,11 @@ def test_clean_for_speech_drops_backstage_notes():
     assert clean_for_speech("本文です。\n\n（進行メモ）前の発言で日曜日とありました。\n続き") == "本文です。"
     assert clean_for_speech("本文です。\n\n**ディレクター点検**\n- 未確認です") == "本文です。"
     assert clean_for_speech("進行メモという言葉を含む本文です。") == "進行メモという言葉を含む本文です。"
+
+
+def test_clean_for_speech_drops_operation_and_research_memos():
+    note = "本文です。\n\n（番組運用メモ・読み上げ対象外）前の発言の確認状況：未確認です。"
+    assert clean_for_speech(note) == "本文です。"
+    memo = "本文です。\n\n**ディレクター・リサーチメモ（放送用ではありません）**\n- 未確認"
+    assert clean_for_speech(memo) == "本文です。"
+    assert clean_for_speech("運用メモの見直しを話します。") == "運用メモの見直しを話します。"

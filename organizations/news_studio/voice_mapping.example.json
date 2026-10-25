@@ -1,4 +1,5 @@
 {
+  "news_director": { "label": "四国めたん", "speaker": 2, "when_action": "放送後" },
   "news_main": { "label": "冥鳴ひまり", "speaker": 14 },
   "news_sub": { "label": "青山龍星", "speaker": 13 },
   "news_commentator": { "label": "玄野武宏", "speaker": 11 },
