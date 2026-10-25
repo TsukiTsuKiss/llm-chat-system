@@ -146,6 +146,9 @@ def build_settings_tab(
                                 talent_create_btn = gr.Button("新規作成", **_ACTION_BTN)
                     talent_name = gr.Textbox(label="name")
                     talent_personality = gr.Textbox(label="personality", lines=2)
+                    talent_experience = gr.Textbox(
+                        label="experience（経歴メモ・1行1項目。LLM には渡されません）", lines=3
+                    )
                     talent_tags = gr.Textbox(label="tags（カンマ区切り）")
                     talent_prompt = gr.Textbox(label="system_prompt", lines=10)
                     talent_save_btn = gr.Button("保存", **_SAVE_BTN)
@@ -460,18 +463,24 @@ def build_settings_tab(
         return (
             data.get("name", ""),
             data.get("personality", ""),
+            _list_to_lines(data.get("experience")),
             _tags_to_str(data.get("tags")),
             data.get("system_prompt", ""),
             "",
         )
 
-    def save_talent(talent_id: str, name: str, personality: str, tags: str, prompt: str):
+    def save_talent(
+        talent_id: str, name: str, personality: str, experience: str, tags: str, prompt: str
+    ):
         data = {
             "name": name.strip(),
             "system_prompt": prompt.strip(),
         }
         if personality.strip():
             data["personality"] = personality.strip()
+        experience_list = _lines_to_list(experience)
+        if experience_list:
+            data["experience"] = experience_list
         tag_list = _str_to_tags(tags)
         if tag_list:
             data["tags"] = tag_list
@@ -485,21 +494,21 @@ def build_settings_tab(
         if result.ok:
             loaded = load_talent(new_id)
             return (result.message, dd_upd, new_talent_upd, cb_upd, *loaded)
-        return (result.message, dd_upd, new_talent_upd, cb_upd, "", "", "", "", "")
+        return (result.message, dd_upd, new_talent_upd, cb_upd, "", "", "", "", "", "")
 
     def on_talent_delete(talent_id: str):
         result = delete_config("talent", talent_id, root)
         dd_upd, new_talent_upd, cb_upd, _ids = _refresh_talent_choices()
-        return result.message, dd_upd, new_talent_upd, cb_upd, "", "", "", "", ""
+        return result.message, dd_upd, new_talent_upd, cb_upd, "", "", "", "", "", ""
 
     talent_id_dd.change(
         load_talent,
         inputs=[talent_id_dd],
-        outputs=[talent_name, talent_personality, talent_tags, talent_prompt, talent_msg],
+        outputs=[talent_name, talent_personality, talent_experience, talent_tags, talent_prompt, talent_msg],
     )
     talent_save_btn.click(
         save_talent,
-        inputs=[talent_id_dd, talent_name, talent_personality, talent_tags, talent_prompt],
+        inputs=[talent_id_dd, talent_name, talent_personality, talent_experience, talent_tags, talent_prompt],
         outputs=[talent_msg, talent_id_dd, org_new_talent, org_talent_ids],
     )
     talent_create_btn.click(
@@ -512,6 +521,7 @@ def build_settings_tab(
             org_talent_ids,
             talent_name,
             talent_personality,
+            talent_experience,
             talent_tags,
             talent_prompt,
         ],
@@ -526,6 +536,7 @@ def build_settings_tab(
             org_talent_ids,
             talent_name,
             talent_personality,
+            talent_experience,
             talent_tags,
             talent_prompt,
         ],
@@ -971,7 +982,7 @@ def build_settings_tab(
     )
 
     demo.load(load_talent, inputs=[talent_id_dd], outputs=[
-        talent_name, talent_personality, talent_tags, talent_prompt, talent_msg,
+        talent_name, talent_personality, talent_experience, talent_tags, talent_prompt, talent_msg,
     ])
     demo.load(
         bootstrap_settings_from_chat,

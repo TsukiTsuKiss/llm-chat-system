@@ -33,6 +33,22 @@ def test_save_and_load_talent(studio_root: Path) -> None:
     assert loaded["name"] == "Test"
 
 
+def test_talent_experience_is_saved_but_not_in_prompt(studio_root: Path) -> None:
+    from studio.prompts import build_system_prompt
+
+    talent = {
+        "name": "Test",
+        "personality": "calm",
+        "system_prompt": "hello",
+        "experience": ["元地方紙の記者"],
+    }
+    assert save_config("talent", "exp_bot", talent, studio_root).ok
+    assert load_config("talent", "exp_bot", studio_root)["experience"] == ["元地方紙の記者"]
+    prompt = build_system_prompt(talent, {}, "org", "exp_bot")
+    assert "元地方紙" not in prompt
+    assert "experience" not in prompt
+
+
 def test_save_workflow_validates_structure(studio_root: Path) -> None:
     bad = {"name": "x", "slots": {}, "phases": []}
     result = save_config("workflow", "bad_wf", bad, studio_root)
