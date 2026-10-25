@@ -1,0 +1,7 @@
+{
+  "topic_director": { "label": "四国めたん", "speaker": 2, "when_action": "放送後" },
+  "topic_host": { "label": "青山龍星", "speaker": 13 },
+  "topic_facts": { "label": "冥鳴ひまり", "speaker": 14 },
+  "topic_explainer": { "label": "玄野武宏", "speaker": 11 },
+  "topic_forecaster": { "label": "白上虎太郎", "speaker": 12 }
+}

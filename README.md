@@ -223,7 +223,8 @@ python MultiRoleStudioWeb.py --org news_studio --no-browser --host 0.0.0.0 \
 
 - `speaker` は VOICEVOX の話者（スタイル）ID。一覧は `http://127.0.0.1:50021/speakers` で確認できる。
 - `speed` / `pitch` / `intonation` は任意（話速・高さ・抑揚）。`label` は人間用のメモで、読み込みには使わない。
-- マッピングのない人材（ディレクター等）は読み上げない。
+- マッピングのない人材は読み上げない。
+- `when_action` は任意。指定すると、その文字列を `action` に含む step だけを読み上げる。ディレクターは進行表（放送前）と点検（放送後）の 2 回発言するため、`"when_action": "放送後"` で点検だけを読ませる（`.example` の設定）。この step は「ディレクター点検」以降も含めて全文を読む。
 - 人材名と声のキャラ名は合わせる必要がない。声は組織ごとのファイルで紐づける（`talents/*.json` には書かない）。
 - `voice_mapping.json` は環境依存のため `.gitignore` 対象。コミットするのは `.example`。
 - 読みを直したい語は `voice_dictionary.json` に `"表記": "カタカナの読み"` で追加する（例: `"株探": "カブタン"`）。読み上げの直前に置換するだけで、画面とログの本文は変わらない。
@@ -261,7 +262,40 @@ python MultiRoleStudioWeb.py --org news_studio --no-browser --host 0.0.0.0 \
 # ブラウザ: http://<Studio サーバーの PC>:7862
 ```
 
-- VOICEVOX 側は、外部からの接続を受ける設定で起動する。
+PowerShell では行継続に `` ` `` を使うか、1 行で書く（`\` は使えない）。
+
+```powershell
+python MultiRoleStudioWeb.py --org news_studio --no-browser --host 0.0.0.0 `
+  --voicevox-url http://<VOICEVOX の PC>:50021
+```
+
+**VOICEVOX ENGINE の起動（VOICEVOX サーバー側）**
+
+```powershell
+# Windows 配布版（CPU 版）。既定は 127.0.0.1:50021 のため、別 PC から使うなら --host が必須
+.\run.exe --host 0.0.0.0
+# スレッド数を指定する場合（未指定なら自動。同じ PC で LLM 等も動かすなら絞る）
+.\run.exe --host 0.0.0.0 --cpu_num_threads 4
+```
+
+```bash
+# Docker（CPU 版）。127.0.0.1: を付けると外部から接続できない
+docker run --rm -p 50021:50021 voicevox/voicevox_engine:cpu-latest
+```
+
+```powershell
+# Windows ファイアウォールの許可（管理者権限の PowerShell。RemoteAddress は自分の LAN に合わせる）
+New-NetFirewallRule -DisplayName "VOICEVOX 50021" -Direction Inbound -Protocol TCP -LocalPort 50021 -Action Allow -RemoteAddress 192.168.0.0/24
+```
+
+```bash
+# Studio サーバー側の PC から疎通確認
+curl http://<VOICEVOX の PC>:50021/version
+```
+
+- 既定ポートは `50021`。変える場合は `--port` を指定し、ファイアウォールと `--voicevox-url` も合わせる。
+- オプションは ENGINE のバージョンで変わることがある。`run.exe --help` で確認する。
+- VOICEVOX 側は、外部からの接続を受ける設定（`--host 0.0.0.0`）で起動する。
 - **VOICEVOX / Web UI とも認証がない。** 信頼できる LAN 内でのみ使い、インターネットには公開しない（`--share` も使わない）。
 - 合成は Studio サーバーが VOICEVOX に依頼し、できた音声をブラウザへ渡す。ブラウザから VOICEVOX へは直接つながない。
 - `--voicevox-url` にカンマ区切りで複数の ENGINE を指定すると、発言内の文を空いている ENGINE に振り分けて並列合成する（例: `--voicevox-url http://pc1:50021,http://pc2:50021`）。接続できない ENGINE は外して続行する。全 ENGINE を同じ VOICEVOX バージョンに揃えること（speaker ID が違うと声が変わる）。
@@ -279,6 +313,32 @@ python MultiRoleStudioWeb.py --org news_studio --no-browser --host 0.0.0.0 \
 
 - VOICEVOX の音声は、キャラごとに利用規約とクレジット表記のルールがある。配信・公開する場合は確認する。
 - CPU 合成は遅いことがある（Core i7 2600K で数十秒〜）。発言を長くしすぎない。
+
+#### 時事解説チャンネル風（topic_studio）
+
+こちらが入れたお題について、**事実 → 背景・深掘り → 予想・推測**の順に話す組織。`news_studio` と違い、ニュースは探さず、天気・スポーツもない。
+
+| 役割 | 人材 ID | 内容 |
+|---|---|---|
+| ディレクター（あおい） | `topic_director` | 放送前にお題を調べてリサーチメモを作り、放送後に点検する |
+| 司会（りく） | `topic_host` | 導入、パートの合間のつなぎ、締め |
+| 事実担当（さくら） | `topic_facts` | 起きたことを事実だけで伝える |
+| 解説者（たいち） | `topic_explainer` | 背景、深掘り、用語のかみ砕き |
+| 予想担当（ゆうま） | `topic_forecaster` | 見通し、2 つのシナリオ、確度と根拠 |
+
+```bash
+# model_mapping.json は .gitignore。初回は .example をコピーして編集
+cp organizations/topic_studio/model_mapping.example.json organizations/topic_studio/model_mapping.json
+
+python MultiRoleStudio.py --org topic_studio --workflow topic_show \
+  --topic "食料品の消費税減税法案について" --web-search --voice
+
+python MultiRoleStudioWeb.py --org topic_studio   # Web では入力欄にお題を入れる
+```
+
+- `--workflow topic_show` が必要（省略すると全員が順に話す直接送信になる）。
+- 読み上げは `voice_mapping.example.json` をコピーして `voice_mapping.json` を作る。ディレクターは `when_action` を使い、放送後の点検だけを読み上げる。
+- 予想は「予想では」「と見られます」と言い分け、事実と同じ文に混ぜない（`common_directives`）。点検でも、予想を事実のように言った箇所を指摘する。
 
 #### 主要ファイル
 

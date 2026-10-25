@@ -1,0 +1,7 @@
+{
+  "topic_director": { "assistant": "mock" },
+  "topic_host": { "assistant": "mock" },
+  "topic_facts": { "assistant": "mock" },
+  "topic_explainer": { "assistant": "mock" },
+  "topic_forecaster": { "assistant": "mock" }
+}
