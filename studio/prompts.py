@@ -25,6 +25,7 @@ def build_system_prompt(
     talent_id: str,
     *,
     slots: Sequence[str] = (),
+    roster: Sequence[tuple[str, str]] = (),
     user_context_text: str | None = None,
     user_context_rag_text: str | None = None,
 ) -> str:
@@ -36,6 +37,12 @@ def build_system_prompt(
     mission_or_culture = org.get("mission") or org.get("culture")
     if mission_or_culture:
         parts.append(build_org_context(org, org_id))
+
+    if roster:
+        parts.append(
+            "【出演者】この回の担当と名前。他の出演者の名前を呼ぶときは、ここにある名前だけを使う\n"
+            + "\n".join(f"- {role}: {names}" for role, names in roster)
+        )
 
     if user_context_text:
         parts.append(f"【ユーザーコンテキスト】\n{user_context_text}")

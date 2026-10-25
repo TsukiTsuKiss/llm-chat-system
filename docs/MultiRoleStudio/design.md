@@ -830,6 +830,7 @@ phases: [
 1. talent.personality        （あれば）
 2. talent.system_prompt      （正本・必須）
 3. 組織コンテキスト           （org.mission / org.culture があれば。下記形式で注入）
+3.5 出演者名簿              （ワークフロー実行時のみ。スロットの description と割当人材の名前。他の出演者を呼ぶときに使う。直接送信では無し）
 4. user_context              （付録D。有効時のみ。ユーザーの興味・用語定義・思考系譜）
 5. user_context_rag          （付録D.10。有効時のみ。corpus から関連 chunk を検索注入）
 6. org.common_directives     （あれば。箇条書きで追記。全員共通）

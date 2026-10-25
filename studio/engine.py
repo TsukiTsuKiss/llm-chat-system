@@ -92,6 +92,7 @@ class SessionEngine:
             self.ctx.org_id,
             talent_id,
             slots=self._slots_of(talent_id),
+            roster=self._roster(),
             user_context_text=text,
             user_context_rag_text=rag_text,
         )
@@ -229,6 +230,16 @@ class SessionEngine:
             return self.ctx.workflow, self.ctx.slot_bindings
         talent_ids = list(self.ctx.org.get("talent_ids") or [])
         return build_direct_workflow(talent_ids), build_direct_bindings(talent_ids)
+
+    def _roster(self) -> list[tuple[str, str]]:
+        """ワークフロー実行時の出演者名簿。直接送信では空"""
+        slot_defs = (self.ctx.workflow or {}).get("slots") or {}
+        rows: list[tuple[str, str]] = []
+        for slot, talent_ids in (self.ctx.slot_bindings or {}).items():
+            names = "、".join(self.ctx.talents.get(tid, {}).get("name", tid) for tid in talent_ids)
+            if names:
+                rows.append((slot_defs.get(slot, {}).get("description") or slot, names))
+        return rows
 
     def _slots_of(self, talent_id: str) -> list[str]:
         return [

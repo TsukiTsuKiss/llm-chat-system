@@ -83,6 +83,24 @@ def test_direct_send_each_talent_speaks_once(trio_root: Path) -> None:
     assert speakers == ["alpha", "beta", "gamma"]
 
 
+def test_roster_lists_cast_in_workflow_but_not_in_direct_send(trio_root: Path) -> None:
+    class _State:
+        user_context_enabled = False
+        user_context_text = None
+        user_context_rag_enabled = False
+        user_context_rag_text = None
+
+    ctx = load_session_context("trio", trio_root, workflow_id="discussion")
+    engine = SessionEngine(ctx)
+    prompt = engine._build_system_prompt(ctx.talents["alpha"], "alpha", _State())
+    assert "【出演者】" in prompt
+    for tid in ("alpha", "beta", "gamma"):
+        assert ctx.talents[tid]["name"] in prompt.split("【出演者】")[1]
+
+    direct = SessionEngine(load_session_context("trio", trio_root))
+    assert "【出演者】" not in direct._build_system_prompt(ctx.talents["alpha"], "alpha", _State())
+
+
 def test_role_directives_by_slot_and_talent_apply_once() -> None:
     from studio.prompts import build_system_prompt
 
