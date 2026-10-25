@@ -59,6 +59,21 @@ def test_discussion_serial_three_steps(trio_root: Path) -> None:
     assert types.count("phase_start") == 1
 
 
+def test_step_start_display_name_shows_slot_only_in_workflow(trio_root: Path) -> None:
+    MockAssistant.reset()
+    ctx = load_session_context("trio", trio_root, workflow_id="discussion")
+    events = collect_events(SessionEngine(ctx), "議題", stream=False)
+    slot = next(iter(ctx.slot_bindings))
+    for e in (e for e in events if e.type == "step_start"):
+        name = ctx.talents[e.payload["talent_id"]]["name"]
+        assert e.payload["display_name"] == f"{name}（{slot}）"
+
+    MockAssistant.reset()
+    direct = collect_events(SessionEngine(load_session_context("trio", trio_root)), "議題", stream=False)
+    for e in (e for e in direct if e.type == "step_start"):
+        assert e.payload["display_name"] == ctx.talents[e.payload["talent_id"]]["name"]
+
+
 def test_direct_send_each_talent_speaks_once(trio_root: Path) -> None:
     MockAssistant.reset()
     ctx = load_session_context("trio", trio_root)

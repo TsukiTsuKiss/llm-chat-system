@@ -229,6 +229,14 @@ class SessionEngine:
         talent_ids = list(self.ctx.org.get("talent_ids") or [])
         return build_direct_workflow(talent_ids), build_direct_bindings(talent_ids)
 
+    def _display_name(self, talent_id: str) -> str:
+        # 表示専用。LLM へ渡す発言者ラベル（_speaker_label）には役割を付けない
+        name = self.ctx.talents.get(talent_id, {}).get("name", talent_id)
+        for slot, talent_ids in (self.ctx.slot_bindings or {}).items():
+            if talent_id in talent_ids:
+                return f"{name}（{slot}）"
+        return name
+
     def _speaker_label(self, talent_id: str) -> str:
         return self.ctx.talents.get(talent_id, {}).get("name", talent_id)
 
@@ -435,7 +443,7 @@ class SessionEngine:
         talent = self.ctx.talents.get(talent_id, {})
         mapping = self.ctx.model_mapping.get(talent_id, {})
         assistant = mapping.get("assistant", "")
-        display_name = talent.get("name", talent_id)
+        display_name = self._display_name(talent_id)
 
         state.step_number += 1
         yield EngineEvent(
@@ -687,9 +695,7 @@ class SessionEngine:
 
         outcomes.sort(key=lambda o: order.get(o.talent_id, 999))
         for outcome in outcomes:
-            display_name = self.ctx.talents.get(outcome.talent_id, {}).get(
-                "name", outcome.talent_id
-            )
+            display_name = self._display_name(outcome.talent_id)
             yield EngineEvent(
                 "step_start",
                 {
@@ -810,7 +816,7 @@ class SessionEngine:
         talent = self.ctx.talents.get(talent_id, {})
         mapping = self.ctx.model_mapping.get(talent_id, {})
         assistant = mapping.get("assistant", "")
-        display_name = talent.get("name", talent_id)
+        display_name = self._display_name(talent_id)
 
         state.step_number += 1
         yield EngineEvent(
