@@ -17,6 +17,7 @@ from studio.web_ui import (
     IDLE_STATUS,
     WebSession,
     handle_chat_submit,
+    initial_workflow_for_org,
     last_rag_injection_preview,
     list_organizations,
     list_workflows,
@@ -91,6 +92,14 @@ def test_workflow_dropdown_choices_for_org_marks_unbound(studio_root: Path) -> N
     assert workflow_available_for_org(studio_root, "nokuru", "quiz") is False
     assert workflow_available_for_org(studio_root, "nokuru", "meeting") is True
     assert workflow_available_for_org(studio_root, "nokuru", "discussion") is True
+
+
+def test_initial_workflow_prefers_request_then_org_default(studio_root: Path) -> None:
+    _copy_nokuru_tree(studio_root)
+    assert initial_workflow_for_org(studio_root, "nokuru") == "meeting"
+    assert initial_workflow_for_org(studio_root, "nokuru", "quiz") == "quiz"
+    assert initial_workflow_for_org(studio_root, "nokuru", "no_such_workflow") == "meeting"
+    assert initial_workflow_for_org(studio_root, "solo") == ""
 
 
 def test_workflow_dropdown_nokuru_quiz_available(studio_root: Path) -> None:

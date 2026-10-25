@@ -32,6 +32,7 @@ from studio.web_ui import (
     audio_finished_update,
     handle_chat_submit,
     handle_choice,
+    initial_workflow_for_org,
     last_rag_injection_preview,
     list_organizations,
     load_org_panel,
@@ -178,6 +179,7 @@ def build_ui(
     root: Path,
     *,
     cli_org: str | None = None,
+    cli_workflow: str | None = None,
     voicevox_url: str = DEFAULT_BASE_URL,
 ) -> gr.Blocks:
     orgs = list_organizations(root)
@@ -194,7 +196,10 @@ def build_ui(
     initial_corpus_files = rag_ui.corpus_files
     initial_corpus_file = rag_ui.corpus_file
     default_org = _default_org(root, cli_org)
-    wf_choices, default_wf = workflow_dropdown_for_org(root, default_org or "", "")
+    initial_wf = initial_workflow_for_org(root, default_org or "", cli_workflow)
+    if cli_workflow and initial_wf != cli_workflow:
+        print(f"[WARN] --workflow '{cli_workflow}' は組織 '{default_org}' で使えません。'{initial_wf or '直接送信'}' で起動します。")
+    wf_choices, default_wf = workflow_dropdown_for_org(root, default_org or "", initial_wf)
     upload_limits = upload_limits_from_config(studio_config)
 
     with gr.Blocks(title=f"MultiRoleStudio Web {VERSION}", fill_height=True) as demo:
@@ -654,6 +659,11 @@ def suppress_connection_reset_log() -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="MultiRoleStudio Web UI")
     parser.add_argument("--org", default=None, help="デフォルト組織 ID")
+    parser.add_argument(
+        "--workflow",
+        default=None,
+        help="起動時に選択するワークフロー ID（省略時は組織の default_workflow、なければ直接送信）",
+    )
     parser.add_argument("--root", default=".", help="プロジェクトルート")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="ポート番号")
     parser.add_argument("--share", action="store_true", help="Gradio 公開トンネルを有効化")
@@ -676,7 +686,9 @@ def main() -> None:
     print(f"[INFO] MultiRoleStudioWeb v{VERSION} 起動中 (root={root})")
     use_japanese_html_template()
     suppress_connection_reset_log()
-    demo = build_ui(root, cli_org=args.org, voicevox_url=args.voicevox_url)
+    demo = build_ui(
+        root, cli_org=args.org, cli_workflow=args.workflow, voicevox_url=args.voicevox_url
+    )
     if args.host and args.host not in {"127.0.0.1", "localhost"}:
         print("[WARN] --host で外部から接続できます。認証はありません。信頼できるネットワーク内でのみ使ってください。")
     demo.launch(

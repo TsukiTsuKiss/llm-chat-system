@@ -303,6 +303,7 @@ curl http://<VOICEVOX の PC>:50021/version
 | Web 起動オプション | 説明 |
 |---|---|
 | `--org` | 初期の組織 ID |
+| `--workflow` | 起動時に選択するワークフロー ID。省略時は組織の `default_workflow`、なければ直接送信。その組織で使えないときは警告して `default_workflow` で起動する |
 | `--port` | ポート番号（既定 7862） |
 | `--no-browser` | 起動時にブラウザを開かない |
 | `--host` | 待ち受けアドレス。既定は自分の PC のみ。別 PC から開くなら `0.0.0.0` |

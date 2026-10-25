@@ -119,17 +119,29 @@ def resolve_workflow_value_for_org(
     elif workflow_available_for_org(root, org_id, None):
         return DIRECT_WORKFLOW_VALUE
 
-    default_wf = ""
-    if org_id:
-        try:
-            from studio.config_store import load_config
-
-            org = load_config("organization", org_id, root)
-            default_wf = str(org.get("default_workflow") or "").strip()
-        except (ValueError, OSError, KeyError):
-            default_wf = ""
+    default_wf = _org_default_workflow(root, org_id)
     if default_wf and workflow_available_for_org(root, org_id, default_wf):
         return default_wf
+    return DIRECT_WORKFLOW_VALUE
+
+
+def _org_default_workflow(root: Path, org_id: str) -> str:
+    if not org_id:
+        return ""
+    try:
+        from studio.config_store import load_config
+
+        org = load_config("organization", org_id, root)
+        return str(org.get("default_workflow") or "").strip()
+    except (ValueError, OSError, KeyError):
+        return ""
+
+
+def initial_workflow_for_org(root: Path, org_id: str, requested: str | None = None) -> str:
+    """起動時の選択。指定（--workflow）→ 組織の default_workflow → 直接送信 の順。"""
+    for candidate in (requested, _org_default_workflow(root, org_id)):
+        if candidate and workflow_available_for_org(root, org_id, candidate):
+            return candidate
     return DIRECT_WORKFLOW_VALUE
 
 

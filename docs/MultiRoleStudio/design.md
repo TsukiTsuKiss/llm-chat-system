@@ -1588,7 +1588,7 @@ Gradio 起動・終了の共通仕様（8.6 節）に従う。
 - **案内欄**: ワークフロープルダウン直下に `wf_note_md` を置く。未設定 workflow を選んだとき、
   選択は直前の有効値に戻し、案内欄に理由を**残す**（`workflow_bindings` 追加を促す。
   他組織に設定済みなら `設定済みの組織: trio` 等を列挙）。組織変更・別 workflow 選択でクリア
-- **フォールバック**: 組織変更で現選択が無効になった場合、`default_workflow` → なければ「直接送信」へ
+- **初期選択とフォールバック**: 起動時は `--workflow` → 組織の `default_workflow` → 「直接送信」の順で選ぶ。組織変更で現選択が無効になった場合も、`default_workflow` → なければ「直接送信」へ
 - **参加人材欄のエラー**: 読み込み失敗時、汎用「model_mapping 等」ではなく E301 等の**検証メッセージ全文**を表示
 - **設定タブ連動**: 組織 config / model_mapping / workflow 保存時もチャット側プルダウンを組織向けに再計算
 
@@ -1732,6 +1732,7 @@ Phase 4 で Gradio Web 版に共通して適用する。
 | **日本語ページ・翻訳バー抑制** | Gradio 6 の HTML テンプレートは `<html lang="en">` 固定。`launch(head=…)` や JS だけでは view-source / Edge 翻訳バーに効かない。**`templates/gradio/frontend/index.html`（`lang="ja"` + `notranslate`）を Jinja2 ChoiceLoader で優先**（`studio/gradio_template.py`）。Gradio バージョンアップ時は asset ハッシュ要確認 | 4b |
 | **イベント JS の順序** | `click(..., js=...)` の `js` は **Python `fn` より先**に実行される。タブ切替・スクロール等「更新後にやりたい」クライアント処理は **`.then(fn=None, js=...)`** で後段に置く（Phase 5a 再開で実証） | 5a |
 | **起動時 `--org`** | `MultiRoleStudioWeb.py --org <id>` は `studio_config.default_org` より優先（8.3 節） | 5 |
+| **起動時 `--workflow`** | `MultiRoleStudioWeb.py --workflow <id>` で起動時のワークフローを選ぶ。選択順は `--workflow` → 組織の `default_workflow` → 直接送信。その組織で実行できない（未設定・不明）ときは警告して次の候補へ | 6 |
 | **`--no-browser` / `--host` / `--voicevox-url`** | ブラウザ自動起動の抑止、待ち受けアドレス指定（別 PC から接続）、VOICEVOX 接続先（7.9 節） | 6 |
 | **読み上げ** | 「読み上げ（VOICEVOX）」チェック + 発言ごとの音声を順次自動再生（7.9 節） | 6 |
 
