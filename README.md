@@ -218,7 +218,7 @@ python MultiRoleStudioWeb.py --org news_studio --no-browser --host 0.0.0.0 \
 3. `voice_mapping.example.json` をコピーして `organizations/news_studio/voice_mapping.json` を作り、人材 ID ごとに話者 ID を設定する。
 
 ```json
-{ "news_main": { "label": "冥鳴ひまり", "speaker": 14, "speed": 1.0 } }
+{ "akari": { "label": "冥鳴ひまり", "speaker": 14, "speed": 1.0 } }
 ```
 
 - `speaker` は VOICEVOX の話者（スタイル）ID。一覧は `http://127.0.0.1:50021/speakers` で確認できる。
@@ -320,11 +320,13 @@ curl http://<VOICEVOX の PC>:50021/version
 
 | 役割 | 人材 ID | 内容 |
 |---|---|---|
-| ディレクター（あおい） | `topic_director` | 放送前にお題を調べてリサーチメモを作り、放送後に点検する |
-| 司会（りく） | `topic_host` | 導入、パートの合間のつなぎ、締め |
-| 事実担当（さくら） | `topic_facts` | 起きたことを事実だけで伝える |
-| 解説者（たいち） | `topic_explainer` | 背景、深掘り、用語のかみ砕き |
-| 予想担当（ゆうま） | `topic_forecaster` | 見通し、2 つのシナリオ、確度と根拠 |
+| ディレクター | `midori`（みどり） | 放送前にお題を調べてリサーチメモを作り、放送後に点検する |
+| 司会 | `akari`（あかり） | 導入、パートの合間のつなぎ、締め |
+| 事実担当 | `souta`（そうた） | 起きたことを事実だけで伝える |
+| 解説者 | `gou`（ごう） | 背景、深掘り、用語のかみ砕き |
+| 予想担当 | `yuuma`（ゆうま） | 見通し、2 つのシナリオ、確度と根拠 |
+
+人材 ID は人物名で、役割名・組織名を含めない。`news_studio` と同じ人物（みどり・あかり・そうた・ごう）を使い回しており、役割は `workflow_bindings`（スロットへの割当）と組織の `role_directives` で与える。
 
 ```bash
 # model_mapping.json は .gitignore。初回は .example をコピーして編集

@@ -36,14 +36,14 @@ def test_voice_reader_saves_mapped_talents_only(tmp_path: Path, monkeypatch):
         return b"RIFF"
 
     monkeypatch.setattr(voice, "synthesize", fake_synthesize)
-    reader = VoiceReader(tmp_path, {"news_main": {"speaker": 14}}, play=False)
+    reader = VoiceReader(tmp_path, {"akari": {"speaker": 14}}, play=False)
     reader.handle(EngineEvent("session_start", {"session_id": "s1"}))
-    reader.handle(EngineEvent("step_done", {"talent_id": "news_director", "text": "進行表"}))
-    reader.handle(EngineEvent("step_done", {"talent_id": "news_main", "text": "**おはようございます**"}))
+    reader.handle(EngineEvent("step_done", {"talent_id": "midori", "text": "進行表"}))
+    reader.handle(EngineEvent("step_done", {"talent_id": "akari", "text": "**おはようございます**"}))
     reader.close()
 
     assert calls == [("おはようございます", 14)]
-    assert (tmp_path / "sessions" / "audio" / "s1" / "01_news_main.wav").read_bytes() == b"RIFF"
+    assert (tmp_path / "sessions" / "audio" / "s1" / "01_akari.wav").read_bytes() == b"RIFF"
 
 
 def test_voice_reader_when_action_reads_only_matching_step(tmp_path: Path, monkeypatch):
@@ -54,17 +54,17 @@ def test_voice_reader_when_action_reads_only_matching_step(tmp_path: Path, monke
         return _wav(b"\x01\x00")
 
     monkeypatch.setattr(voice, "synthesize", fake_synthesize)
-    mapping = {"news_director": {"speaker": 2, "when_action": "放送後"}}
+    mapping = {"midori": {"speaker": 2, "when_action": "放送後"}}
     reader = VoiceReader(tmp_path, mapping, play=False)
     reader.handle(EngineEvent("session_start", {"session_id": "s4"}))
-    reader.handle(EngineEvent("step_start", {"talent_id": "news_director", "action": "放送前。進行表を作る"}))
-    reader.handle(EngineEvent("step_done", {"talent_id": "news_director", "text": "進行表"}))
-    reader.handle(EngineEvent("step_start", {"talent_id": "news_director", "action": "放送後の点検"}))
-    reader.handle(EngineEvent("step_done", {"talent_id": "news_director", "text": "**ディレクター点検**\n- 数字が未確認です。"}))
+    reader.handle(EngineEvent("step_start", {"talent_id": "midori", "action": "放送前。進行表を作る"}))
+    reader.handle(EngineEvent("step_done", {"talent_id": "midori", "text": "進行表"}))
+    reader.handle(EngineEvent("step_start", {"talent_id": "midori", "action": "放送後の点検"}))
+    reader.handle(EngineEvent("step_done", {"talent_id": "midori", "text": "**ディレクター点検**\n- 数字が未確認です。"}))
     reader.close()
 
     assert calls == ["ディレクター点検", "数字が未確認です。"]
-    assert (tmp_path / "sessions" / "audio" / "s4" / "01_news_director.wav").exists()
+    assert (tmp_path / "sessions" / "audio" / "s4" / "01_midori.wav").exists()
 
 
 def test_split_for_speech_groups_sentences_by_limit():

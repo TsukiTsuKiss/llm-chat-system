@@ -369,6 +369,7 @@ ID はファイル名から導出する（`talents/hinata.json` → `hinata`）�
 | `name` | ✅ | 表示名 |
 | `system_prompt` | ✅ | タスク手順・出力形式・禁止事項（実行ルール）。**直書きのみ**（ファイル参照は廃止） |
 | `personality` | 任意 | キャラクターの性格・口調・対人スタンス。**最終プロンプトの先頭に前置され、UI の人材一覧表示にも使う**（5章） |
+| `experience` | 任意 | 経歴・得意分野などのメモ（文字列の配列、履歴書の行）。**人間向けで、組織を編成するときの参考情報。LLM には渡さない**（プロンプトに入れない）。組織をまたいで変えない |
 | `tags` | 任意 | 検索・UI フィルタ用 |
 
 `personality` と `system_prompt` の役割分担（確定ルール）：
@@ -377,6 +378,7 @@ ID はファイル名から導出する（`talents/hinata.json` → `hinata`）�
 2. `system_prompt`: 挙動仕様（何をどう出力するか）
 3. 挙動指示を `personality` に書かない。人格説明を `system_prompt` に重複して書かない
 4. 全人材共通の出力規約（文字数制限など）は人材に書かず、組織の `common_directives` に置く（3.3 節）
+5. **ID は人物名にし、役割名・組織名を含めない**（`midori` は可、`news_director` は不可）。同じ人材を複数の組織で使い回せるようにするため。役割は組織の `workflow_bindings`（スロットへの割当）と `role_directives`（組織内の役割指示）で与え、人材の `personality` / `system_prompt` には役割固有の手順を書かない
 
 ### 3.3 組織定義（organizations/<org>/config.json）
 
