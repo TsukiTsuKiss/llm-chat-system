@@ -491,9 +491,11 @@ class SessionEngine:
                     web_search=state.web_search_enabled and bool(mapping.get("web_search")),
                 )
         except Exception as exc:
+            error = f"{type(exc).__name__}: {exc}"
+            state.logger.log_step_error(talent_id, error)
             yield EngineEvent(
                 "step_error",
-                {"talent_id": talent_id, "error": str(exc), "retry": False},
+                {"talent_id": talent_id, "error": error, "retry": False},
             )
             return None
 
@@ -889,9 +891,11 @@ class SessionEngine:
                     for chunk in chunk_buffer:
                         yield EngineEvent("chunk", {"talent_id": talent_id, "text": chunk})
         except Exception as exc:
+            error = f"{type(exc).__name__}: {exc}"
+            state.logger.log_step_error(talent_id, error)
             yield EngineEvent(
                 "step_error",
-                {"talent_id": talent_id, "error": str(exc), "retry": False},
+                {"talent_id": talent_id, "error": error, "retry": False},
             )
             return None
 

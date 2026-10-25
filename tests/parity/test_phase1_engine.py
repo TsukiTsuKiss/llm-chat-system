@@ -87,3 +87,23 @@ def test_mock_temperature_fallback(studio_root: Path, monkeypatch: pytest.Monkey
     step_done = next(e for e in events if e.type == "step_done")
     assert step_done.payload["text"] == "MOCK:solo_bot:step1"
     assert not any(e.type == "step_error" for e in events)
+
+
+def test_step_error_is_logged_to_jsonl(studio_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def boom(**kwargs):
+        raise ModuleNotFoundError("No module named 'langchain_google_genai'")
+
+    monkeypatch.setattr("studio.engine.invoke_llm_step", boom)
+    ctx = load_session_context("solo", studio_root)
+    ctx.model_mapping["solo_bot"] = {"assistant": "Fake", "model": "m"}
+    ctx.assistants["Fake"] = {}
+    engine = SessionEngine(ctx)
+    events = collect_events(engine, "err", stream=False)
+
+    error_event = next(e for e in events if e.type == "step_error")
+    assert error_event.payload["error"].startswith("ModuleNotFoundError:")
+
+    lines = [json.loads(line) for line in engine.state.logger.log_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    logged = next(row for row in lines if row["type"] == "step_error")
+    assert logged["talent_id"] == "solo_bot"
+    assert "langchain_google_genai" in logged["error"]

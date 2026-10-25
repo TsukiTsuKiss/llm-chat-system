@@ -223,6 +223,9 @@ class SessionLogger:
         self.steps.append(metrics)
         self.write_line(metrics.to_log_record())
 
+    def log_step_error(self, talent_id: str, error: str) -> None:
+        self.write_line({"type": "step_error", "talent_id": talent_id, "error": error})
+
     def log_state_snapshot(self, state: dict[str, Any]) -> None:
         self.write_line({"type": "state_snapshot", "state": state})
 
