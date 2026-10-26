@@ -16,6 +16,12 @@
       "commentator": ["gou"],
       "weather": ["haruka"],
       "sports": ["kento"]
+    },
+    "news_digest": {
+      "director": ["midori"],
+      "main_anchor": ["akari"],
+      "sub_anchor": ["souta"],
+      "commentator": ["gou"]
     }
   },
   "common_directives": [

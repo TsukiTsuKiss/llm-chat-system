@@ -15,6 +15,13 @@
       "facts": ["souta"],
       "explainer": ["gou"],
       "forecaster": ["yuuma"]
+    },
+    "topic_debate": {
+      "director": ["midori"],
+      "host": ["akari"],
+      "facts": ["souta"],
+      "explainer": ["gou"],
+      "forecaster": ["yuuma"]
     }
   },
   "common_directives": [
