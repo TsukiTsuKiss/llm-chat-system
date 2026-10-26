@@ -30,6 +30,7 @@ from studio.rag_ui import (
 from studio.web_ui import (
     WebSession,
     audio_finished_update,
+    audio_started_update,
     handle_chat_submit,
     handle_choice,
     initial_workflow_for_org,
@@ -94,6 +95,22 @@ STUDIO_WEB_CSS = """
 #studio-chatbot {
   max-height: calc(100dvh - 20rem) !important;
 }
+/* 読み上げ中の発言（JS がクラスを付ける） */
+#studio-chatbot .message-row.studio-playing {
+  position: relative;
+}
+#studio-chatbot .message-row.studio-playing .message {
+  background: rgba(56, 189, 248, 0.18) !important;
+  border-color: #38bdf8 !important;
+  box-shadow: 0 0 0 2px #38bdf8;
+}
+#studio-chatbot .message-row.studio-playing::before {
+  content: "🔊";
+  position: absolute;
+  right: 12px;
+  top: 6px;
+  z-index: 1;
+}
 .studio-chat-footer {
   flex: 0 0 auto !important;
 }
@@ -148,6 +165,51 @@ CHATBOT_MIN_HEIGHT = 200
 CHATBOT_DEFAULT_HEIGHT = "clamp(200px, calc(100dvh - 22rem), 480px)"
 
 DEFAULT_MSG_PLACEHOLDER = "メッセージを入力（Enter: 送信 / Shift+Enter: 改行）"
+
+# Gradio の自動スクロールは使わず（autoscroll=False）、再生中の箱へのスクロールと末尾追従をここで行う。
+# playing は「連番:発言番号」。利用者がホイール・タッチ・クリックしてから 8 秒は動かさない。
+SCROLL_TO_PLAYING_JS = """
+(playing) => {
+  const w = window;
+  w.__studioPlayingVal = playing;
+  if (w.__studioRaf) return;
+  w.__studioRaf = requestAnimationFrame(() => {
+    w.__studioRaf = 0;
+    const root = document.querySelector('#studio-chatbot');
+    if (!root) return;
+    const rows = [...root.querySelectorAll('.message-row')];
+    const m = /^\\d+:(\\d*)$/.exec(w.__studioPlayingVal || '');
+    const idx = m && m[1] !== '' ? Number(m[1]) : -1;
+    rows.forEach((r, i) => r.classList.toggle('studio-playing', i === idx));
+    if (!rows.length) { w.__studioPlayingIdx = -1; return; }
+    let box = rows[0].parentElement;
+    while (box && !(box.scrollHeight > box.clientHeight && /(auto|scroll)/.test(getComputedStyle(box).overflowY))) {
+      box = box.parentElement;
+    }
+    if (!box) return;
+    if (!box.__studioBound) {
+      box.__studioBound = true;
+      box.__studioStick = true;
+      box.__studioUserAt = 0;
+      const touch = () => { box.__studioUserAt = Date.now(); };
+      ['wheel', 'touchstart', 'pointerdown'].forEach(ev => box.addEventListener(ev, touch, { passive: true }));
+      box.addEventListener('scroll', () => {
+        box.__studioStick = box.scrollHeight - box.scrollTop - box.clientHeight < 100;
+      });
+    }
+    const quiet = Date.now() - box.__studioUserAt > 8000;
+    const prev = w.__studioPlayingIdx;
+    w.__studioPlayingIdx = idx;
+    if (idx >= 0) {
+      if (idx === prev || !quiet || !rows[idx]) return;
+      const top = box.scrollTop + rows[idx].getBoundingClientRect().top - box.getBoundingClientRect().top - 40;
+      box.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+    } else if (quiet && box.__studioStick) {
+      box.scrollTo({ top: box.scrollHeight });
+    }
+  });
+}
+"""
 
 
 def _msg_input_update(placeholder: str = DEFAULT_MSG_PLACEHOLDER) -> dict:
@@ -247,6 +309,7 @@ def build_ui(
                             autoplay=True,
                             interactive=False,
                         )
+                        playing_box = gr.Textbox(visible="hidden", elem_id="studio-playing")
                         merge_cb = gr.Checkbox(
                             label="連続メッセージを1つにまとめる",
                             value=False,
@@ -305,6 +368,7 @@ def build_ui(
                             min_height=CHATBOT_MIN_HEIGHT,
                             resizable=True,
                             group_consecutive_messages=False,
+                            autoscroll=False,
                         )
                         with gr.Column(elem_classes=["studio-chat-footer"]):
                             status_tb = gr.Textbox(label="状態", lines=1, interactive=False)
@@ -623,14 +687,31 @@ def build_ui(
         send_btn.click(on_submit, inputs=submit_inputs, outputs=submit_outputs)
         msg_tb.submit(on_submit, inputs=submit_inputs, outputs=submit_outputs)
 
-        # 発言ごとの音声は再生完了（stop）またはタイマーで順に渡す
+        # 発言ごとの音声は再生開始（play）・再生完了（stop）・タイマーで順に渡す
+        audio_player.play(
+            audio_started_update,
+            inputs=[session_state],
+            outputs=[playing_box],
+            queue=False,
+            show_progress="hidden",
+        )
         audio_player.stop(
-            audio_finished_update, inputs=[session_state], outputs=[audio_player], queue=False, show_progress="hidden"
+            audio_finished_update,
+            inputs=[session_state],
+            outputs=[audio_player, playing_box],
+            queue=False,
+            show_progress="hidden",
         )
         audio_timer = gr.Timer(1.0)
         audio_timer.tick(
-            next_audio_update, inputs=[session_state], outputs=[audio_player], queue=False, show_progress="hidden"
+            next_audio_update,
+            inputs=[session_state],
+            outputs=[audio_player, playing_box],
+            queue=False,
+            show_progress="hidden",
         )
+        chatbot.change(None, [playing_box], None, js=SCROLL_TO_PLAYING_JS, queue=False, show_progress="hidden")
+        playing_box.change(None, [playing_box], None, js=SCROLL_TO_PLAYING_JS, queue=False, show_progress="hidden")
 
         continue_btn.click(
             on_choice,

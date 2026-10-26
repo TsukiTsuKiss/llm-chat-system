@@ -31,8 +31,14 @@ VOICE_DICTIONARY_FILE = "voice_dictionary.json"
 
 _MD_LINK = re.compile(r"\[([^\]]*)\]\([^)]*\)")
 _URL = re.compile(r"https?://\S+")
-_MD_MARKS = re.compile(r"[*#`_>]+|^\s*[-・]\s+|^\s*\d+\.\s+", re.MULTILINE)
+# 単語中の _（live_stack など）は辞書の照合に必要なので残し、強調用の _ だけ除く
+_MD_MARKS = re.compile(
+    r"[*#`>]+|(?<![0-9A-Za-z])_+|_+(?![0-9A-Za-z])|^\s*[-・]\s+|^\s*\d+\.\s+", re.MULTILINE
+)
 _BLANKS = re.compile(r"\n{2,}")
+# LLM が混ぜる特殊な空白・ハイフンを通常のものに揃え、辞書の照合を外さないようにする
+_ODD_SPACES = re.compile(r"[\u00a0\u2007\u2009\u202f]")
+_ODD_HYPHENS = re.compile(r"[\u2010\u2011\u2012]")
 # 発言末尾に混ざる裏方メモ（この行以降を読み上げない）
 _BACKSTAGE = re.compile(
     r"^[ \t]*(?:"
@@ -44,6 +50,7 @@ _BACKSTAGE = re.compile(
 
 
 def clean_for_speech(text: str, *, strip_backstage: bool = True) -> str:
+    text = _ODD_HYPHENS.sub("-", _ODD_SPACES.sub(" ", text))
     text = _MD_MARKS.sub("", text)
     if strip_backstage:
         text = _BACKSTAGE.sub("", text)
@@ -159,39 +166,82 @@ def engine_available(base_url: str = DEFAULT_BASE_URL) -> bool:
 
 
 class AudioRelay:
-    """ブラウザ再生用の順番待ち。再生中は次の音声を渡さない。"""
+    """ブラウザ再生用の順番待ち。再生中は次の音声を渡さない。
 
-    # end イベントが届かない場合に備え、長さに加える猛予
+    渡した音声の読み込みが遅れても途中で次へ進まないよう、待ち時間は再生開始（play 通知）から数える。
+    """
+
+    # 渡してから再生開始（play 通知）までに許す時間
+    LOAD_GRACE_SECONDS = 30.0
+    # 再生開始後、stop が届かない場合に備えて長さに加える猶予
     GRACE_SECONDS = 5.0
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self._items: deque[Path] = deque()
-        self._playing_until: float | None = None
+        self._items: deque[tuple[Path, Any]] = deque()
+        self._deadline: float | None = None
+        self._handed_tag: Any = None
+        self._started = False
+        self._started_at = 0.0
+        self._duration = 0.0
 
-    def push(self, path: Path) -> None:
+    def push(self, path: Path, tag: Any = None) -> None:
         with self._lock:
-            self._items.append(path)
+            self._items.append((path, tag))
+
+    def started(self) -> None:
+        """渡した音声の再生が始まった（ブラウザの play 通知）。"""
+        with self._lock:
+            if self._deadline is None or self._started:
+                return
+            now = time.monotonic()
+            self._started = True
+            self._started_at = now
+            self._deadline = now + self._duration + self.GRACE_SECONDS
 
     def finished(self) -> None:
         with self._lock:
-            self._playing_until = None
+            # 再生開始前に届いた stop は前の音声のものなので無視する
+            if self._deadline is None or not self._started:
+                return
+            elapsed = time.monotonic() - self._started_at
+            if elapsed < self._duration - 0.5:
+                print(
+                    f"[voice] stop 通知が音声の長さより早く届きました: 再生開始から {elapsed:.1f}秒 / 長さ {self._duration:.1f}秒",
+                    file=sys.stderr,
+                )
+            self._reset_current()
+
+    def _reset_current(self) -> None:
+        self._deadline = None
+        self._handed_tag = None
+        self._started = False
+
+    @property
+    def playing_tag(self) -> Any:
+        """渡した音声に付いたタグ（再生開始前を含む）。終わったときは None。"""
+        with self._lock:
+            if self._deadline is not None and time.monotonic() < self._deadline:
+                return self._handed_tag
+            return None
 
     def next_if_idle(self) -> Path | None:
         with self._lock:
             now = time.monotonic()
-            if self._playing_until is not None and now < self._playing_until:
+            if self._deadline is not None and now < self._deadline:
                 return None
             if not self._items:
                 return None
-            path = self._items.popleft()
-            self._playing_until = now + wav_duration(path) + self.GRACE_SECONDS
+            path, self._handed_tag = self._items.popleft()
+            self._duration = wav_duration(path)
+            self._started = False
+            self._deadline = now + self._duration + self.LOAD_GRACE_SECONDS
             return path
 
     def clear(self) -> None:
         with self._lock:
             self._items.clear()
-            self._playing_until = None
+            self._reset_current()
 
 
 def wav_duration(path: Path) -> float:
@@ -242,6 +292,8 @@ class VoiceReader:
         self._out_dir: Path | None = None
         self._count = 0
         self._failed = False
+        # on_utterance へ渡す前に呼び出し側が取り出す、保存先 wav ごとのタグ
+        self.tags: dict[Path, Any] = {}
         self._actions: dict[str, str] = {}
         self._queue: queue.Queue[tuple[Path, str, dict[str, Any]] | None] = queue.Queue()
         self._tasks: queue.Queue[tuple[str, dict[str, Any], Future[bytes | None]] | None] = queue.Queue()
@@ -259,7 +311,7 @@ class VoiceReader:
         self._out_dir = self._root / "sessions" / "audio" / session_id
         self._count = 0
 
-    def handle(self, event: Any) -> None:
+    def handle(self, event: Any, tag: Any = None) -> None:
         if event.type == "session_start":
             self.begin_session(event.payload["session_id"])
             return
@@ -283,6 +335,8 @@ class VoiceReader:
             return
         self._count += 1
         path = self._out_dir / f"{self._count:02d}_{talent_id}.wav"
+        if tag is not None:
+            self.tags[path] = tag
         self._queue.put((path, text, entry))
 
     def close(self, *, wait: bool = True) -> None:

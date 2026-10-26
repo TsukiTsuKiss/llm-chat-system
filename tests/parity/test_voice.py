@@ -193,8 +193,65 @@ def test_audio_relay_hands_out_one_at_a_time(tmp_path: Path):
     relay.push(second)
     assert relay.next_if_idle() == first
     assert relay.next_if_idle() is None
+    relay.started()
     relay.finished()
     assert relay.next_if_idle() == second
+
+
+def test_audio_relay_ignores_stop_before_playback_starts(tmp_path: Path):
+    first, second = tmp_path / "a.wav", tmp_path / "b.wav"
+    first.write_bytes(_wav(b"\x01\x00" * 10))
+    second.write_bytes(_wav(b"\x02\x00" * 10))
+    relay = voice.AudioRelay()
+    relay.push(first)
+    relay.push(second)
+    assert relay.next_if_idle() == first
+    relay.finished()
+    assert relay.next_if_idle() is None
+
+
+def test_audio_relay_exposes_tag_of_playing_audio(tmp_path: Path):
+    path = tmp_path / "a.wav"
+    path.write_bytes(_wav(b"\x01\x00" * 10))
+    relay = voice.AudioRelay()
+    relay.push(path, 3)
+    assert relay.playing_tag is None
+    assert relay.next_if_idle() == path
+    assert relay.playing_tag == 3
+    relay.started()
+    assert relay.playing_tag == 3
+    relay.finished()
+    assert relay.playing_tag is None
+
+
+def test_next_audio_update_publishes_playing_index(tmp_path: Path):
+    from studio.web_ui import WebSession, audio_finished_update, audio_started_update, next_audio_update
+
+    path = tmp_path / "a.wav"
+    path.write_bytes(_wav(b"\x01\x00" * 10))
+    session = WebSession(root=tmp_path, relay=voice.AudioRelay())
+    session.renderer.messages = [{"role": "assistant", "content": "A"}, {"role": "assistant", "content": "B"}]
+    session.relay.push(path, 1)
+
+    _, playing = next_audio_update(session)
+    assert playing == "1:1"
+
+    assert not isinstance(audio_started_update(session), str)
+    assert session.renderer.messages[1]["content"] == "B"
+
+    _, playing = audio_finished_update(session)
+    assert playing == "2:"
+
+
+def test_audio_relay_reports_stop_arriving_before_audio_ends(tmp_path: Path, capsys):
+    path = tmp_path / "a.wav"
+    path.write_bytes(_wav(b"\x01\x00" * 24000 * 10))
+    relay = voice.AudioRelay()
+    relay.push(path)
+    assert relay.next_if_idle() == path
+    relay.started()
+    relay.finished()
+    assert "stop 通知が音声の長さより早く届きました" in capsys.readouterr().err
 
 
 def test_load_wav_array_returns_rate_and_samples(tmp_path: Path):
@@ -258,6 +315,14 @@ def test_web_session_voice_without_mapping_adds_note(studio_root: Path):
     )
     assert any("voice_mapping.json" in m["content"] for m in updates[-1][0])
     assert session.voice is None
+
+
+def test_clean_for_speech_keeps_underscores_inside_words():
+    assert clean_for_speech("raw_live_stack.py と _強調_ と __init__") == "raw_live_stack.py と 強調 と init"
+
+
+def test_clean_for_speech_normalizes_odd_spaces_and_hyphens():
+    assert clean_for_speech("Raspberry\u202fPi\u00a0Zero\u20092W と Wi\u2011Fi") == "Raspberry Pi Zero 2W と Wi-Fi"
 
 
 def test_clean_for_speech_drops_backstage_notes():

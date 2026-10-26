@@ -230,6 +230,7 @@ class ChatEventRenderer:
     _active_idx: int | None = None
     _active_placeholder: str = ""
     _last_display_name: dict[str, str] = field(default_factory=dict)
+    last_done_idx: int | None = None
 
     def copy_messages(self) -> list[dict[str, str]]:
         return [dict(message) for message in self.messages]
@@ -273,8 +274,10 @@ class ChatEventRenderer:
         footer = f"\n\n_{metrics}_" if metrics else ""
         if self._active_idx is not None:
             self.messages[self._active_idx]["content"] = f"{header}\n\n{text}{footer}"
+            self.last_done_idx = self._active_idx
         else:
             self.messages.append({"role": "assistant", "content": f"{header}\n\n{text}{footer}"})
+            self.last_done_idx = len(self.messages) - 1
         self._active_idx = None
 
     def _add_system_note(self, text: str) -> None:
@@ -386,6 +389,8 @@ class WebSession:
     voice: VoiceReader | None = None
     relay: AudioRelay | None = None
     voice_enabled: bool = False
+    published_playing: int | None = None
+    playing_seq: int = 0
 
     def close_voice(self) -> None:
         if self.voice is not None:
@@ -419,7 +424,7 @@ class WebSession:
                 base_url=urls,
                 play=False,
                 dictionary=load_voice_dictionary(self.root, self.org_id),
-                on_utterance=self.relay.push,
+                on_utterance=self._push_utterance,
             )
             state = self.engine.state if self.engine is not None else None
             if state is not None and state.logger is not None:
@@ -427,9 +432,15 @@ class WebSession:
         self.voice_enabled = True
         return note
 
+    def _push_utterance(self, path: Path) -> None:
+        voice, relay = self.voice, self.relay
+        if relay is not None:
+            relay.push(path, voice.tags.pop(path, None) if voice is not None else None)
+
     def feed_voice(self, event: EngineEvent) -> None:
         if self.voice_enabled and self.voice is not None:
-            self.voice.handle(event)
+            tag = self.renderer.last_done_idx if event.type == "step_done" else None
+            self.voice.handle(event, tag)
 
     def close_engine(self) -> str:
         if self.engine is None or self.engine.state is None or not self.engine.state.started:
@@ -837,12 +848,29 @@ def handle_chat_submit(
     )
 
 
-def next_audio_update(session: WebSession):
-    """gr.Audio へ渡す次の発言音声。再生中・未生成なら gr.skip()。"""
-    path = session.relay.next_if_idle() if session.relay is not None else None
-    if path is None:
+def _playing_update(session: WebSession):
+    """再生中の発言番号が変わったときだけ、隠し Textbox へ送る値を返す。"""
+    playing = session.relay.playing_tag if session.relay is not None else None
+    if playing == session.published_playing:
         return gr.skip()
-    return load_wav_array(path)
+    session.published_playing = playing
+    session.playing_seq += 1
+    # 同じ発言番号を続けて送っても change が発火するよう、連番を付ける
+    return f"{session.playing_seq}:{'' if playing is None else playing}"
+
+
+def next_audio_update(session: WebSession):
+    """(gr.Audio, 再生中の発言を知らせる隠し Textbox) の更新。チャット本文は書き換えない。変化がなければ gr.skip()。"""
+    path = session.relay.next_if_idle() if session.relay is not None else None
+    audio = load_wav_array(path) if path is not None else gr.skip()
+    return audio, _playing_update(session)
+
+
+def audio_started_update(session: WebSession):
+    """ブラウザで再生が始まったとき。待ち時間の起点を再生開始に合わせる。"""
+    if session.relay is not None:
+        session.relay.started()
+    return _playing_update(session)
 
 
 def audio_finished_update(session: WebSession):
