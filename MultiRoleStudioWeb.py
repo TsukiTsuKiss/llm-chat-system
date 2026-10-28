@@ -31,11 +31,13 @@ from studio.web_ui import (
     WebSession,
     audio_finished_update,
     audio_started_update,
+    engine_led_html,
     handle_chat_submit,
     handle_choice,
     initial_workflow_for_org,
     last_rag_injection_preview,
     list_organizations,
+    live_timing_update,
     load_org_panel,
     next_audio_update,
     upload_limits_from_config,
@@ -43,14 +45,14 @@ from studio.web_ui import (
     workflow_dropdown_for_org,
     workflow_unavailable_note,
 )
-from studio.voice import DEFAULT_BASE_URL
+from studio.voice import DEFAULT_BASE_URL, engine_monitor, parse_voicevox_urls
 from web_input_utils import (
     stream_default_from_config,
     temperature_default_from_config,
     user_context_default_from_config,
 )
 
-VERSION = "0.8.0"
+VERSION = "0.8.1"
 
 DEFAULT_ORG = os.getenv("MULTIROLESTUDIOWEB_ORG", "")
 DEFAULT_PORT = int(os.getenv("MULTIROLESTUDIOWEB_PORT", "7862"))
@@ -211,6 +213,29 @@ SCROLL_TO_PLAYING_JS = """
 }
 """
 
+# 再生表示（iframe）から再生中の発言の冒頭が届いたら、同じ文面のチャットの箱を強調してスクロールする。
+STUDIO_HEAD = (
+    "<script>\n"
+    f"window.__studioScrollToPlaying = {SCROLL_TO_PLAYING_JS};\n"
+    """
+window.__studioLastMatch = 0;
+window.addEventListener('message', (e) => {
+  if (e.origin !== window.location.origin || !e.data || e.data.type !== 'studio-playing') return;
+  const rows = [...document.querySelectorAll('#studio-chatbot .message-row')];
+  const norm = (s) => (s || '').replace(/\\s+/g, '');
+  const snippet = norm(e.data.snippet);
+  let idx = -1;
+  if (snippet) {
+    const hits = rows.map((r, i) => (norm(r.textContent).includes(snippet) ? i : -1)).filter((i) => i >= 0);
+    idx = hits.find((i) => i >= window.__studioLastMatch) ?? (hits.length ? hits[0] : -1);
+    if (idx >= 0) window.__studioLastMatch = idx;
+  }
+  window.__studioScrollToPlaying('0:' + (idx >= 0 ? idx : ''));
+});
+"""
+    "</script>"
+)
+
 
 def _msg_input_update(placeholder: str = DEFAULT_MSG_PLACEHOLDER) -> dict:
     """Keep the textbox empty; only change the placeholder hint."""
@@ -263,6 +288,8 @@ def build_ui(
         print(f"[WARN] --workflow '{cli_workflow}' は組織 '{default_org}' で使えません。'{initial_wf or '直接送信'}' で起動します。")
     wf_choices, default_wf = workflow_dropdown_for_org(root, default_org or "", initial_wf)
     upload_limits = upload_limits_from_config(studio_config)
+    led_monitor = engine_monitor(parse_voicevox_urls(voicevox_url))
+    led_monitor.start()
 
     with gr.Blocks(title=f"MultiRoleStudio Web {VERSION}", fill_height=True) as demo:
         session_state = gr.State(WebSession(root=root, voicevox_url=voicevox_url))
@@ -303,6 +330,8 @@ def build_ui(
                         )
                         web_search_cb = gr.Checkbox(label="ウェブ検索", value=False)
                         voice_cb = gr.Checkbox(label="読み上げ（VOICEVOX）", value=False)
+                        timing_cb = gr.Checkbox(label="タイミング表示", value=True)
+                        engine_led = gr.HTML(engine_led_html(led_monitor.states()))
                         audio_player = gr.Audio(
                             label="読み上げ",
                             type="numpy",
@@ -382,6 +411,7 @@ def build_ui(
                                 max_lines=6,
                             )
                             send_btn = gr.Button("送信", variant="primary")
+                            live_timing = gr.HTML("", visible=False, elem_id="studio-live-timing")
 
             build_settings_tab(
                 root,
@@ -428,9 +458,6 @@ def build_ui(
                     _, revert = workflow_dropdown_for_org(root, org_id or "", "")
                 note = workflow_unavailable_note(root, org_id or "", workflow_value)
                 return gr.update(value=revert), gr.update(), revert, note, note
-
-            if pending_hint and workflow_value == last_valid_wf:
-                return gr.update(), gr.update(), last_valid_wf, pending_hint, pending_hint
 
             talents = load_org_panel(root, org_id, workflow_value)[0]
             return gr.update(), talents, workflow_value, "", ""
@@ -710,6 +737,23 @@ def build_ui(
             queue=False,
             show_progress="hidden",
         )
+        led_timer = gr.Timer(0.5)
+        led_timer.tick(
+            # ライブのチャートが出ている間は、チャート側の ENGINE の灯と重なるので隠す
+            lambda session: "" if session.live_chart_shown() else engine_led_html(led_monitor.states()),
+            inputs=[session_state],
+            outputs=[engine_led],
+            queue=False,
+            show_progress="hidden",
+        )
+        live_timer = gr.Timer(1.0)
+        live_timer.tick(
+            live_timing_update,
+            inputs=[session_state, timing_cb],
+            outputs=[live_timing],
+            queue=False,
+            show_progress="hidden",
+        )
         chatbot.change(None, [playing_box], None, js=SCROLL_TO_PLAYING_JS, queue=False, show_progress="hidden")
         playing_box.change(None, [playing_box], None, js=SCROLL_TO_PLAYING_JS, queue=False, show_progress="hidden")
 
@@ -779,7 +823,9 @@ def main() -> None:
         inbrowser=not args.no_browser,
         theme=gr.themes.Soft(),
         css=STUDIO_WEB_CSS,
+        head=STUDIO_HEAD,
         prevent_thread_lock=True,
+        allowed_paths=[str(root / "sessions" / "audio")],
     )
     print("[INFO] サーバー起動完了。終了するには q + Enter を押してください。")
     try:

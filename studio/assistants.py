@@ -17,6 +17,54 @@ from studio.history import ConversationHistory
 from studio.logging import compute_cost, estimate_tokens
 
 
+def sanitize_model_output(text: str) -> str:
+    """モデル出力に混ざる下書き・思考メモを除去する。"""
+    raw = (text or "").strip()
+    if not raw:
+        return ""
+
+    lower = raw.lower()
+    suspicious = (
+        lower.startswith("thought")
+        or "\nthought\n" in lower
+        or "文字数計算" in raw
+        or "ルール確認" in raw
+    )
+    if not suspicious:
+        return raw
+
+    # 末尾に「出力する。」以降の最終本文を置くパターンを優先して採用する。
+    for marker in ("出力する。", "出力する"):
+        if marker in raw:
+            tail = raw.split(marker, 1)[1].strip()
+            if tail:
+                return tail
+
+    # フォールバック: 明らかな内部メモ見出し行を落として再構成する。
+    meta_prefixes = (
+        "thought",
+        "analysis",
+        "得られたニュース事実",
+        "今回の発言のまとめ",
+        "文字数チェック",
+        "文章の下書き",
+        "文字数計算",
+        "ルール確認",
+    )
+    cleaned_lines: list[str] = []
+    for line in raw.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            cleaned_lines.append("")
+            continue
+        if any(stripped.lower().startswith(prefix) for prefix in meta_prefixes):
+            continue
+        cleaned_lines.append(line)
+
+    cleaned = "\n".join(cleaned_lines).strip()
+    return cleaned or raw
+
+
 class MockTemperatureError(RuntimeError):
     """Injected once when STUDIO_MOCK_INJECT_TEMP_ERROR=1."""
 
@@ -206,7 +254,7 @@ def invoke_llm_step(
                     if text:
                         chunks.append(text)
                         on_chunk(text)
-                output_text = "".join(chunks)
+                output_text = sanitize_model_output("".join(chunks))
                 elapsed = time.perf_counter() - start
                 tokens_in, tokens_out, source = estimate_tokens(input_bundle), estimate_tokens(output_text), "estimate"
                 cost = compute_cost(model, tokens_in, tokens_out, costs)
@@ -224,7 +272,7 @@ def invoke_llm_step(
 
             response = chain.invoke(payload)
             elapsed = time.perf_counter() - start
-            output_text = content_to_text(getattr(response, "content", response))
+            output_text = sanitize_model_output(content_to_text(getattr(response, "content", response)))
             tokens_in, tokens_out, source = extract_usage(response, input_bundle, output_text)
             cost = compute_cost(model, tokens_in, tokens_out, costs)
             history.add_message(HumanMessage(content=user_message))

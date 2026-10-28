@@ -22,6 +22,9 @@ from studio.user_context_update import (
     save_context_draft_from_session,
 )
 from studio.validation import StudioValidationError
+from studio.voice import parse_voicevox_urls
+from studio.voice_regen import missing_audio_files, regenerate_audio
+from studio.voice_timeline import replay_iframe_html
 from studio.web_ui import apply_session_resume
 
 _ACTION_BTN = dict(variant="primary", size="sm", elem_classes=["studio-action-btn"])
@@ -118,10 +121,13 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
                 minutes_btn = gr.Button("議事録 (.json + .md)", **_SAVE_BTN)
                 export_btn = gr.Button("エクスポート (.md)", **_SAVE_BTN)
                 adopt_btn = gr.Button("成果物採用", **_SAVE_BTN)
+                timing_btn = gr.Button("タイミング再生", **_SAVE_BTN)
+                timing_regen_btn = gr.Button("音声を作り直して再生", **_SAVE_BTN)
             with gr.Row(elem_id="studio-session-context-actions"):
                 context_draft_btn = gr.Button("コンテキスト更新案", **_SAVE_BTN)
                 context_apply_btn = gr.Button("コンテキスト採用", **_SAVE_BTN)
             session_msg = gr.Markdown("")
+            timing_html = gr.HTML("", visible=False, elem_id="studio-session-timing")
             export_file = gr.File(label="エクスポート結果", interactive=False, visible=False)
 
     def _hide_export() -> dict:
@@ -254,6 +260,35 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
             return result.message
         return f"**成果物採用** — {result.message}"
 
+    def _show_timing(session_id: str | None, web_session, force: bool):
+        if not session_id:
+            yield gr.update(value="", visible=False), "セッションを選択してください"
+            return
+        notice = ""
+        try:
+            if force or missing_audio_files(root, session_id):
+                yield (
+                    gr.update(value="", visible=False),
+                    "音声を作り直しています…（長いセッションでは 1〜2 分かかることがあります）",
+                )
+                notice = regenerate_audio(
+                    root, session_id, urls=parse_voicevox_urls(web_session.voicevox_url), force=force
+                ).message
+            html = replay_iframe_html(root, session_id)
+        except FileNotFoundError:
+            yield (
+                gr.update(value="", visible=False),
+                "このセッションにはタイミングの記録がありません（読み上げを有効にしたセッションのみ記録されます）",
+            )
+            return
+        yield gr.update(value=html, visible=True), notice
+
+    def on_timing(session_id: str | None, web_session):
+        yield from _show_timing(session_id, web_session, False)
+
+    def on_timing_regen(session_id: str | None, web_session):
+        yield from _show_timing(session_id, web_session, True)
+
     def on_context_draft(session_id: str | None):
         if not session_id:
             return "セッションを選択してください"
@@ -326,6 +361,21 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
         on_adopt,
         inputs=[session_dd],
         outputs=[session_msg],
+    )
+    timing_btn.click(
+        on_timing,
+        inputs=[session_dd, handles.session_state],
+        outputs=[timing_html, session_msg],
+    )
+    timing_regen_btn.click(
+        on_timing_regen,
+        inputs=[session_dd, handles.session_state],
+        outputs=[timing_html, session_msg],
+    )
+    session_dd.change(
+        lambda: gr.update(value="", visible=False),
+        outputs=[timing_html],
+        queue=False,
     )
     context_draft_btn.click(
         on_context_draft,

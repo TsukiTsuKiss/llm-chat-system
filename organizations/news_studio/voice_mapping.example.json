@@ -1,8 +1,0 @@
-{
-  "midori": { "label": "四国めたん", "speaker": 2, "when_action": "放送後" },
-  "akari": { "label": "冥鳴ひまり", "speaker": 14 },
-  "souta": { "label": "青山龍星", "speaker": 13 },
-  "gou": { "label": "玄野武宏", "speaker": 11 },
-  "haruka": { "label": "春日部つむぎ", "speaker": 8 },
-  "kento": { "label": "白上虎太郎", "speaker": 12 }
-}

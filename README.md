@@ -134,9 +134,9 @@ python MultiRoleStudio.py --org studio_dev --workflow dev \
 cd sandbox/session_<session_id>
 ./run_all.sh    # pytest と __main__ 付きスクリプトを順に実行（PYTHONPATH=. 済み）
 
-# --- ニュース番組（news_studio）+ VOICEVOX 読み上げ ---
+# --- ニュース番組（broadcast_studio）+ VOICEVOX 読み上げ ---
 # 詳細は「ニュース番組と読み上げ」節
-python MultiRoleStudio.py --org news_studio --workflow news_show \
+python MultiRoleStudio.py --org broadcast_studio --workflow broadcast_news_show \
   --topic "今日の日本のニュースをお願いします" --web-search --voice
 
 # --- Phase 5c: 成果物採用（作業ツリーへ反映 + Git 1コミット）---
@@ -151,7 +151,7 @@ python -m pytest tests/parity/ -v
 python MultiRoleStudioWeb.py --org solo          # チャット + 設定編集 + ファイル添付（port 7862）
 python MultiRoleStudioWeb.py --org trio --port 7863
 python MultiRoleStudioWeb.py --org nokuru      # quiz / meeting デモ（hinata, satsuki, kaede）
-python MultiRoleStudioWeb.py --org news_studio --no-browser --host 0.0.0.0 \
+python MultiRoleStudioWeb.py --org broadcast_studio --no-browser --host 0.0.0.0 \
   --voicevox-url http://192.168.1.20:50021   # サーバー用 PC（ブラウザは別 PC）
 # 終了: コンソールで q + Enter（design.md §8.6）
 # RAG（Phase 6）: studio_config で user_context.rag.enabled → Web「コンテキスト RAG」で index 再構築
@@ -208,14 +208,14 @@ python MultiRoleStudioWeb.py --org news_studio --no-browser --host 0.0.0.0 \
 
 #### ニュース番組と読み上げ（VOICEVOX）
 
-組織 `news_studio`（ワークフロー `news_show`）は、ディレクターが進行表を作り、メイン・サブ・コメンテーター・天気・スポーツの順に放送し、最後にディレクターが事実を点検する。
+組織 `broadcast_studio`（ワークフロー `broadcast_news_show`）は、ディレクターが進行表を作り、メイン・サブ・コメンテーター・天気・スポーツの順に放送し、最後にディレクターが事実を点検する。
 ウェブ検索と VOICEVOX による読み上げに対応する。
 
 **準備**
 
-1. `organizations/news_studio/model_mapping.example.json`（mock）をコピーして `model_mapping.json` を作り、人材ごとに `assistant` / `model` を設定する。検索する人材には `"web_search": true` を付ける。
+1. `organizations/broadcast_studio/model_mapping.example.json`（mock）をコピーして `model_mapping.json` を作り、人材ごとに `assistant` / `model` を設定する。検索する人材には `"web_search": true` を付ける。
 2. [VOICEVOX](https://voicevox.hiroshiba.jp/) を起動しておく（アプリ版でも ENGINE 単体でもよい。既定は `http://127.0.0.1:50021`）。
-3. `voice_mapping.example.json` をコピーして `organizations/news_studio/voice_mapping.json` を作り、人材 ID ごとに話者 ID を設定する。
+3. `voice_mapping.example.json` をコピーして `organizations/broadcast_studio/voice_mapping.json` を作り、人材 ID ごとに話者 ID を設定する。
 
 ```json
 { "akari": { "label": "冥鳴ひまり", "speaker": 14, "speed": 1.0 } }
@@ -229,17 +229,17 @@ python MultiRoleStudioWeb.py --org news_studio --no-browser --host 0.0.0.0 \
 - `voice_mapping.json` は環境依存のため `.gitignore` 対象。コミットするのは `.example`。
 - 読みを直したい語は `voice_dictionary.json` に `"表記": "カタカナの読み"` で追加する（例: `"株探": "カブタン"`）。読み上げの直前に置換するだけで、画面とログの本文は変わらない。
   - ルート直下は全組織共通、`organizations/<org>/voice_dictionary.json` は組織専用。同じ表記は組織側が優先される。
-- 出典の引用記号（`【1†L79-L84】` 等）は読み上げ時に誤読されるため、`news_studio` / `solo` の `common_directives` で「報道機関名を文章で言う」よう指示している。
+- 出典の引用記号（`【1†L79-L84】` 等）は読み上げ時に誤読されるため、`broadcast_studio` / `solo` の `common_directives` で「報道機関名を文章で言う」よう指示している。
 - 発言末尾の「（進行メモ）…」「ディレクター点検」以降、Markdown 記号、URL は読み上げない。
 
 **CLI**
 
 ```bash
-python MultiRoleStudio.py --org news_studio --workflow news_show \
+python MultiRoleStudio.py --org broadcast_studio --workflow broadcast_news_show \
   --topic "今日の東京株式市場の動きについて解説してください。" --web-search --voice
 ```
 
-- `--workflow news_show` が必要（省略すると全員が順に話す直接送信になる）。
+- `--workflow broadcast_news_show` が必要（省略すると全員が順に話す直接送信になる）。
 - 全員の発言を生成してから読み上げが始まり、再生が終わるまでコマンドは終了しない。
 - VOICEVOX に接続できない場合は警告を出して読み上げなしで続行する。
 - 生成した wav は `sessions/audio/<session_id>/NN_<talent_id>.wav` に残る。
@@ -247,7 +247,7 @@ python MultiRoleStudio.py --org news_studio --workflow news_show \
 **Web UI（ブラウザで再生）**
 
 ```bash
-python MultiRoleStudioWeb.py --org news_studio
+python MultiRoleStudioWeb.py --org broadcast_studio
 ```
 
 左の「ウェブ検索」「読み上げ（VOICEVOX）」にチェックを入れて送信する。発言ごとの音声が、読み上げプレイヤーで順に自動再生される。
@@ -257,7 +257,7 @@ python MultiRoleStudioWeb.py --org news_studio
 
 ```bash
 # Studio サーバー
-python MultiRoleStudioWeb.py --org news_studio --no-browser --host 0.0.0.0 \
+python MultiRoleStudioWeb.py --org broadcast_studio --no-browser --host 0.0.0.0 \
   --voicevox-url http://<VOICEVOX の PC>:50021
 # ブラウザ: http://<Studio サーバーの PC>:7862
 ```
@@ -265,7 +265,7 @@ python MultiRoleStudioWeb.py --org news_studio --no-browser --host 0.0.0.0 \
 PowerShell では行継続に `` ` `` を使うか、1 行で書く（`\` は使えない）。
 
 ```powershell
-python MultiRoleStudioWeb.py --org news_studio --no-browser --host 0.0.0.0 `
+python MultiRoleStudioWeb.py --org broadcast_studio --no-browser --host 0.0.0.0 `
   --voicevox-url http://<VOICEVOX の PC>:50021
 ```
 
@@ -315,9 +315,9 @@ curl http://<VOICEVOX の PC>:50021/version
 - VOICEVOX の音声は、キャラごとに利用規約とクレジット表記のルールがある。配信・公開する場合は確認する。
 - CPU 合成は遅いことがある（Core i7 2600K で数十秒〜）。発言を長くしすぎない。
 
-#### 時事解説チャンネル風（topic_studio）
+#### 時事解説チャンネル風（broadcast_studio / `broadcast_topic_show`）
 
-こちらが入れたお題について、**事実 → 背景・深掘り → 予想・推測**の順に話す組織。`news_studio` と違い、ニュースは探さず、天気・スポーツもない。
+こちらが入れたお題について、**事実 → 背景・深掘り → 予想・推測**の順に話す運用。`broadcast_news_show` と違い、天気・スポーツは扱わない。
 
 | 役割 | 人材 ID | 内容 |
 |---|---|---|
@@ -327,23 +327,23 @@ curl http://<VOICEVOX の PC>:50021/version
 | 解説者 | `gou`（ごう） | 背景、深掘り、用語のかみ砕き |
 | 予想担当 | `yuuma`（ゆうま） | 見通し、2 つのシナリオ、確度と根拠 |
 
-人材 ID は人物名で、役割名・組織名を含めない。`news_studio` と同じ人物（みどり・あかり・そうた・ごう）を使い回しており、役割は `workflow_bindings`（スロットへの割当）と組織の `role_directives`（キーはスロット名）で与える。
+人材 ID は人物名で、役割名・組織名を含めない。役割は `workflow_bindings`（スロットへの割当）と組織の `role_directives`（キーはスロット名）で与える。
 
-- 人材を入れ替えるときは、`organizations/topic_studio/config.json` の `workflow_bindings` を変える。役割の指示は新しい人材に自動でついていく。
+- 人材を入れ替えるときは、`organizations/broadcast_studio/config.json` の `workflow_bindings` を変える。役割の指示は新しい人材に自動でついていく。
 - `model_mapping.json` と `voice_mapping.json` は人材 ID で紐づいているため、新しい人材の分を足す。
 - 注意事項（同じキーの適用、複数スロット、直接送信など）は、[設計書 §3.3](docs/MultiRoleStudio/design.md) の「role_directives の使い方と注意事項」を参照。
 
 ```bash
 # model_mapping.json は .gitignore。初回は .example をコピーして編集
-cp organizations/topic_studio/model_mapping.example.json organizations/topic_studio/model_mapping.json
+cp organizations/broadcast_studio/model_mapping.example.json organizations/broadcast_studio/model_mapping.json
 
-python MultiRoleStudio.py --org topic_studio --workflow topic_show \
+python MultiRoleStudio.py --org broadcast_studio --workflow broadcast_topic_show \
   --topic "食料品の消費税減税法案について" --web-search --voice
 
-python MultiRoleStudioWeb.py --org topic_studio   # Web では入力欄にお題を入れる
+python MultiRoleStudioWeb.py --org broadcast_studio --workflow broadcast_topic_show   # Web では入力欄にお題を入れる
 ```
 
-- `--workflow topic_show` が必要（省略すると全員が順に話す直接送信になる）。
+- `--workflow broadcast_topic_show` が必要（省略すると全員が順に話す直接送信になる）。
 - 読み上げは `voice_mapping.example.json` をコピーして `voice_mapping.json` を作る。ディレクターは `when_action` を使い、放送後の点検だけを読み上げる。
 - 予想は「予想では」「と見られます」と言い分け、事実と同じ文に混ぜない（`common_directives`）。点検でも、予想を事実のように言った箇所を指摘する。
 
@@ -774,6 +774,12 @@ sandbox/session_20250814_141337/
 ## 🔄 更新履歴
 
 ## 📈 バージョン履歴
+
+### MultiRoleStudio v0.6.1 / MultiRoleStudioWeb v0.8.1 (2026-10-28)
+- 🧹 **broadcast 統合** - `news_studio` / `topic_studio` を統合し、運用組織を `broadcast_studio` に一本化
+- 🔤 **workflow 命名整理** - `broadcast_news_show` / `broadcast_news_digest` / `broadcast_topic_show` / `broadcast_topic_debate` を標準化
+- 🛡️ **話者ガード強化** - `broadcast_topic_show` / `broadcast_topic_debate` に使用可能ソース制約・完結文制約を追加（出典逸脱と文崩れを抑制）
+- 🧭 **UI 体験改善** - 組織に未設定のワークフロー選択後でも、正常選択へ戻った際に警告表示が残留しないよう修正
 
 ### MultiRoleStudio Phase 3 (2026-07-13)
 - 🆕 **loop フェーズ** — `exit`: marker / judge / user、`loop_check` イベント

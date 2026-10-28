@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
+import sys
+import threading
+import re
+import unicodedata
 from dataclasses import dataclass, field
+from html import escape
 from pathlib import Path
 from typing import Generator, Iterator
 
@@ -19,11 +24,14 @@ from studio.voice import (
     AudioRelay,
     VoiceReader,
     engine_available,
+    engine_monitor,
     load_voice_dictionary,
     load_voice_mapping,
     load_wav_array,
     parse_voicevox_urls,
 )
+from studio.voice_regen import missing_audio_files, regenerate_audio
+from studio.voice_timeline import live_iframe_html, replay_iframe_html
 from web_input_utils import normalize_uploaded_files
 
 DIRECT_WORKFLOW_LABEL = "直接送信（全ロール）"
@@ -34,6 +42,10 @@ UIUpdate = tuple[list[dict[str, str]], str, bool, str, bool]
 
 IDLE_STATUS = "待機中（メッセージを入力してください）"
 FILE_ONLY_DEFAULT = "添付ファイルの内容を要約してください。"
+VOICE_SWITCH_PATTERN = re.compile(
+    r"(?:音声設定|読み上げ設定|読み上げ|音声)\s*(?:[:：=]\s*)?(on|off|オン|オフ|有効|無効|1|0)(?=\s|$)",
+    re.IGNORECASE,
+)
 
 
 def list_organizations(root: Path) -> list[str]:
@@ -389,9 +401,16 @@ class WebSession:
     voice: VoiceReader | None = None
     relay: AudioRelay | None = None
     voice_enabled: bool = False
+    # None: UI チェックボックス準拠 / True: 読み上げ許可 / False: 読み上げ停止
+    director_voice_override: bool | None = None
     published_playing: int | None = None
     playing_seq: int = 0
+    published_timing: str = ""
+    # 再開したセッションの ID。タイミング記録があれば、チャット画面で再生できる
+    replay_session_id: str = ""
 
+    def live_chart_shown(self) -> bool:
+        return bool(self.published_timing) and not self.published_timing.startswith("replay:")
     def close_voice(self) -> None:
         if self.voice is not None:
             self.voice.close(wait=False)
@@ -425,12 +444,55 @@ class WebSession:
                 play=False,
                 dictionary=load_voice_dictionary(self.root, self.org_id),
                 on_utterance=self._push_utterance,
+                monitor=engine_monitor(configured),
+                standby=skipped,
             )
             state = self.engine.state if self.engine is not None else None
+            self.relay.timeline = self.voice.timeline
             if state is not None and state.logger is not None:
                 self.voice.begin_session(state.logger.session_id)
-        self.voice_enabled = True
+        self.voice_enabled = self.director_voice_override is not False
+        if self.director_voice_override is False:
+            return (note + "\n" if note else "") + "ディレクター設定により読み上げ停止中です"
         return note
+
+    def _is_director_talent(self, talent_id: str) -> bool:
+        if self.engine is None or self.engine.ctx is None:
+            return False
+        bindings = self.engine.ctx.slot_bindings or {}
+        return talent_id in (bindings.get("director") or [])
+
+    def _extract_voice_switch(self, text: str) -> bool | None:
+        normalized = unicodedata.normalize("NFKC", text or "")
+        m = VOICE_SWITCH_PATTERN.search(normalized)
+        if not m:
+            return None
+        token = m.group(1).lower()
+        if token in ("on", "オン", "有効", "1"):
+            return True
+        if token in ("off", "オフ", "無効", "0"):
+            return False
+        return None
+
+    def _apply_director_voice_switch(self, event: EngineEvent) -> None:
+        if event.type != "step_done":
+            return
+        talent_id = event.payload.get("talent_id", "")
+        if not talent_id or not self._is_director_talent(talent_id):
+            return
+        text = event.payload.get("text", "")
+        switch = self._extract_voice_switch(text)
+        if switch is None:
+            normalized = unicodedata.normalize("NFKC", text)
+            if "音声設定" in normalized or "読み上げ設定" in normalized:
+                self.renderer.add_note(
+                    "音声設定コマンドを解釈できませんでした（例: 音声設定: ON / 音声設定: OFF）"
+                )
+            return
+        self.director_voice_override = switch
+        self.voice_enabled = bool(switch and self.voice is not None)
+        state_text = "ON" if switch else "OFF"
+        self.renderer.add_note(f"ディレクター指示で読み上げを {state_text} に切替えました")
 
     def _push_utterance(self, path: Path) -> None:
         voice, relay = self.voice, self.relay
@@ -438,9 +500,14 @@ class WebSession:
             relay.push(path, voice.tags.pop(path, None) if voice is not None else None)
 
     def feed_voice(self, event: EngineEvent) -> None:
+        self._apply_director_voice_switch(event)
         if self.voice_enabled and self.voice is not None:
             tag = self.renderer.last_done_idx if event.type == "step_done" else None
             self.voice.handle(event, tag)
+
+    def mark_turn_end(self) -> None:
+        if self.voice_enabled and self.voice is not None:
+            self.voice.timeline.add("turn_end")
 
     def close_engine(self) -> str:
         if self.engine is None or self.engine.state is None or not self.engine.state.started:
@@ -452,6 +519,8 @@ class WebSession:
     def reset_chat(self) -> str:
         summary = self.close_engine()
         self.close_voice()
+        self.director_voice_override = None
+        self.replay_session_id = ""
         self.engine = None
         self.pending = None
         self.renderer = ChatEventRenderer()
@@ -546,6 +615,13 @@ class WebSession:
         )
 
 
+def _regenerate_quietly(root: Path, session_id: str, urls: list[str]) -> None:
+    try:
+        regenerate_audio(root, session_id, urls=urls)
+    except Exception as exc:
+        print(f"[voice] 音声の再生成に失敗しました: {exc}", file=sys.stderr)
+
+
 def apply_session_resume(
     web: WebSession,
     session_id: str,
@@ -580,6 +656,14 @@ def apply_session_resume(
         user_context=user_context,
         user_context_rag=user_context_rag,
     )
+    web.replay_session_id = session_id
+    missing = missing_audio_files(web.root, session_id)
+    if missing:
+        threading.Thread(
+            target=_regenerate_quietly,
+            args=(web.root, session_id, parse_voicevox_urls(web.voicevox_url)),
+            daemon=True,
+        ).start()
     choices, wf_value = workflow_dropdown_for_org(web.root, resumed.org_id, workflow_value)
     talents = load_org_panel(web.root, resumed.org_id, wf_value)[0]
     status = (
@@ -590,6 +674,8 @@ def apply_session_resume(
         f"**再開** — `{resumed.parent_session_id}` をチャットタブに読み込みました。"
         " 続きを入力してください。"
     )
+    if missing:
+        msg += f" 音声が無い発言 {len(missing)} 件を、バックグラウンドで再生成します。"
     return (
         web,
         web.renderer.copy_messages(),
@@ -689,6 +775,7 @@ def process_events(
         except StopIteration:
             break
 
+    session.mark_turn_end()
     yield _idle_ui(session)
 
 
@@ -700,6 +787,7 @@ def resume_after_reply(session: WebSession, reply: str) -> Generator[UIUpdate, N
     try:
         event = pending.generator.send(reply)
     except StopIteration:
+        session.mark_turn_end()
         yield _idle_ui(session)
         return
     yield from process_events(session, pending.generator, first_event=event)
@@ -848,6 +936,23 @@ def handle_chat_submit(
     )
 
 
+_LED_COLORS = {"off": "#555555", "idle": "#2ecc40", "busy": "#ff4136"}
+_LED_LABELS = {"off": "未検出", "idle": "待機", "busy": "合成中"}
+
+
+def engine_led_html(states: list[tuple[str, str]]) -> str:
+    """ENGINE ごとの LED（消灯=未検出 / 緑=待機 / 赤=合成中）。ホバーで URL と状態を表示する。"""
+    if not states:
+        return ""
+    leds = "".join(
+        f'<span title="{escape(url)}: {_LED_LABELS[state]}" style="display:inline-block;width:14px;height:14px;'
+        f"border-radius:50%;margin-right:6px;background:{_LED_COLORS[state]};"
+        f'box-shadow:{"none" if state == "off" else "0 0 6px " + _LED_COLORS[state]}"></span>'
+        for url, state in states
+    )
+    return f'<div style="display:flex;align-items:center;gap:4px">VOICEVOX&nbsp;{leds}</div>'
+
+
 def _playing_update(session: WebSession):
     """再生中の発言番号が変わったときだけ、隠し Textbox へ送る値を返す。"""
     playing = session.relay.playing_tag if session.relay is not None else None
@@ -857,6 +962,30 @@ def _playing_update(session: WebSession):
     session.playing_seq += 1
     # 同じ発言番号を続けて送っても change が発火するよう、連番を付ける
     return f"{session.playing_seq}:{'' if playing is None else playing}"
+
+
+def live_timing_update(session: WebSession, show: bool = True):
+    """送信ボタン下のチャート。読み上げ中はライブ、再開したセッションに記録があれば再生を出す。show=False で隠す。"""
+    timeline = session.voice.timeline if session.voice is not None and session.voice_enabled else None
+    key = (timeline.session_id or "") if timeline is not None else ""
+    replay_id = session.replay_session_id
+    if not key and replay_id and (session.root / "sessions" / "audio" / replay_id / "timeline.jsonl").is_file():
+        key = f"replay:{replay_id}"
+    if not show:
+        key = ""
+    if key == session.published_timing:
+        return gr.skip()
+    session.published_timing = key
+    if not key:
+        return gr.update(value="", visible=False)
+    if key.startswith("replay:"):
+        try:
+            return gr.update(value=replay_iframe_html(session.root, replay_id, compact=True), visible=True)
+        except FileNotFoundError:
+            return gr.update(value="", visible=False)
+    if timeline is None or timeline.out_dir is None:
+        return gr.update(value="", visible=False)
+    return gr.update(value=live_iframe_html(key, timeline.out_dir), visible=True)
 
 
 def next_audio_update(session: WebSession):

@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>読み上げタイミング</title>
+<style>
+  body { margin: 0; font-family: "Segoe UI", "Yu Gothic UI", sans-serif; background: #10141c; color: #e6e9ef; }
+  header { padding: 12px 20px 0; display: flex; gap: 16px; align-items: baseline; flex-wrap: wrap; }
+  h1 { font-size: 18px; margin: 0; }
+  .sub { color: #8d97a8; font-size: 13px; }
+  #controls { display: flex; gap: 12px; align-items: center; padding: 10px 20px; flex-wrap: wrap; }
+  button, select { background: #222a3a; color: #e6e9ef; border: 1px solid #3a4459; border-radius: 6px; padding: 6px 12px; font-size: 14px; cursor: pointer; }
+  button:hover, select:hover { background: #2c3650; }
+  #seek { flex: 1; min-width: 200px; }
+  #time { font-variant-numeric: tabular-nums; min-width: 120px; }
+  #nowline { flex-basis: 100%; color: #c3cad8; font-size: 14px; }
+  #nowline .dot { margin: 0 6px 0 0; }
+  #nowline .dot + b + .dot, #nowline b + .dot { margin-left: 18px; }
+  #nowline b { color: #e6e9ef; font-weight: 600; }
+  #script { display: none; margin: 10px 20px 0; max-height: 200px; overflow-y: auto; border: 1px solid #2a3140; border-radius: 6px; background: #161b26; position: relative; }
+  body.embedded #script { display: none; }
+  .line { padding: 6px 12px; border-left: 3px solid transparent; color: #8d97a8; font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
+  .line b { color: #c3cad8; margin-right: 8px; }
+  .line.now { border-left-color: #e5484d; background: #222a3a; color: #e6e9ef; }
+  .line.now b { color: #fff; }
+  #stage { display: flex; margin: 0 20px; border: 1px solid #2a3140; border-radius: 6px; background: #161b26; }
+  #view { flex: 1; overflow-x: auto; }
+  canvas { display: block; }
+  #legend { padding: 10px 20px 20px; color: #8d97a8; font-size: 13px; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin: 0 4px 0 12px; vertical-align: middle; }
+  .live-badge { color: #ff4136; font-weight: bold; }
+  body.embedded header, body.embedded #legend { display: none; }
+  body.embedded #controls { padding: 6px 20px; }
+  body.embedded #stage { margin-top: 4px; }
+  body.live .replay-only { display: none; }
+  #toreplay { display: none; background: #2b5fd9; border-color: #2b5fd9; }
+</style>
+</head>
+<body>
+<header>
+  <h1>回答・合成・再生のタイミング</h1>
+  <span class="sub" id="meta"></span>
+</header>
+<div id="controls">
+  <button id="play" class="replay-only">▶ 再生</button>
+  <button id="restart" class="replay-only">⏮ 最初から</button>
+  <input id="seek" class="replay-only" type="range" min="0" max="1000" value="0">
+  <span id="time">0:00.0 / 0:00.0</span>
+  <button id="toreplay">▶ このセッションを再生</button>
+  <label class="replay-only">速度
+    <select id="speed">
+      <option value="0.5">0.5x</option>
+      <option value="1" selected>1x</option>
+      <option value="2">2x</option>
+      <option value="4">4x</option>
+      <option value="8">8x</option>
+    </select>
+  </label>
+  <label>幅
+    <select id="scale">
+      <option value="fit" selected>全体</option>
+      <option value="3">3 px/秒</option>
+      <option value="5">5 px/秒</option>
+      <option value="10">10 px/秒</option>
+      <option value="20">20 px/秒</option>
+      <option value="40">40 px/秒</option>
+    </select>
+  </label>
+  <label class="replay-only"><input type="checkbox" id="sound" checked> 音声を鳴らす</label>
+  <span id="nowline"></span>
+</div>
+<div id="stage">
+  <canvas id="labels"></canvas>
+  <div id="view"><canvas id="chart"></canvas></div>
+</div>
+<div id="script"></div>
+<div id="legend">
+  <span class="dot" style="background:#4f6bed"></span>LLM 回答
+  <span class="dot" style="background:#f0a030"></span>音声合成（ENGINE ごと。左の灯: 緑=待機 / 赤=合成中）
+  <span class="dot" style="background:#e5484d"></span>ブラウザ再生
+</div>
+<script>
+const DATA = __DATA__;
+let LIVE = !!DATA.live;
+const BASE = DATA.base || "";
+const $ = (id) => document.getElementById(id);
+if (LIVE) {
+  document.body.classList.add("embedded", "live");
+  $("scale").value = "20";
+}
+if (DATA.embedded) document.body.classList.add("embedded");
+$("meta").textContent = [DATA.title, DATA.session_id].filter(Boolean).join("  ");
+
+const talentOf = (file) => file.replace(/^\d+_/, "").replace(/\.wav$/, "");
+const hostOf = (url) => { try { return new URL(url).hostname; } catch (_) { return url; } };
+const esc = (s) => s.replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+// 表示名末尾の役割（例: 「けんと（sports）」→「けんと」）を省いて、状態表示を短くする
+const short = (s) => s.replace(/\s*[（(][^）)]*[）)]\s*$/, "");
+
+const ROW_H = 22, BAR_H = 18, LANE_PAD = 8, AXIS_H = 26, LABEL_W = 150;
+// これより長い待ちを、GAP_SHOWN 秒分の幅に縮めて表示する
+const GAP_MIN = 10, GAP_SHOWN = 3;
+
+// イベント列から、レーン・棒・全体の長さを組み立てる（ライブでは更新のたびに作り直す）
+function buildModel(events) {
+  const names = Object.assign({}, DATA.names || {});
+  for (const e of events) if (e.name && e.talent_id) names[e.talent_id] = e.name;
+  const nameOf = (id) => names[id] || id;
+
+  let horizon = 0;
+  let ended = false;
+  for (const e of events) {
+    horizon = Math.max(horizon, e.t, e.end || 0);
+    if (e.kind === "end") ended = true;
+  }
+  const settled = !LIVE || ended;
+
+  const llm = [];
+  const startsByTalent = {};
+  for (const e of events) {
+    if (e.kind === "step_start") {
+      (startsByTalent[e.talent_id] = startsByTalent[e.talent_id] || []).push(e.t);
+    } else if (e.kind === "step_done") {
+      const first = (startsByTalent[e.talent_id] || []).shift();
+      const start = e.elapsed > 0 ? Math.max(0, e.t - e.elapsed) : (first !== undefined ? first : e.t);
+      llm.push({ start, end: e.t, label: nameOf(e.talent_id) });
+    }
+  }
+  for (const id of Object.keys(startsByTalent)) {
+    for (const start of startsByTalent[id]) llm.push({ start, end: Infinity, open: true, label: nameOf(id) });
+  }
+
+  const utterances = {};
+  for (const e of events) if (e.kind === "utterance") utterances[e.file] = e;
+  const scripts = events
+    .filter((e) => e.kind === "utterance_text")
+    .map((e) => ({ file: e.file, t: e.t, name: nameOf(e.talent_id), text: e.text }));
+
+  const engines = [];
+  const synth = [];
+  const finished = new Set();
+  for (const e of events) {
+    if (e.kind !== "synth") continue;
+    finished.add(`${e.engine}@${e.t}`);
+    if (!engines.includes(e.engine)) engines.push(e.engine);
+    synth.push({ start: e.t, end: e.end, engine: e.engine, label: nameOf(talentOf(e.file)) });
+  }
+  for (const e of events) {
+    if (e.kind !== "synth_start" || finished.has(`${e.engine}@${e.t}`)) continue;
+    if (!engines.includes(e.engine)) engines.push(e.engine);
+    synth.push({ start: e.t, end: Infinity, open: true, engine: e.engine, label: nameOf(talentOf(e.file)) });
+  }
+
+  const plays = [];
+  for (const e of events) {
+    if (e.kind !== "play_start") continue;
+    const known = utterances[e.file];
+    plays.push({ start: e.t, end: e.t + (known ? known.duration : 0), file: e.file, label: nameOf(talentOf(e.file)) });
+  }
+  for (const e of events) {
+    if (e.kind !== "play_stop") continue;
+    for (let i = plays.length - 1; i >= 0; i--) {
+      if (plays[i].file === e.file) { plays[i].end = e.t; break; }
+    }
+  }
+
+  // 回答も合成も終わり、再生も済んだ（またはセッション終了）なら、ライブから再生へ切り替えられる
+  let lastTurnEnd = -1, lastWork = -1;
+  events.forEach((e, i) => {
+    if (e.kind === "turn_end") lastTurnEnd = i;
+    else if (e.kind === "step_start") lastWork = i;
+  });
+  const stopped = new Set(events.filter((e) => e.kind === "play_stop").map((e) => e.file));
+  const playedAll = Object.keys(utterances).every((f) => stopped.has(f));
+  const anyOpen = [...llm, ...synth].some((b) => b.open);
+  const ready = ended || (lastTurnEnd > lastWork && !anyOpen && playedAll);
+
+  if (settled) {
+    for (const b of [...llm, ...synth]) if (b.open) { b.end = horizon; b.open = false; }
+  }
+
+  const lanes = [{ label: "LLM 回答", bars: llm, color: "#4f6bed" }];
+  for (const url of engines) {
+    lanes.push({ label: hostOf(url), led: true, bars: synth.filter((b) => b.engine === url), color: "#f0a030" });
+  }
+  if (plays.length) lanes.push({ label: "ブラウザ再生", bars: plays, color: "#e5484d" });
+
+  for (const lane of lanes) {
+    const ends = [];
+    lane.bars.sort((a, b) => a.start - b.start);
+    for (const bar of lane.bars) {
+      let row = ends.findIndex((x) => x <= bar.start + 1e-6);
+      if (row < 0) row = ends.length;
+      ends[row] = bar.end;
+      bar.row = row;
+    }
+    lane.rows = Math.max(1, ends.length);
+  }
+  let y = AXIS_H;
+  for (const lane of lanes) {
+    lane.y = y;
+    lane.h = lane.rows * ROW_H + LANE_PAD;
+    y += lane.h;
+  }
+
+  let total = Math.max(1, horizon);
+  for (const lane of lanes) for (const b of lane.bars) if (b.end !== Infinity) total = Math.max(total, b.end);
+
+  // ターン間の待ち（前のターンの活動が終わってから、次のターンの回答が始まるまで）は時間軸で縮める
+  const gaps = [];
+  for (const te of events.filter((e) => e.kind === "turn_end").map((e) => e.t)) {
+    const starts = llm.filter((b) => b.start > te).map((b) => b.start);
+    if (!starts.length) continue;
+    const nextStart = Math.min(...starts);
+    let activityEnd = te;
+    for (const lane of lanes) for (const b of lane.bars) if (b.start < nextStart) activityEnd = Math.max(activityEnd, b.end);
+    if (activityEnd !== Infinity && nextStart - activityEnd > GAP_MIN) gaps.push({ s: activityEnd, e: nextStart });
+  }
+  gaps.sort((a, b) => a.s - b.s);
+  const map = (t) => {
+    let out = t;
+    for (const g of gaps) {
+      const cut = g.e - g.s - GAP_SHOWN;
+      if (t >= g.e) out -= cut;
+      else if (t > g.s) out -= ((t - g.s) * cut) / (g.e - g.s);
+    }
+    return out;
+  };
+  return { lanes, plays, scripts, height: y + 4, total: total + 1, horizon, ended, ready, gaps, map };
+}
+
+let events = DATA.events || [];
+let model = buildModel(events);
+
+// --- 音声（再生モードのみ） ---
+const audios = {};
+if (!LIVE) for (const p of model.plays) if (!audios[p.file]) audios[p.file] = new Audio(BASE + p.file);
+
+// --- 時計 ---
+const labelsCv = $("labels"), chartCv = $("chart"), view = $("view");
+let now = 0, playing = false, lastTs = 0;
+let total = model.total;
+let anchor = { t: 0, at: performance.now() };
+let wasReady = false;
+
+const fmt = (s) => `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, "0")}`;
+const speed = () => parseFloat($("speed").value);
+
+function pxPerSec() {
+  const v = $("scale").value;
+  return v === "fit" ? Math.max(1, (view.clientWidth - 20) / model.map(total)) : parseFloat(v);
+}
+
+function resetAudio() {
+  for (const p of model.plays) { if (audios[p.file]) audios[p.file].pause(); p.active = false; }
+}
+
+function syncAudio() {
+  const on = playing && $("sound").checked;
+  for (const p of model.plays) {
+    const a = audios[p.file];
+    if (!a) continue;
+    const inside = now >= p.start && now < p.end;
+    if (inside && on) {
+      const pos = now - p.start;
+      if (!p.active) {
+        // 再生成の完了前に読み込みに失敗していたら、読み込み直す
+        if (a.error) { a.src = `${BASE}${p.file}?r=${Date.now()}`; a.load(); }
+        a.currentTime = pos;
+        a.playbackRate = speed();
+        a.play().catch(() => {});
+        p.active = true;
+      } else if (!a.ended && Math.abs(a.currentTime - pos) > 0.5) {
+        a.currentTime = pos;
+      }
+      a.playbackRate = speed();
+    } else if (p.active) {
+      a.pause();
+      p.active = false;
+    }
+  }
+}
+
+function setup(cv, w, h) {
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = Math.ceil(w * dpr);
+  cv.height = Math.ceil(h * dpr);
+  cv.style.width = w + "px";
+  cv.style.height = h + "px";
+  const ctx = cv.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return ctx;
+}
+
+// 発言テキスト: 生成済みの発言を並べ、再生中のものを強調して追従スクロールする
+let scriptShown = -1, scriptCurrent = "", postedFile = "";
+
+// チャット画面に埋め込まれた再生では、再生中の発言を親ページへ知らせて吹き出しを強調させる
+function notifyParent(playingFile) {
+  if (!DATA.embedded || LIVE || window.parent === window || playingFile === postedFile) return;
+  postedFile = playingFile;
+  const entry = model.scripts.find((s) => s.file === playingFile);
+  const firstLine = entry ? entry.text.split("\n").find((l) => l.trim()) || "" : "";
+  window.parent.postMessage({ type: "studio-playing", snippet: firstLine.trim().slice(0, 30) }, "*");
+}
+function updateScript() {
+  const box = $("script");
+  const visible = model.scripts.filter((s) => s.t <= now);
+  // チャット画面に埋め込んだときは、同じ発言をチャット側の吹き出しで強調するので一覧は出さない
+  box.style.display = model.scripts.length && !document.body.classList.contains("embedded") ? "block" : "none";
+  if (visible.length !== scriptShown) {
+    box.innerHTML = visible
+      .map((s) => `<div class="line" data-file="${esc(s.file)}"><b>${esc(s.name)}</b>${esc(s.text)}</div>`)
+      .join("");
+    scriptShown = visible.length;
+    scriptCurrent = "";
+  }
+  const playingFile = (model.plays.find((p) => p.start <= now && now < p.end) || {}).file || "";
+  notifyParent(playingFile);
+  let target = null;
+  for (const el of box.children) {
+    const on = el.dataset.file === playingFile;
+    el.classList.toggle("now", on);
+    if (on) target = el;
+  }
+  if (target && playingFile !== scriptCurrent) {
+    box.scrollTop = Math.max(0, target.offsetTop - 8);
+  }
+  scriptCurrent = playingFile;
+}
+
+function tickStep(scale) {
+  for (const s of [1, 2, 5, 10, 15, 30, 60, 120, 300]) if (s * scale >= 60) return s;
+  return 600;
+}
+
+function render() {
+  const { lanes, height, gaps } = model;
+  const X = (t) => model.map(t) * pxPerSec();
+  const scale = pxPerSec();
+  const w = Math.max(view.clientWidth, Math.ceil(model.map(total) * scale) + 20);
+  const c = setup(chartCv, w, height);
+  const l = setup(labelsCv, LABEL_W, height);
+
+  c.font = "12px 'Segoe UI','Yu Gothic UI',sans-serif";
+  l.font = "13px 'Segoe UI','Yu Gothic UI',sans-serif";
+  l.textBaseline = "middle";
+
+  const step = tickStep(scale);
+  c.fillStyle = "#8d97a8";
+  c.strokeStyle = "#232b3b";
+  c.textBaseline = "top";
+  // 縮めた待ちのラベルと重なる目盛りの文字は出さない
+  const gapLabels = gaps.map((g) => {
+    const len = g.e - g.s;
+    const text = `⋯ 待機 ${len >= 60 ? `${Math.floor(len / 60)}分${Math.round(len % 60)}秒` : `${Math.round(len)}秒`}`;
+    const x = X(g.s);
+    return { text, x, until: x + c.measureText(text).width + 8, shown: g.s <= now };
+  });
+  for (let t = 0; t <= total; t += step) {
+    if (gaps.some((g) => t > g.s && t < g.e)) continue;
+    const x = X(t) + 0.5;
+    c.beginPath(); c.moveTo(x, AXIS_H - 4); c.lineTo(x, height); c.stroke();
+    if (!gapLabels.some((g) => g.shown && x > g.x - 28 && x < g.until)) c.fillText(`${t}s`, x + 3, 6);
+  }
+
+  for (const lane of lanes) {
+    c.fillStyle = "#1c2230";
+    c.fillRect(0, lane.y, w, lane.h - 2);
+
+    l.fillStyle = "#1c2230";
+    l.fillRect(0, lane.y, LABEL_W, lane.h - 2);
+    const midY = lane.y + (lane.h - 2) / 2;
+    let busy = false;
+    for (const b of lane.bars) if (b.start <= now && now < b.end) busy = true;
+    let textX = 10;
+    if (lane.led) {
+      l.beginPath();
+      l.arc(18, midY, 6, 0, Math.PI * 2);
+      l.fillStyle = busy ? "#ff4136" : "#2ecc40";
+      l.shadowColor = l.fillStyle;
+      l.shadowBlur = 8;
+      l.fill();
+      l.shadowBlur = 0;
+      textX = 32;
+    }
+    l.fillStyle = "#e6e9ef";
+    l.fillText(lane.label, textX, midY);
+
+    for (const b of lane.bars) {
+      if (b.start > now) continue;
+      const x0 = X(b.start);
+      const x1 = X(Math.min(b.end, now));
+      const by = lane.y + LANE_PAD / 2 + b.row * ROW_H;
+      c.fillStyle = lane.color;
+      c.globalAlpha = b.end <= now ? 0.55 : 1;
+      c.fillRect(x0, by, Math.max(x1 - x0, 2), BAR_H);
+      c.globalAlpha = 1;
+      if (x1 - x0 > 26) {
+        c.save();
+        c.beginPath(); c.rect(x0, by, x1 - x0, BAR_H); c.clip();
+        c.fillStyle = "#fff";
+        c.textBaseline = "middle";
+        c.fillText(b.label, x0 + 4, by + BAR_H / 2);
+        c.restore();
+      }
+    }
+  }
+
+  // 縮めた待ちを縦繞の帯で示す
+  for (const g of gapLabels) {
+    if (!g.shown) continue;
+    const gx = g.x;
+    c.fillStyle = "rgba(255,255,255,0.05)";
+    c.fillRect(gx, AXIS_H, GAP_SHOWN * scale, height - AXIS_H);
+    c.setLineDash([3, 3]);
+    c.strokeStyle = "#4a566e";
+    c.beginPath();
+    c.moveTo(gx + 0.5, AXIS_H - 4); c.lineTo(gx + 0.5, height);
+    c.moveTo(gx + GAP_SHOWN * scale + 0.5, AXIS_H - 4); c.lineTo(gx + GAP_SHOWN * scale + 0.5, height);
+    c.stroke();
+    c.setLineDash([]);
+    c.fillStyle = "#8d97a8";
+    c.textBaseline = "top";
+    c.fillText(g.text, gx + 3, 6);
+  }
+
+  const cx = X(now);
+  c.strokeStyle = "#ffffff";
+  c.lineWidth = 1.5;
+  c.beginPath(); c.moveTo(cx, 0); c.lineTo(cx, height); c.stroke();
+  c.lineWidth = 1;
+
+  const following = LIVE ? !model.ready : playing;
+  if (following && $("scale").value !== "fit") {
+    if (cx > view.scrollLeft + view.clientWidth - 40) view.scrollLeft = cx - view.clientWidth + 120;
+  }
+
+  $("toreplay").style.display = LIVE && model.ready ? "inline-block" : "none";
+  const active = (bars) => bars.filter((b) => b.start <= now && now < b.end).map((b) => short(b.label));
+  const generating = active(lanes[0].bars).join("・");
+  const playingNow = active(model.plays).join("・");
+  $("nowline").innerHTML =
+    `<span class="dot" style="background:#4f6bed"></span>生成 <b>${esc(generating || "-")}</b><span class="dot" style="background:#e5484d"></span>再生 <b>${esc(playingNow || "-")}</b>`;
+  updateScript();
+  if (LIVE) {
+    $("time").innerHTML = model.ended
+      ? `終了 ${fmt(now)}`
+      : model.ready
+        ? `完了 ${fmt(now)}`
+        : `<span class="live-badge">● LIVE</span> ${fmt(now)}`;
+  } else {
+    $("seek").value = Math.round((now / total) * 1000);
+    $("time").textContent = `${fmt(now)} / ${fmt(total)}`;
+  }
+}
+
+function pause() {
+  playing = false;
+  $("play").textContent = "▶ 再生";
+}
+
+function frame(ts) {
+  if (LIVE) {
+    now = model.ready ? model.horizon : anchor.t + (performance.now() - anchor.at) / 1000;
+    total = model.ready ? model.total : Math.max(30, now + 10);
+    // 全部再生し終えたら時計を止め、全体が見える幅に戻す（新しい発言が始まったらライブに戻る）
+    if (model.ready !== wasReady) {
+      wasReady = model.ready;
+      $("scale").value = model.ready ? "fit" : "20";
+      if (model.ready) view.scrollLeft = 0;
+    }
+  } else {
+    if (playing) {
+      now = Math.min(total, now + ((ts - lastTs) / 1000) * speed());
+      if (now >= total) pause();
+    }
+    syncAudio();
+  }
+  lastTs = ts;
+  render();
+  requestAnimationFrame(frame);
+}
+
+async function refresh() {
+  try {
+    const res = await fetch(`${BASE}timeline.jsonl?_=${Date.now()}`, { cache: "no-store" });
+    if (res.ok) {
+      const lines = (await res.text()).split("\n").filter((x) => x.trim());
+      const next = [];
+      for (const line of lines) { try { next.push(JSON.parse(line)); } catch (_) { /* 書き込み途中の行 */ } }
+      if (next.length !== events.length) {
+        events = next;
+        model = buildModel(events);
+        // 時計は戻さない（新しいイベントが今の位置より先にあるときだけ進める）
+        const current = anchor.t + (performance.now() - anchor.at) / 1000;
+        if (model.horizon > current) anchor = { t: model.horizon, at: performance.now() };
+      }
+    }
+  } catch (_) { /* 次の周期で再試行 */ }
+}
+
+async function poll() {
+  await refresh();
+  if (LIVE && !model.ended) setTimeout(poll, 1000);
+}
+
+async function toReplay() {
+  await refresh();
+  LIVE = false;
+  document.body.classList.remove("live");
+  model = buildModel(events);
+  total = model.total;
+  for (const p of model.plays) if (!audios[p.file]) audios[p.file] = new Audio(BASE + p.file);
+  $("scale").value = "fit";
+  view.scrollLeft = 0;
+  now = 0;
+  playing = true;
+  $("play").textContent = "⏸ 一時停止";
+}
+
+$("play").addEventListener("click", () => {
+  if (playing) { pause(); return; }
+  if (now >= total) now = 0;
+  playing = true;
+  $("play").textContent = "⏸ 一時停止";
+});
+$("toreplay").addEventListener("click", toReplay);
+$("restart").addEventListener("click", () => { resetAudio(); now = 0; view.scrollLeft = 0; });
+$("seek").addEventListener("input", (e) => { resetAudio(); now = (e.target.value / 1000) * total; });
+$("sound").addEventListener("change", () => { if (!$("sound").checked) resetAudio(); });
+
+if (LIVE) poll();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
