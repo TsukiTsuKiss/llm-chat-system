@@ -241,26 +241,30 @@ python Chat.py --latest
 
 ### AI設定の更新
 
-**AI設定ファイル（ai_assistants_config.csv）の更新:**
+**AI設定ファイルの更新（ai_assistants_config.json / ai_assistants_config.csv）:**
 
 ```bash
-# Pythonスクリプトで設定を更新
+# 登録モデルを実際に呼んで確認する（既定は確認のみ。何も書き込まない）
 python update_ai_config.py
 
-# Windowsバッチファイルで設定を更新（GitHubから最新版を取得）
+# 呼べないモデルを JSON から外し、CSV を JSON から作り直す
+python update_ai_config.py --apply
+
+# Windowsバッチファイル（引数はそのまま update_ai_config.py に渡る）
 update_ai_models.bat
 ```
 
 **📝 設定更新の詳細:**
-- `update_ai_config.py`: 対話式でAI設定を追加・編集・削除
-- `update_ai_models.bat`: GitHubリポジトリから最新のAI設定を自動取得
-- **設定更新後は新しいモデルが即座に利用可能**
+- `update_ai_config.py`: 各登録モデルに極小のプロンプトを1回送り、使えるかを確認する。モデル一覧 API で見つけた新規候補は表示するだけで、自動では追加しない。Opper は `--provider Opper` を付けたときだけ確認する
+- `ai_assistants_config.csv` は `ai_assistants_config.json` から作り直す（各プロバイダーの `models` の先頭2つが `model` / `fast_model`）。JSON にない行（`Opper-*` など）はそのまま残す
+- `update_ai_models.bat`: `update_ai_config.py` を実行して結果を表示する
+- 個別の疎通確認は `python check_ai_models.py --provider Together`
 
 #### デフォルトアシスタントの決まり方
 
-- 通常時: `python Chat.py` のデフォルトは `ai_assistants_config.csv` の先頭行です。
-- 変更方法: デフォルトを変えたい場合は `ai_assistants_config.csv` の行順を並べ替えてください。
-- フォールバック時: `ai_assistants_config.csv` が読めない場合は `update_ai_config.py` の `get_hardcoded_fallback_models()` の順序を使います（現在は Groq 先頭）。
+- 通常時: `python Chat.py` のデフォルトは `ai_assistants_config.json` の先頭のプロバイダー（JSON がなければ `ai_assistants_config.csv` の先頭行）です。
+- 変更方法: デフォルトを変えたい場合は、JSON のプロバイダーの並びを入れ替えてください（CSV は `update_ai_config.py --apply` で作り直せます）。
+- 設定ファイルが読めない場合は、エラーを表示して終了します。
 
 ### システムメッセージのカスタマイズ
 

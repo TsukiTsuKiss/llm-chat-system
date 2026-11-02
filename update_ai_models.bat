@@ -60,11 +60,11 @@ echo 更新スクリプトを実行します...
 echo ================================
 echo.
 
-python update_ai_config.py
+python update_ai_config.py %*
 
 echo.
 echo ================================
-echo 更新後の設定:
+echo 現在の設定:
 echo ================================
 if exist ai_assistants_config.csv (
     type ai_assistants_config.csv
