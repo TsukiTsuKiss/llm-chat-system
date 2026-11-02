@@ -1,0 +1,42 @@
+{
+  "name": "楽観・悲観バランス判断",
+  "description": "楽観/悲観の両観点を比較し、条件付きの実行判断に落とし込む",
+  "slots": {
+    "optimist": {
+      "description": "成功シナリオと上振れ要因の観点から意見を出す担当",
+      "count": "1"
+    },
+    "pessimist": {
+      "description": "失敗シナリオと下振れ要因の観点から意見を出す担当",
+      "count": "1"
+    },
+    "facilitator": {
+      "description": "両者の主張を統合して判断案を作る担当",
+      "count": "1"
+    }
+  },
+  "phases": [
+    {
+      "type": "parallel",
+      "steps": [
+        {
+          "slot": "optimist",
+          "action": "成功シナリオ、上振れ要因、機会損失の観点から前向きな判断材料を提示"
+        },
+        {
+          "slot": "pessimist",
+          "action": "失敗シナリオ、下振れ要因、致命リスクの観点から慎重な判断材料を提示"
+        }
+      ]
+    },
+    {
+      "type": "serial",
+      "steps": [
+        {
+          "slot": "facilitator",
+          "action": "両者の主張を統合し、実行条件・中止条件・次の検証項目を明示した判断案を作成"
+        }
+      ]
+    }
+  ]
+}

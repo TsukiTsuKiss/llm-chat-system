@@ -1,0 +1,60 @@
+{
+  "name": "decision_balance_org",
+  "description": "意思決定の質を高めるために、楽観視点と悲観視点を併走させる判断補佐チーム",
+  "roles": [
+    {
+      "name": "楽観アドバイザー",
+      "assistant": "ChatGPT",
+      "model": "gpt-5.4",
+      "system_prompt_file": "roles/optimist_advisor.txt",
+      "role_type": "member"
+    },
+    {
+      "name": "悲観アドバイザー",
+      "assistant": "Gemini",
+      "model": "gemini-3-flash-preview",
+      "system_prompt_file": "roles/pessimist_advisor.txt",
+      "role_type": "member"
+    },
+    {
+      "name": "判断ファシリテーター",
+      "assistant": "ChatGPT",
+      "model": "gpt-5.3-chat-latest",
+      "system_prompt_file": "roles/decision_facilitator.txt",
+      "role_type": "moderator"
+    }
+  ],
+  "workflows": {
+    "balanced_decision_support": {
+      "name": "楽観・悲観バランス判断",
+      "description": "楽観/悲観の両観点を比較し、条件付きの実行判断に落とし込む",
+      "response_limit": 450,
+      "style": "具体的で簡潔",
+      "format": "箇条書き推奨",
+      "phases": [
+        {
+          "type": "parallel",
+          "steps": [
+            {
+              "role": "楽観アドバイザー",
+              "action": "成功シナリオ、上振れ要因、機会損失の観点から前向きな判断材料を提示"
+            },
+            {
+              "role": "悲観アドバイザー",
+              "action": "失敗シナリオ、下振れ要因、致命リスクの観点から慎重な判断材料を提示"
+            }
+          ]
+        },
+        {
+          "type": "serial",
+          "steps": [
+            {
+              "role": "判断ファシリテーター",
+              "action": "両者の主張を統合し、実行条件・中止条件・次の検証項目を明示した判断案を作成"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

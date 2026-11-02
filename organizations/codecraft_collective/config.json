@@ -1,58 +1,19 @@
 {
-  "organization": "codecraft_collective",
-  "demo_roles": [
-    {
-      "name": "全能 統",
-      "assistant": "ChatGPT",
-      "model": "gpt-5.3-chat-latest",
-      "system_prompt_file": "roles/fullstack_developer.txt"
-    },
-    {
-      "name": "検証 確",
-      "assistant": "Together",
-      "model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
-      "system_prompt_file": "roles/test_engineer.txt"
-    }
+  "name": "コードクラフト・コレクティブ",
+  "mission": "要求から動作するアプリを素早く作り、品質を確かめて届ける",
+  "culture": [
+    "議論よりも実装を優先する",
+    "シンプルで動くことを最優先する"
   ],
-  "organization_roles": [
-    {
-      "name": "全能 統",
-      "assistant": "ChatGPT",
-      "model": "gpt-5.3-chat-latest",
-      "system_prompt_file": "roles/fullstack_developer.txt"
-    },
-    {
-      "name": "検証 確",
-      "assistant": "Together",
-      "model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
-      "system_prompt_file": "roles/test_engineer.txt"
-    }
-  ],
-  "workflows": {
+  "talent_ids": ["zen_tou", "kensa_tashika"],
+  "default_workflow": "rapid_mvp",
+  "workflow_bindings": {
     "instant_build": {
-      "name": "即席開発",
-      "description": "議論なしで要求から直接動作するアプリを即座に生成",
-      "phases": [
-        {
-          "type": "serial",
-          "steps": [
-            {"role": "全能 統", "action": "要求分析と最適技術選定、完全なアプリケーション実装（フロント・バック・設定・実行手順すべて含む）"}
-          ]
-        }
-      ]
+      "builder": ["zen_tou"]
     },
     "rapid_mvp": {
-      "name": "MVP高速生成",
-      "description": "最小限の機能で動作するプロダクトを2ステップで作成",
-      "phases": [
-        {
-          "type": "serial",
-          "steps": [
-            {"role": "全能 統", "action": "MVP設計と核心機能の実装"},
-            {"role": "検証 確", "action": "動作確認と改善提案"}
-          ]
-        }
-      ]
+      "builder": ["zen_tou"],
+      "tester": ["kensa_tashika"]
     }
   }
 }

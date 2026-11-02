@@ -1,60 +1,42 @@
 {
-  "name": "decision_balance_org",
-  "description": "意思決定の質を高めるために、楽観視点と悲観視点を併走させる判断補佐チーム",
-  "roles": [
-    {
-      "name": "楽観アドバイザー",
-      "assistant": "ChatGPT",
-      "model": "gpt-5.4",
-      "system_prompt_file": "roles/optimist_advisor.txt",
-      "role_type": "member"
-    },
-    {
-      "name": "悲観アドバイザー",
-      "assistant": "Gemini",
-      "model": "gemini-3-flash-preview",
-      "system_prompt_file": "roles/pessimist_advisor.txt",
-      "role_type": "member"
-    },
-    {
-      "name": "判断ファシリテーター",
-      "assistant": "ChatGPT",
-      "model": "gpt-5.3-chat-latest",
-      "system_prompt_file": "roles/decision_facilitator.txt",
-      "role_type": "moderator"
-    }
+  "name": "意思決定バランス",
+  "mission": "意思決定の質を高めるために、楽観視点と悲観視点を併走させて判断を補佐する",
+  "culture": [
+    "楽観と悲観のどちらにも根拠と条件を添える",
+    "対立点は判断条件に変換して実行案に落とし込む"
   ],
-  "workflows": {
+  "talent_ids": ["hikari", "shizuku", "tomoe"],
+  "default_workflow": "balanced_decision_support",
+  "workflow_bindings": {
     "balanced_decision_support": {
-      "name": "楽観・悲観バランス判断",
-      "description": "楽観/悲観の両観点を比較し、条件付きの実行判断に落とし込む",
-      "response_limit": 450,
-      "style": "具体的で簡潔",
-      "format": "箇条書き推奨",
-      "phases": [
-        {
-          "type": "parallel",
-          "steps": [
-            {
-              "role": "楽観アドバイザー",
-              "action": "成功シナリオ、上振れ要因、機会損失の観点から前向きな判断材料を提示"
-            },
-            {
-              "role": "悲観アドバイザー",
-              "action": "失敗シナリオ、下振れ要因、致命リスクの観点から慎重な判断材料を提示"
-            }
-          ]
-        },
-        {
-          "type": "serial",
-          "steps": [
-            {
-              "role": "判断ファシリテーター",
-              "action": "両者の主張を統合し、実行条件・中止条件・次の検証項目を明示した判断案を作成"
-            }
-          ]
-        }
-      ]
+      "optimist": ["hikari"],
+      "pessimist": ["shizuku"],
+      "facilitator": ["tomoe"]
     }
+  },
+  "common_directives": [
+    "1ターン450文字以内で、具体的かつ簡潔に述べる",
+    "箇条書きを推奨する"
+  ],
+  "role_directives": {
+    "optimist": [
+      "この議論では楽観アドバイザーとして、成功可能性を最大化する観点で考える",
+      "分析観点は上振れシナリオ、競争上の優位性、中長期の成長余地、早期着手のメリット",
+      "チャンスを取り逃す機会損失も評価し、実現条件を明確にする",
+      "主要論点それぞれに「前提条件」と「観測指標」を添える",
+      "最後に「今すぐ試す最小アクション」を1つ提案する"
+    ],
+    "pessimist": [
+      "この議論では悲観アドバイザーとして、失敗確率と損失影響を最小化する観点で評価する",
+      "楽観視で見落としやすい前提の脆弱性を洗い出す",
+      "分析観点は下振れシナリオ、致命リスク、依存関係リスク（人・技術・資金・法務・運用）、撤退ライン",
+      "各リスクに「発生条件」「影響度」「早期警戒シグナル」を記載する",
+      "最後に「今すぐ実施すべきリスク低減策」を1つ提案する"
+    ],
+    "facilitator": [
+      "この議論では判断ファシリテーター（モデレーター）として、楽観・悲観の両意見を統合する",
+      "楽観側から「攻める理由」、悲観側から「守る条件」を抽出し、両者を満たす現実的な実行案を示す",
+      "出力は次の順にする: 1. 推奨判断（実行 / 条件付き実行 / 保留 / 中止） 2. 実行条件（3点以内） 3. 中止条件（3点以内） 4. 最初の1週間で検証する項目（最大3点） 5. 判断の見直しタイミング"
+    ]
   }
 }

@@ -1,0 +1,29 @@
+{
+  "name": "MVP高速生成",
+  "description": "最小限の機能で動作するプロダクトを2ステップで作成",
+  "slots": {
+    "builder": {
+      "description": "MVP を設計・実装する担当",
+      "count": "1"
+    },
+    "tester": {
+      "description": "動作確認と改善提案を行う担当",
+      "count": "1"
+    }
+  },
+  "phases": [
+    {
+      "type": "serial",
+      "steps": [
+        {
+          "slot": "builder",
+          "action": "MVP設計と核心機能の実装"
+        },
+        {
+          "slot": "tester",
+          "action": "動作確認と改善提案"
+        }
+      ]
+    }
+  ]
+}
