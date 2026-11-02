@@ -1,6 +1,6 @@
 from legacy.MultiRoleChat import MultiRoleManager, load_ai_assistants_config
 
-def test_final_code_saving():
+def test_final_code_saving(monkeypatch, tmp_path):
     """最終コード保存機能のテスト"""
     # AI設定を読み込み
     ai_assistants = load_ai_assistants_config()
@@ -129,10 +129,13 @@ if __name__ == "__main__":
     ]
     
     # 最終コード保存をテスト
+    # CodeSaver は cwd 相対の sandbox/ に書くので、実際の sandbox/ を汚さないよう移動する
+    monkeypatch.chdir(tmp_path)
     print("🔧 最終コード保存機能をテスト中...")
     role_manager._save_workflow_final_code("計算機プログラム作成", "test_calculator")
     
     print("✅ テスト完了")
 
 if __name__ == "__main__":
-    test_final_code_saving()
+    import pytest
+    raise SystemExit(pytest.main([__file__, "-q"]))
