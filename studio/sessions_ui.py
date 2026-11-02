@@ -23,6 +23,7 @@ from studio.user_context_update import (
 )
 from studio.validation import StudioValidationError
 from studio.voice import parse_voicevox_urls
+from studio.voice_check import adopt_pending, list_pending, reject_pending, session_org, suggest_for_session
 from studio.voice_regen import missing_audio_files, regenerate_audio
 from studio.voice_timeline import replay_iframe_html
 from studio.web_ui import apply_session_resume
@@ -79,6 +80,15 @@ def _flow_theme_key(label: str) -> FlowTheme:
     return "dark" if label == "ダーク" else "light"
 
 
+def _pending_choices(root: Path, session_id: str | None) -> list[tuple[str, str]]:
+    org = session_org(root, session_id) if session_id else None
+    return (
+        [(f"{surface} → {reading}" + ("（要確認・承認まで未適用）" if review else ""), surface) for surface, reading, review in list_pending(root, org)]
+        if org
+        else []
+    )
+
+
 def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -> None:
     initial_choices = session_dropdown_choices(root)
     initial_session_id = initial_choices[0][1] if initial_choices else None
@@ -89,7 +99,7 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
         else "_セッションがありません_"
     )
 
-    with gr.Tab("📄 セッション"):
+    with gr.Tab("📄 セッション") as sessions_tab:
         with gr.Column(elem_id="studio-session-panel", elem_classes=["studio-settings-panel"]):
             gr.Markdown(
                 "`sessions/*.jsonl` の一覧表示、Markdown レポート閲覧、エクスポート（§8.5）。"
@@ -126,6 +136,15 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
             with gr.Row(elem_id="studio-session-context-actions"):
                 context_draft_btn = gr.Button("コンテキスト更新案", **_SAVE_BTN)
                 context_apply_btn = gr.Button("コンテキスト採用", **_SAVE_BTN)
+            with gr.Row(elem_id="studio-session-voice-actions"):
+                voice_suggest_btn = gr.Button("読みを点検（誤読候補）", **_SAVE_BTN)
+                pending_adopt_btn = gr.Button("選択を辞書へ本登録", **_SAVE_BTN)
+                pending_reject_btn = gr.Button("選択を却下", **_SAVE_BTN)
+            pending_cbg = gr.CheckboxGroup(
+                label="未承認辞書の候補（表記 → 読み）。本登録すると組織の voice_dictionary.json へ入る。聴き直しは「音声を作り直して再生」",
+                choices=_pending_choices(root, initial_session_id),
+                value=[],
+            )
             session_msg = gr.Markdown("")
             timing_html = gr.HTML("", visible=False, elem_id="studio-session-timing")
             export_file = gr.File(label="エクスポート結果", interactive=False, visible=False)
@@ -307,6 +326,39 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
             return result.message
         return f"**ユーザーコンテキスト採用** — {result.message}"
 
+    def on_pending_refresh(session_id: str | None):
+        return gr.update(choices=_pending_choices(root, session_id), value=[])
+
+    def on_voice_suggest(session_id: str | None, web_session):
+        if not session_id:
+            yield gr.update(), "セッションを選択してください"
+            return
+        yield gr.update(), "読みを点検しています…（VOICEVOX で読みを取得し、LLM で誤読候補を探します）"
+        try:
+            _org, model_label, entries = suggest_for_session(
+                root, session_id, urls=parse_voicevox_urls(web_session.voicevox_url)
+            )
+        except Exception as exc:  # LLM・VOICEVOX など外部呼び出しの失敗は画面に出す
+            yield gr.update(), f"読みの点検に失敗しました: {exc}"
+            return
+        note = f"{len(entries)} 件の誤読候補を未承認辞書へ追記しました" if entries else "新しい誤読候補はありません"
+        yield on_pending_refresh(session_id), f"**読み点検** — {note}（{model_label}）"
+
+    def _pending_action(action, label: str, session_id: str | None, surfaces: list[str]):
+        org = session_org(root, session_id) if session_id else None
+        if not org:
+            return gr.update(), "セッションを選択してください"
+        if not surfaces:
+            return gr.update(), "候補を選択してください"
+        done = action(root, org, surfaces)
+        return on_pending_refresh(session_id), f"**{label}** — {len(done)} 件（{', '.join(done)}）"
+
+    def on_pending_adopt(session_id: str | None, surfaces: list[str]):
+        return _pending_action(adopt_pending, "辞書へ本登録", session_id, surfaces)
+
+    def on_pending_reject(session_id: str | None, surfaces: list[str]):
+        return _pending_action(reject_pending, "候補を却下", session_id, surfaces)
+
     refresh_btn.click(
         on_refresh,
         inputs=[session_dd, flow_theme_radio],
@@ -387,3 +439,25 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
         inputs=[session_dd],
         outputs=[session_msg],
     )
+    voice_suggest_btn.click(
+        on_voice_suggest,
+        inputs=[session_dd, handles.session_state],
+        outputs=[pending_cbg, session_msg],
+    )
+    pending_adopt_btn.click(
+        on_pending_adopt,
+        inputs=[session_dd, pending_cbg],
+        outputs=[pending_cbg, session_msg],
+    )
+    pending_reject_btn.click(
+        on_pending_reject,
+        inputs=[session_dd, pending_cbg],
+        outputs=[pending_cbg, session_msg],
+    )
+    session_dd.change(on_pending_refresh, inputs=[session_dd], outputs=[pending_cbg], queue=False)
+    # タブを開いたときに、起動後にできたセッションを一覧へ反映する
+    sessions_tab.select(
+        on_refresh,
+        inputs=[session_dd, flow_theme_radio],
+        outputs=[session_dd, report_md, export_file, session_msg],
+    ).then(on_pending_refresh, inputs=[session_dd], outputs=[pending_cbg])

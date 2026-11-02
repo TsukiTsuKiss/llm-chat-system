@@ -33,6 +33,15 @@
         }
       }
     },
+    "voice_suggest": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "読みチェックの誤読候補を作る LLM（python -m studio.voice_check --suggest）",
+      "properties": {
+        "assistant": { "type": "string" },
+        "model": { "type": "string" }
+      }
+    },
     "upload_limits": {
       "type": "object",
       "additionalProperties": false,

@@ -30,6 +30,7 @@ from studio.voice_timeline import TimelineRecorder
 DEFAULT_BASE_URL = os.getenv("VOICEVOX_URL", "http://127.0.0.1:50021").rstrip("/")
 VOICE_MAPPING_FILES = ("voice_mapping.json", "voice_mapping.example.json")
 VOICE_DICTIONARY_FILE = "voice_dictionary.json"
+PENDING_DICTIONARY_FILE = "voice_dictionary.pending.json"
 
 _MD_LINK = re.compile(r"\[([^\]]*)\]\([^)]*\)")
 _URL = re.compile(r"https?://\S+")
@@ -114,11 +115,37 @@ def _read_dictionary(path: Path) -> dict[str, str]:
     return {k: v for k, v in data.items() if isinstance(k, str) and isinstance(v, str) and k}
 
 
-def load_voice_dictionary(root: Path, org_id: str) -> dict[str, str]:
-    # 共通辞書（ルート直下）に組織辞書を重ね、同じ表記は組織側を優先する
+def read_pending_dictionary(path: Path) -> dict[str, Any]:
+    """未承認辞書 {"pending": {表記: {"reading", "session"}}, "rejected": [表記]}。無ければ空。"""
+    if not path.is_file():
+        return {"pending": {}, "rejected": []}
+    data = json.loads(path.read_text(encoding="utf-8"))
+    pending = data.get("pending")
+    rejected = data.get("rejected")
     return {
+        "pending": pending if isinstance(pending, dict) else {},
+        "rejected": [r for r in rejected if isinstance(r, str)] if isinstance(rejected, list) else [],
+    }
+
+
+def _read_pending_readings(path: Path) -> dict[str, str]:
+    readings: dict[str, str] = {}
+    for surface, entry in read_pending_dictionary(path)["pending"].items():
+        if isinstance(entry, dict) and entry.get("needs_review"):
+            continue  # 承認するまで読み上げに適用しない
+        reading = entry.get("reading") if isinstance(entry, dict) else entry
+        if isinstance(reading, str) and reading and surface:
+            readings[surface] = reading
+    return readings
+
+
+def load_voice_dictionary(root: Path, org_id: str) -> dict[str, str]:
+    # 未承認辞書 < 共通辞書（ルート直下）< 組織辞書。同じ表記は後ろ（人が決めた側）を優先する
+    org_dir = root / "organizations" / org_id
+    return {
+        **_read_pending_readings(org_dir / PENDING_DICTIONARY_FILE),
         **_read_dictionary(root / VOICE_DICTIONARY_FILE),
-        **_read_dictionary(root / "organizations" / org_id / VOICE_DICTIONARY_FILE),
+        **_read_dictionary(org_dir / VOICE_DICTIONARY_FILE),
     }
 
 

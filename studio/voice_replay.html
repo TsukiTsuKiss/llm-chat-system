@@ -297,7 +297,8 @@ let scriptShown = -1, scriptCurrent = "", postedFile = "";
 
 // チャット画面に埋め込まれた再生では、再生中の発言を親ページへ知らせて吹き出しを強調させる
 function notifyParent(playingFile) {
-  if (!DATA.embedded || LIVE || window.parent === window || playingFile === postedFile) return;
+  // ライブ表示から「このセッションを再生」へ切り替えた場合は DATA.live だけが立っている
+  if (!(DATA.embedded || DATA.live) || LIVE || window.parent === window || playingFile === postedFile) return;
   postedFile = playingFile;
   const entry = model.scripts.find((s) => s.file === playingFile);
   const firstLine = entry ? entry.text.split("\n").find((l) => l.trim()) || "" : "";

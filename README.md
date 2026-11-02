@@ -775,6 +775,15 @@ sandbox/session_20250814_141337/
 
 ## 📈 バージョン履歴
 
+### MultiRoleStudioWeb v0.9.1 (2026-10-28)
+- 🔤 **読み点検の対象を拡大** - 英字語に加え、漢字語・記号（`未達`→ヒツジタチ、`+`→タス 等）も候補に。漢字・記号の候補は「要確認」として承認するまで読み上げに適用しない
+- 🧹 **候補のノイズ除去** - すでに正しく読まれている語・カナだけの表記を除外
+- 🔄 **セッションタブ** - タブを開くと一覧を自動更新
+
+### MultiRoleStudioWeb v0.9.0 (2026-10-28)
+- 🔤 **読み点検・未承認辞書** - セッションタブに「読みを点検（誤読候補）」「選択を辞書へ本登録」「選択を却下」を追加。LLM（既定 Groq、`studio_config.json` の `voice_suggest`）が誤読候補を `organizations/<org>/voice_dictionary.pending.json` へ追記し、人が採用した分だけ組織辞書へ入る
+- 🖥️ **CLI** - `python -m studio.voice_check <session_id> [--ascii-only | --suggest]`
+
 ### MultiRoleStudio v0.6.1 / MultiRoleStudioWeb v0.8.1 (2026-10-28)
 - 🧹 **broadcast 統合** - `news_studio` / `topic_studio` を統合し、運用組織を `broadcast_studio` に一本化
 - 🔤 **workflow 命名整理** - `broadcast_news_show` / `broadcast_news_digest` / `broadcast_topic_show` / `broadcast_topic_debate` を標準化

@@ -1561,6 +1561,31 @@ python -m studio.voice_timeline [session_id]    # 省略時は timeline.jsonl �
 - 実装は `studio/web_ui.py` の `live_timing_update`（1 秒タイマー）と `studio/voice_timeline.py` の `live_iframe_html`。チャート本体は `replay.html` と同じ `studio/voice_replay.html` で、ライブでは操作部品を隠す。
 - `timeline.jsonl` は Gradio のファイル配信（`launch(allowed_paths=[sessions/audio])`、`/gradio_api/file=`）から読むため、Studio サーバーと別 PC のブラウザでも動く。配信対象に `sessions/audio` が加わる（認証なし。`--host` の注意に同じ）。
 
+#### 7.9.2 読みチェック
+
+保存済みセッションの読み上げ文を VOICEVOX の `/audio_query` に通し、読み（カナ）を一覧して誤読を見つける。実装は `studio/voice_check.py`。
+
+```bash
+python -m studio.voice_check <session_id> [--org <org>] [--voicevox-url <url>] [--ascii-only]
+```
+
+- 読み上げ対象と前処理は `VoiceReader` と同じ規則（`voice_mapping.json` のある人材、`when_action`、前処理、共通+組織の読み辞書、約 60 文字の分割）で、実際に読まれる文だけを出す。合成はしない。
+- `--ascii-only` は英字を含む文だけを出す（英字・略語・ファイル名が誤読の大半）。
+- 辞書は自動で本登録しない。読みの良し悪しは人が判断する。短い汎用キーは部分一致で他語を壊すため組織辞書に限る。`voice_regen` で作り直せば聞き直せる。
+- `reading_of(text, speaker, base_url)` は「文 → 読み」の単体関数で、読みの事前補正（2 パス処理）の 1 パス目に使える。
+
+**未承認辞書（`--suggest`）**: 全文と読みを LLM に渡し、英字語・漢字語・記号の誤読候補を `organizations/<org>/voice_dictionary.pending.json` へ追記する。
+
+| 項目 | 内容 |
+|---|---|
+| 形式 | `{"pending": {"表記": {"reading", "session", "added", "needs_review"?}}, "rejected": ["表記"]}` |
+| 優先順位 | 未承認 < 共通辞書 < 組織辞書。未承認辞書も読み上げ時に適用する（本文・ログは変えない）。人が決めた読みが常に勝つ。**`needs_review`（英字を含まない表記＝漢字・記号）は、承認するまで適用しない**（境界を判定できず、他の語を壊しうるため） |
+| 本登録 | 人が `pending` の表記と `reading` を正式な辞書へ移す。採用しない表記は `rejected` に書くと再提案されない |
+| 候補モデル | `studio_config.json` の `voice_suggest`（`assistant` / `model`。既定 Groq `openai/gpt-oss-120b`）。`--suggest-model Assistant/モデル名` で上書き |
+| 安全策 | カナだけの表記・表記と読みが同じ・カナでない読み・既存/却下済み・文中に無い表記は捨てる。ENGINE の読みにすでに含まれる候補（長音の書き方を揃えて比較）は誤読ではないので捨てる。英字語は 3 文字未満と、他の語の一部としても出る表記（`Web` と `WebGL` 等）も捨てる。LLM は正しい語も列挙しがちなので、間違った読みを返すこともある（承認時に人が判断） |
+
+**Web UI（セッションタブ）**: 「読みを点検（誤読候補）」で選択中のセッションに `--suggest` 相当を実行し、候補を「未承認辞書の候補」に並べる（要確認は「要確認・承認まで未適用」と表示）。セッションタブを開くたびに一覧を更新する。選んで「辞書へ本登録」（組織の `voice_dictionary.json` へ移す）または「却下」（`rejected` へ）。聴き直しは「音声を作り直して再生」（再生成は辞書を読み直す）。進行中の読み上げセッションは開始時の辞書を使うため、本登録の反映は次のセッションから。
+
 ---
 
 ## 8. UI 仕様
