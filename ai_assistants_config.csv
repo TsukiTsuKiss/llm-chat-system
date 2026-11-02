@@ -3,7 +3,7 @@ Groq,langchain_groq,ChatGroq,openai/gpt-oss-120b,openai/gpt-oss-20b
 ChatGPT,langchain_openai,ChatOpenAI,gpt-5.6-sol,gpt-5.6-luna
 Gemini,langchain_google_genai,ChatGoogleGenerativeAI,gemini-2.5-pro,gemini-3.5-flash
 Mistral,langchain_mistralai,ChatMistralAI,mistral-large-latest,mistral-small-latest
-Together,langchain_together,ChatTogether,meta-llama/Llama-3.3-70B-Instruct-Turbo,meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo
+Together,langchain_together,ChatTogether,meta-models/Muse-Spark-Open-816B-A42B,meta-models/Muse-Glimmer-30B
 Anthropic,langchain_anthropic,ChatAnthropic,claude-fable-5,claude-sonnet-5
 Grok,langchain_xai,ChatXAI,grok-latest,grok-code-fast
 Opper,langchain_opperai,ChatOpperAI,groq/gpt-oss-120b,groq/gpt-oss-20b

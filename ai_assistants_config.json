@@ -4,9 +4,7 @@
     "class": "ChatGroq",
     "models": [
       "openai/gpt-oss-120b",
-      "openai/gpt-oss-20b",
-      "llama-3.1-8b-instant",
-      "llama-3.3-70b-versatile"
+      "openai/gpt-oss-20b"
     ]
   },
   "ChatGPT": {
@@ -54,8 +52,7 @@
     "models": [
       "together/Tev1-4B-experimental",
       "meta-models/Muse-Glimmer-30B",
-      "meta-models/Muse-Spark-Open-816B-A42B",
-      "google/gemma-4-31B-it"
+      "meta-models/Muse-Spark-Open-816B-A42B"
     ]
   },
   "Anthropic": {
