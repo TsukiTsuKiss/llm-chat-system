@@ -467,7 +467,15 @@ def build_ui(
             status = "新規チャットを開始しました"
             if summary:
                 status = f"{status}\n{summary}"
-            return [], session, status, gr.update(visible=False), _msg_input_update(), _upload_input_update(True)
+            return (
+                [],
+                session,
+                status,
+                gr.update(visible=False),
+                _msg_input_update(),
+                _upload_input_update(True),
+                last_rag_injection_preview(session),
+            )
 
         def on_submit(
             session: WebSession,
@@ -685,7 +693,7 @@ def build_ui(
         new_chat_btn.click(
             on_new_chat,
             inputs=[session_state],
-            outputs=[chatbot, session_state, status_tb, choice_row, msg_tb, upload_files],
+            outputs=[chatbot, session_state, status_tb, choice_row, msg_tb, upload_files, rag_inject_md],
         )
 
         submit_inputs = [

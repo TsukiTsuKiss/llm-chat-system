@@ -795,3 +795,24 @@ def test_clean_for_speech_drops_operation_and_research_memos():
     memo = "本文です。\n\n**ディレクター・リサーチメモ（放送用ではありません）**\n- 未確認"
     assert clean_for_speech(memo) == "本文です。"
     assert clean_for_speech("運用メモの見直しを話します。") == "運用メモの見直しを話します。"
+
+
+def test_process_events_stops_after_new_chat(tmp_path: Path):
+    from studio.web_ui import WebSession, process_events
+
+    session = WebSession(root=tmp_path)
+    closed = []
+
+    def gen():
+        try:
+            yield EngineEvent("chunk", {"text": "b"})
+            yield EngineEvent("chunk", {"text": "c"})
+        finally:
+            closed.append(True)
+
+    run = process_events(session, gen(), first_event=EngineEvent("chunk", {"text": "a"}))
+    next(run)
+    session.reset_chat()
+    assert list(run) == []
+    assert closed
+    assert session.renderer.copy_messages() == []

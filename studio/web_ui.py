@@ -408,6 +408,8 @@ class WebSession:
     published_timing: str = ""
     # 再開したセッションの ID。タイミング記録があれば、チャット画面で再生できる
     replay_session_id: str = ""
+    # reset_chat のたびに増やす。実行中だった古い生成が、新しい画面を上書きしないための印
+    epoch: int = 0
 
     def live_chart_shown(self) -> bool:
         return bool(self.published_timing) and not self.published_timing.startswith("replay:")
@@ -517,6 +519,7 @@ class WebSession:
         return "\n".join(line.strip() for line in lines if line.strip())
 
     def reset_chat(self) -> str:
+        self.epoch += 1
         summary = self.close_engine()
         self.close_voice()
         self.director_voice_override = None
@@ -753,8 +756,12 @@ def process_events(
     generator: Iterator[EngineEvent],
     first_event: EngineEvent | None = None,
 ) -> Generator[UIUpdate, None, None]:
+    epoch = session.epoch
     event = first_event if first_event is not None else next(generator)
     while True:
+        if session.epoch != epoch:
+            generator.close()
+            return
         pending_kind = session.renderer.apply(event)
         session.feed_voice(event)
         if pending_kind:
@@ -775,6 +782,8 @@ def process_events(
         except StopIteration:
             break
 
+    if session.epoch != epoch:
+        return
     session.mark_turn_end()
     yield _idle_ui(session)
 
