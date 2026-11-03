@@ -1,0 +1,15 @@
+{
+  "name": "自称クイズ王バトル",
+  "description": "出された技術クイズに、各AIの自称クイズ王が順番に回答する",
+  "slots": {
+    "answerer": { "description": "クイズに回答する自称クイズ王", "count": "1+" }
+  },
+  "phases": [
+    {
+      "type": "serial",
+      "steps": [
+        { "slot": "answerer", "action": "問題に、選択肢記号と簡潔な理由で自信たっぷりに回答する" }
+      ]
+    }
+  ]
+}
