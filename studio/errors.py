@@ -28,6 +28,9 @@ def detect_api_error(error_str: str) -> str | None:
         return "503"
     if any(k in error_str_lower for k in ("timeout", "gateway timeout")):
         return "504"
+    # gpt-oss がツールを呼ぼうとして Groq が拒否する。毎回起きるわけではないので、再試行すれば通る
+    if "tool choice is none" in error_str_lower or "model called a tool" in error_str_lower:
+        return "tool_call"
     return None
 
 
@@ -59,6 +62,9 @@ def handle_api_error(
         if reduce_history():
             return True
         return False
+
+    if error_code == "tool_call" and attempt < max_retries - 1:
+        return True
 
     if error_code in ("429", "503", "504") and attempt < max_retries - 1:
         wait_time = retry_delay * (2**attempt) if error_code == "429" else retry_delay
