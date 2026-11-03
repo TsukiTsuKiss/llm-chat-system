@@ -1017,6 +1017,12 @@ def audio_finished_update(session: WebSession):
     return next_audio_update(session)
 
 
+def stop_reading_update(session: WebSession):
+    """読み上げを止める。待ち行列と合成待ちを捨て、ブラウザ側の再生も止める。次の送信で読み上げは再開する。"""
+    session.close_voice()
+    return None, _playing_update(session)
+
+
 def handle_choice(
     session: WebSession,
     choice: str,

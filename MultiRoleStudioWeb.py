@@ -40,6 +40,7 @@ from studio.web_ui import (
     live_timing_update,
     load_org_panel,
     next_audio_update,
+    stop_reading_update,
     upload_limits_from_config,
     workflow_available_for_org,
     workflow_dropdown_for_org,
@@ -95,7 +96,7 @@ STUDIO_WEB_CSS = """
   min-height: 0 !important;
 }
 #studio-chatbot {
-  max-height: calc(100dvh - 20rem) !important;
+  max-height: calc(100dvh - 15rem) !important;
 }
 /* 読み上げ中の発言（JS がクラスを付ける） */
 #studio-chatbot .message-row.studio-playing {
@@ -164,7 +165,7 @@ STUDIO_WEB_CSS = """
 
 CHATBOT_MIN_HEIGHT = 200
 # 初回表示でメッセージ欄・送信ボタンが viewport 内に収まる高さ（リサイズ可）
-CHATBOT_DEFAULT_HEIGHT = "clamp(200px, calc(100dvh - 22rem), 480px)"
+CHATBOT_DEFAULT_HEIGHT = "clamp(200px, calc(100dvh - 17rem), 560px)"
 
 DEFAULT_MSG_PLACEHOLDER = "メッセージを入力（Enter: 送信 / Shift+Enter: 改行）"
 
@@ -302,6 +303,7 @@ def build_ui(
             with gr.Tab("💬 チャット"):
                 with gr.Row():
                     with gr.Column(scale=1, min_width=260):
+                        new_chat_btn = gr.Button("新規チャット", variant="primary")
                         org_dd = gr.Dropdown(
                             label="組織",
                             choices=orgs,
@@ -313,11 +315,6 @@ def build_ui(
                             value=default_wf,
                         )
                         wf_note_md = gr.Markdown("")
-                        upload_files = gr.File(
-                            label="ファイルを会話に取り込む（テキスト系）",
-                            file_count="multiple",
-                            type="filepath",
-                        )
                         stream_cb = gr.Checkbox(label="ストリーミング", value=default_stream)
                         user_context_cb = gr.Checkbox(
                             label="ユーザーコンテキスト",
@@ -331,14 +328,6 @@ def build_ui(
                         web_search_cb = gr.Checkbox(label="ウェブ検索", value=False)
                         voice_cb = gr.Checkbox(label="読み上げ（VOICEVOX）", value=False)
                         timing_cb = gr.Checkbox(label="タイミング表示", value=True)
-                        engine_led = gr.HTML(engine_led_html(led_monitor.states()))
-                        audio_player = gr.Audio(
-                            label="読み上げ",
-                            type="numpy",
-                            autoplay=True,
-                            interactive=False,
-                        )
-                        playing_box = gr.Textbox(visible="hidden", elem_id="studio-playing")
                         merge_cb = gr.Checkbox(
                             label="連続メッセージを1つにまとめる",
                             value=False,
@@ -387,7 +376,6 @@ def build_ui(
                             step=0.1,
                             value=default_temperature,
                         )
-                        new_chat_btn = gr.Button("新規チャット", variant="primary")
                         talents_md = gr.Markdown("**参加人材**")
                     with gr.Column(scale=3, elem_classes=["studio-chat-column"]):
                         chatbot = gr.Chatbot(
@@ -400,7 +388,6 @@ def build_ui(
                             autoscroll=False,
                         )
                         with gr.Column(elem_classes=["studio-chat-footer"]):
-                            status_tb = gr.Textbox(label="状態", lines=1, interactive=False)
                             with gr.Row(visible=False) as choice_row:
                                 continue_btn = gr.Button("続行 (y)", variant="primary")
                                 exit_btn = gr.Button("終了 (n)", variant="primary")
@@ -412,6 +399,23 @@ def build_ui(
                             )
                             send_btn = gr.Button("送信", variant="primary")
                             live_timing = gr.HTML("", visible=False, elem_id="studio-live-timing")
+                    with gr.Column(scale=1, min_width=220):
+                        status_tb = gr.Textbox(label="状態", lines=1, interactive=False)
+                        upload_files = gr.File(
+                            label="ファイルを会話に取り込む（テキスト系）",
+                            file_count="multiple",
+                            type="filepath",
+                        )
+                        engine_led = gr.HTML(engine_led_html(led_monitor.states()), visible=False)
+                        audio_player = gr.Audio(
+                            label="読み上げ",
+                            type="numpy",
+                            autoplay=True,
+                            interactive=False,
+                            visible=False,
+                        )
+                        playing_box = gr.Textbox(visible="hidden", elem_id="studio-playing")
+                        stop_reading_btn = gr.Button("読み上げを止める", size="sm", visible=False)
 
             build_settings_tab(
                 root,
@@ -738,6 +742,20 @@ def build_ui(
             show_progress="hidden",
         )
         audio_timer = gr.Timer(1.0)
+        voice_cb.change(
+            lambda on: [gr.update(visible=bool(on))] * 3,
+            inputs=[voice_cb],
+            outputs=[engine_led, audio_player, stop_reading_btn],
+            queue=False,
+            show_progress="hidden",
+        )
+        stop_reading_btn.click(
+            stop_reading_update,
+            inputs=[session_state],
+            outputs=[audio_player, playing_box],
+            queue=False,
+            show_progress="hidden",
+        )
         audio_timer.tick(
             next_audio_update,
             inputs=[session_state],

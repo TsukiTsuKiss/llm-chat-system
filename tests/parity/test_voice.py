@@ -816,3 +816,20 @@ def test_process_events_stops_after_new_chat(tmp_path: Path):
     assert list(run) == []
     assert closed
     assert session.renderer.copy_messages() == []
+
+
+def test_stop_reading_update_drops_queue_and_voice(tmp_path: Path):
+    from studio.voice import AudioRelay
+    from studio.web_ui import WebSession, stop_reading_update
+
+    session = WebSession(root=tmp_path)
+    session.relay = AudioRelay()
+    session.relay.push(tmp_path / "a.wav", 1)
+    session.voice = VoiceReader(tmp_path, {"a": {"speaker": 1}}, play=False)
+    session.voice_enabled = True
+
+    audio, _playing = stop_reading_update(session)
+
+    assert audio is None
+    assert session.voice is None and not session.voice_enabled
+    assert session.relay.next_if_idle() is None
