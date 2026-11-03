@@ -1,0 +1,21 @@
+{
+  "name": "高速ディスカッション",
+  "description": "テーマに対して多角的な議論を素早く展開し、合意形成を図る",
+  "slots": {
+    "facilitator": { "description": "論点を整理し議論を進める担当", "count": "1" },
+    "analyst": { "description": "選択肢を分析する担当", "count": "1" },
+    "risk_evaluator": { "description": "リスクを洗い出す担当", "count": "1" },
+    "leader": { "description": "議論を集約して決定する担当", "count": "1" }
+  },
+  "phases": [
+    {
+      "type": "serial",
+      "steps": [
+        { "slot": "facilitator", "action": "テーマの論点整理と議論の方向性を示す" },
+        { "slot": "analyst", "action": "賛成・反対の根拠と選択肢を提示する" },
+        { "slot": "risk_evaluator", "action": "議論の盲点やリスクを指摘する" },
+        { "slot": "leader", "action": "議論を集約し、結論・合意事項を宣言する" }
+      ]
+    }
+  ]
+}

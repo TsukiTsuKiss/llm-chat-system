@@ -1,0 +1,21 @@
+{
+  "name": "戦略策定",
+  "description": "フレームワーク構築、データ検証、実行可能な戦略と実行計画の作成",
+  "slots": {
+    "strategy_consultant": { "description": "戦略フレームワークを構築する担当", "count": "1" },
+    "data_analyst": { "description": "データに基づき検証する担当", "count": "1" },
+    "strategic_planner": { "description": "実行可能な戦略を策定する担当", "count": "1" },
+    "project_manager": { "description": "戦略実行計画を作成する担当", "count": "1" }
+  },
+  "phases": [
+    {
+      "type": "serial",
+      "steps": [
+        { "slot": "strategy_consultant", "action": "戦略フレームワークの構築" },
+        { "slot": "data_analyst", "action": "データに基づく検証" },
+        { "slot": "strategic_planner", "action": "実行可能な戦略の策定" },
+        { "slot": "project_manager", "action": "戦略実行計画の作成" }
+      ]
+    }
+  ]
+}

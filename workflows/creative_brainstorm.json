@@ -1,0 +1,24 @@
+{
+  "name": "創造的ブレインストーミング",
+  "description": "制約のない自由な発想から革新的なアイデアを生み出す",
+  "slots": {
+    "wild_idea": { "description": "奇抜なアイデアを出す担当", "count": "1" },
+    "visionary": { "description": "未来志向でアイデアを拡張する担当", "count": "1" },
+    "devils_advocate": { "description": "問題点や落とし穴を指摘する担当", "count": "1" },
+    "creative": { "description": "実現可能性を考えた解決策を出す担当", "count": "1" },
+    "moderator": { "description": "議論を整理する進行担当", "count": "1" }
+  },
+  "phases": [
+    {
+      "type": "serial",
+      "steps": [
+        { "slot": "wild_idea", "action": "制約のない自由な発想でアイデアを大量生成" },
+        { "slot": "visionary", "action": "未来志向で革新的な視点からアイデアを拡張" },
+        { "slot": "devils_advocate", "action": "批判的思考でアイデアの問題点や落とし穴を指摘" },
+        { "slot": "creative", "action": "実現可能性を考慮しながら創造的解決策を提案" },
+        { "slot": "wild_idea", "action": "批判を踏まえてアイデアをより良く改良" },
+        { "slot": "moderator", "action": "議論を整理し、最も有望なアイデアを特定" }
+      ]
+    }
+  ]
+}

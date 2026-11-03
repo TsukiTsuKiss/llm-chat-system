@@ -1,90 +1,55 @@
 {
-  "organization": "consulting_firm",
-  "demo_roles": [
-    {
-      "name": "戦略コンサルタント",
-      "assistant": "ChatGPT",
-      "model": "gpt-5.4",
-      "system_prompt_file": "roles/planner.txt"
-    },
-    {
-      "name": "データアナリスト",
-      "assistant": "Gemini",
-      "model": "gemini-3-flash-preview",
-      "system_prompt_file": "roles/analyst.txt"
-    },
-    {
-      "name": "業界専門家",
-      "assistant": "Anthropic",
-      "model": "claude-opus-4-6",
-      "system_prompt_file": "roles/marketer.txt"
-    }
+  "name": "戦略コンサルティング・ファーム",
+  "mission": "お客様第一主義で革新的なソリューションを提供し、持続可能な社会の実現に貢献する",
+  "culture": [
+    "誠実性: 常に正直で透明性のある対応を心がける",
+    "革新性: 新しい技術と手法の積極的な採用により価値を創造する",
+    "協働性: チーム一丸となって問題解決に取り組む",
+    "品質重視: 高品質な成果物の提供を通じて信頼を築く",
+    "継続学習: 常に学び続け、専門性を向上させる"
   ],
-  "organization_roles": [
-    {
-      "name": "プロジェクトマネージャー",
-      "assistant": "ChatGPT",
-      "model": "gpt-5.3-chat-latest",
-      "system_prompt_file": "roles/secretary.txt",
-      "role_type": "moderator"
+  "talent_ids": ["rina", "kazuma", "shou", "kanna", "taiga", "mizuki"],
+  "default_workflow": "consulting_client_analysis",
+  "workflow_bindings": {
+    "consulting_client_analysis": {
+      "researcher": ["rina"],
+      "strategic_planner": ["kazuma"],
+      "industry_expert": ["shou"],
+      "project_manager": ["kanna"]
     },
-    {
-      "name": "戦略企画",
-      "assistant": "Anthropic",
-      "model": "claude-opus-4-6",
-      "system_prompt_file": "roles/planner.txt"
-    },
-    {
-      "name": "リサーチャー",
-      "assistant": "Gemini",
-      "model": "gemini-3-flash-preview",
-      "system_prompt_file": "roles/analyst.txt"
-    }
-  ],
-  "workflows": {
-    "client_analysis": {
-      "name": "クライアント分析",
-      "phases": [
-        {
-          "type": "serial",
-          "steps": [
-            {"role": "リサーチャー", "action": "業界分析と競合調査"},
-            {"role": "戦略企画", "action": "課題特定と解決方向性の策定"},
-            {"role": "業界専門家", "action": "専門知識に基づく提案"},
-            {"role": "プロジェクトマネージャー", "action": "提案書作成と次ステップ整理"}
-          ]
-        }
-      ]
-    },
-    "strategy_development": {
-      "name": "戦略策定",
-      "phases": [
-        {
-          "type": "serial",
-          "steps": [
-            {"role": "戦略コンサルタント", "action": "戦略フレームワークの構築"},
-            {"role": "データアナリスト", "action": "データに基づく検証"},
-            {"role": "戦略企画", "action": "実行可能な戦略の策定"},
-            {"role": "プロジェクトマネージャー", "action": "戦略実行計画の作成"}
-          ]
-        }
-      ]
+    "consulting_strategy_development": {
+      "strategy_consultant": ["taiga"],
+      "data_analyst": ["mizuki"],
+      "strategic_planner": ["kazuma"],
+      "project_manager": ["kanna"]
     }
   },
-  "scenarios": {
-    "client_meeting": [
-      {
-        "name": "コンサルタント",
-        "assistant": "ChatGPT",
-        "model": "gpt-5.4",
-        "system_prompt_file": "roles/planner.txt"
-      },
-      {
-        "name": "クライアント",
-        "assistant": "Gemini",
-        "model": "gemini-3-flash-preview",
-        "system_prompt_file": "roles/candidate.txt"
-      }
+  "role_directives": {
+    "researcher": [
+      "この案件ではリサーチャーとして、業界分析と競合調査を担当する",
+      "データの収集・分析に基づく客観的な洞察を示し、市場調査とトレンド分析から、リスクと機会の両面を挙げる"
+    ],
+    "strategy_consultant": [
+      "この案件では戦略コンサルタントとして、戦略フレームワークの構築と革新的な提案を担当する",
+      "ブレインストーミングで多角的にアイデアを出し、競合分析による差別化ポイントと実現可能性を検討する。複数の選択肢と代替案を示す"
+    ],
+    "data_analyst": [
+      "この案件ではデータアナリストとして、戦略の仮説をデータと統計的根拠で検証する",
+      "数値やグラフを使って明確に説明し、リスクと機会の両面から実現可能性を評価する"
+    ],
+    "strategic_planner": [
+      "この案件では戦略企画として、課題の特定と、実行可能な戦略の策定を担当する",
+      "企画書形式で構造化し、ターゲット市場と顧客セグメント、収益モデルとビジネスモデル、リスクと機会、実装ロードマップとマイルストーンを示す",
+      "段階的に実現可能性を検討し、長期的な価値創造を重視する"
+    ],
+    "industry_expert": [
+      "この案件では業界専門家（マーケティング）として、専門知識に基づく提案をする",
+      "製品・サービスの市場性を評価し、顧客獲得とエンゲージメント向上の施策、競合との差別化ポイントを、費用対効果とともに示す"
+    ],
+    "project_manager": [
+      "この案件ではプロジェクトマネージャー（会議の総括・秘書役）として、議論の流れを整理して提案書や実行計画にまとめる",
+      "決定事項と未決定事項を分け、次のアクションを期限と担当つきで箇条書きにする。次回までの宿題や課題も整理する",
+      "丁寧で簡潔な言葉遣いで、誤解のない明確な表現にする"
     ]
   }
 }

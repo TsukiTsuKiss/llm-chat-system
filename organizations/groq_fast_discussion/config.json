@@ -1,163 +1,56 @@
 {
-  "organization": "groq_fast_discussion",
-  "demo_roles": [
-    {
-      "name": "リーダー",
-      "assistant": "Groq",
-      "model": "openai/gpt-oss-120b",
-      "system_prompt_file": "roles/decision_leader.txt"
-    },
-    {
-      "name": "アナリスト",
-      "assistant": "Groq",
-      "model": "openai/gpt-oss-120b",
-      "system_prompt_file": "roles/analyst.txt"
-    },
-    {
-      "name": "リスク評価",
-      "assistant": "Groq",
-      "model": "openai/gpt-oss-20b",
-      "system_prompt_file": "roles/risk_evaluator.txt"
-    }
+  "name": "Groq高速意思決定チーム",
+  "mission": "Groqの高速推論能力を最大限に活かし、迅速かつ質の高い意思決定を実現する",
+  "culture": [
+    "高速判断: 必要十分な情報で迷わず決断する",
+    "明確なアウトプット: Yes/No、A/B選択を明示する"
   ],
-  "organization_roles": [
-    {
-      "name": "リーダー",
-      "assistant": "Groq",
-      "model": "openai/gpt-oss-120b",
-      "system_prompt_file": "roles/decision_leader.txt"
+  "talent_ids": ["tomoe", "ren", "shizuku", "daichi"],
+  "default_workflow": "groq_quick_discussion",
+  "workflow_bindings": {
+    "groq_quick_discussion": {
+      "facilitator": ["tomoe"],
+      "analyst": ["ren"],
+      "risk_evaluator": ["shizuku"],
+      "leader": ["daichi"]
     },
-    {
-      "name": "アナリスト",
-      "assistant": "Groq",
-      "model": "openai/gpt-oss-120b",
-      "system_prompt_file": "roles/analyst.txt"
+    "groq_debate": {
+      "facilitator": ["tomoe"],
+      "analyst": ["ren"],
+      "risk_evaluator": ["shizuku"],
+      "leader": ["daichi"]
     },
-    {
-      "name": "リスク評価",
-      "assistant": "Groq",
-      "model": "openai/gpt-oss-20b",
-      "system_prompt_file": "roles/risk_evaluator.txt"
-    },
-    {
-      "name": "ファシリテーター",
-      "assistant": "Groq",
-      "model": "openai/gpt-oss-20b",
-      "system_prompt_file": "roles/facilitator.txt",
-      "role_type": "moderator"
-    }
-  ],
-  "workflows": {
-    "quick_discussion": {
-      "name": "高速ディスカッション",
-      "description": "テーマに対して多角的な議論を素早く展開し、合意形成を図る",
-      "phases": [
-        {
-          "type": "serial",
-          "steps": [
-            {
-              "role": "ファシリテーター",
-              "action": "テーマの論点整理と議論の方向性を示す"
-            },
-            {
-              "role": "アナリスト",
-              "action": "賛成・反対の根拠と選択肢を提示する"
-            },
-            {
-              "role": "リスク評価",
-              "action": "議論の盲点やリスクを指摘する"
-            },
-            {
-              "role": "リーダー",
-              "action": "議論を集約し、結論・合意事項を宣言する"
-            }
-          ]
-        }
-      ]
-    },
-    "debate": {
-      "name": "ディベート",
-      "description": "テーマについて賛否両論を徹底的に議論し、より深い理解を得る",
-      "phases": [
-        {
-          "type": "serial",
-          "steps": [
-            {
-              "role": "ファシリテーター",
-              "action": "テーマの背景説明とディベートのルール確認"
-            },
-            {
-              "role": "アナリスト",
-              "action": "賛成側の主張と根拠を展開する"
-            },
-            {
-              "role": "リスク評価",
-              "action": "反対側の主張と懸念点を展開する"
-            },
-            {
-              "role": "アナリスト",
-              "action": "反対意見への反論と追加根拠を提示する"
-            },
-            {
-              "role": "リスク評価",
-              "action": "賛成意見への反論と追加懸念を提示する"
-            },
-            {
-              "role": "リーダー",
-              "action": "議論の総括と最終見解をまとめる"
-            }
-          ]
-        }
-      ]
-    },
-    "issue_discussion": {
-      "name": "課題ディスカッション",
-      "description": "現場の課題や問題点について議論し、改善の方向性を探る",
-      "phases": [
-        {
-          "type": "serial",
-          "steps": [
-            {
-              "role": "ファシリテーター",
-              "action": "課題の現状整理と議論すべき論点の確認"
-            },
-            {
-              "role": "アナリスト",
-              "action": "課題の原因分析と改善案の提示"
-            },
-            {
-              "role": "リスク評価",
-              "action": "改善案の実行上の障壁と副作用を指摘"
-            },
-            {
-              "role": "リーダー",
-              "action": "議論を踏まえた改善方針と優先順位の決定"
-            }
-          ]
-        }
-      ]
+    "groq_issue_discussion": {
+      "facilitator": ["tomoe"],
+      "analyst": ["ren"],
+      "risk_evaluator": ["shizuku"],
+      "leader": ["daichi"]
     }
   },
-  "scenarios": {
-    "quick_vote": [
-      {
-        "name": "賛成派",
-        "assistant": "Groq",
-        "model": "openai/gpt-oss-120b",
-        "system_prompt_file": "roles/analyst.txt"
-      },
-      {
-        "name": "懸念派",
-        "assistant": "Groq",
-        "model": "openai/gpt-oss-20b",
-        "system_prompt_file": "roles/risk_evaluator.txt"
-      },
-      {
-        "name": "決裁者",
-        "assistant": "Groq",
-        "model": "openai/gpt-oss-120b",
-        "system_prompt_file": "roles/decision_leader.txt"
-      }
+  "common_directives": [
+    "判断理由は3点以内にまとめる",
+    "主要なリスクを一言で添える"
+  ],
+  "role_directives": {
+    "facilitator": [
+      "この議論ではファシリテーターとして、議論のテーマを明確にして論点を整理し、チームが素早く結論に向かえるよう進行を管理する",
+      "意見が分散したら論点を絞り込んで決断を促す。「結論は何ですか？」「Yes/Noで答えると？」を積極的に使い、冗長な議論は遮って次へ進める。最終的にリーダーに判断を委ねる",
+      "出力は次の形式にする:\n📋 論点整理:\n  今回の論点: [一文で]\n  出ている意見: [A: xxx / B: xxx]\n  ⏩ 次のアクション: [リーダーへ判断依頼 / 追加情報収集 / 即決]"
+    ],
+    "analyst": [
+      "この議論ではアナリストとして、提示されたテーマの選択肢を最大3つに絞って列挙し、メリット・デメリットを簡潔に比較する",
+      "感情・主観を排除した論理的な比較を行い、データや事例に基づく客観的な評価をする。各評価は2〜3行で完結させる",
+      "出力は次の形式にする:\n📊 分析結果:\n  A案: [概要] → メリット / デメリット\n  B案: [概要] → メリット / デメリット\n  C案: [概要] → メリット / デメリット\n💡 推奨: [A/B/C案] - [一言理由]"
+    ],
+    "risk_evaluator": [
+      "この議論ではリスク評価担当として、提案や決定に潜むリスクを素早く洗い出し、対策を提示する",
+      "リスクは最大3つに絞り、深刻度（高・中・低）を評価する。「リスクなし」は原則使わず、必ず1つは挙げる。対策は現実的で即実行可能なものにする",
+      "出力は次の形式にする:\n🔍 リスク評価:\n  [高/中/低] リスク1: [内容] → 対策: [具体策]\n  [高/中/低] リスク2: [内容] → 対策: [具体策]\n🛡️ 総合判定: [進める/要注意/要再検討]"
+    ],
+    "leader": [
+      "この議論ではリーダーとして、チーム全体の議論を俯瞰して最終判断を下す。各メンバーの意見を統合し、具体的なアクションを決定する",
+      "賛否両論を整理したうえで、明確に「決定」を宣言する。「検討します」「様子を見ます」は使わず、決定には必ず期限・担当・次のアクションを添える",
+      "出力は次の形式にする:\n✅ 決定: [具体的な結論]\n📌 根拠: [理由を2〜3点]\n⚠️ リスク: [主要リスク1点]\n🔜 次のアクション: [具体的な行動]"
     ]
   }
 }

@@ -1,0 +1,24 @@
+{
+  "name": "イノベーション・チャレンジ",
+  "description": "業界の常識を覆す革新的ソリューションの創造",
+  "slots": {
+    "wild_idea": { "description": "異業種の発想で新しいアプローチを出す担当", "count": "1" },
+    "visionary": { "description": "大胆なビジョンを描く担当", "count": "1" },
+    "devils_advocate": { "description": "既存解の限界を分析する担当", "count": "1" },
+    "creative": { "description": "技術的イノベーションを検討する担当", "count": "1" },
+    "moderator": { "description": "実行計画をまとめる進行担当", "count": "1" }
+  },
+  "phases": [
+    {
+      "type": "serial",
+      "steps": [
+        { "slot": "visionary", "action": "業界の常識を覆す大胆なビジョンを提示" },
+        { "slot": "devils_advocate", "action": "既存の解決策の限界と問題点を徹底分析" },
+        { "slot": "wild_idea", "action": "異業種からの発想転換で新しいアプローチを提案" },
+        { "slot": "creative", "action": "技術的イノベーションによる解決策を検討" },
+        { "slot": "visionary", "action": "全体を統合した革新的なソリューションを構想" },
+        { "slot": "moderator", "action": "イノベーションの実行計画をまとめ" }
+      ]
+    }
+  ]
+}

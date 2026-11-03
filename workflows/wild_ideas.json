@@ -1,0 +1,24 @@
+{
+  "name": "ワイルドアイデア会議",
+  "description": "常識破りの奇抜なアイデアから天才的発想を発見",
+  "slots": {
+    "wild_idea": { "description": "奇抜なアイデアを連発する担当", "count": "1" },
+    "visionary": { "description": "実現した未来を描写する担当", "count": "1" },
+    "devils_advocate": { "description": "不可能な理由を厳しく指摘する担当", "count": "1" },
+    "creative": { "description": "段階的な実現ステップを提案する担当", "count": "1" },
+    "moderator": { "description": "アイデアを評価する進行担当", "count": "1" }
+  },
+  "phases": [
+    {
+      "type": "serial",
+      "steps": [
+        { "slot": "wild_idea", "action": "常識破りの奇抜なアイデアを連発" },
+        { "slot": "visionary", "action": "そのアイデアが実現した未来を描写" },
+        { "slot": "devils_advocate", "action": "なぜそれが不可能かを厳しく指摘" },
+        { "slot": "wild_idea", "action": "不可能を可能にする創造的な方法を考案" },
+        { "slot": "creative", "action": "段階的実現のための現実的なステップを提案" },
+        { "slot": "moderator", "action": "狂気と天才の境界線にあるアイデアを評価" }
+      ]
+    }
+  ]
+}

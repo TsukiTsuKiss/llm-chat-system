@@ -1,0 +1,23 @@
+{
+  "name": "ディベート",
+  "description": "テーマについて賛否両論を徹底的に議論し、より深い理解を得る",
+  "slots": {
+    "facilitator": { "description": "背景説明とルール確認を行う担当", "count": "1" },
+    "analyst": { "description": "賛成側の主張と反論を担当", "count": "1" },
+    "risk_evaluator": { "description": "反対側の主張と反論を担当", "count": "1" },
+    "leader": { "description": "議論を総括する担当", "count": "1" }
+  },
+  "phases": [
+    {
+      "type": "serial",
+      "steps": [
+        { "slot": "facilitator", "action": "テーマの背景説明とディベートのルール確認" },
+        { "slot": "analyst", "action": "賛成側の主張と根拠を展開する" },
+        { "slot": "risk_evaluator", "action": "反対側の主張と懸念点を展開する" },
+        { "slot": "analyst", "action": "反対意見への反論と追加根拠を提示する" },
+        { "slot": "risk_evaluator", "action": "賛成意見への反論と追加懸念を提示する" },
+        { "slot": "leader", "action": "議論の総括と最終見解をまとめる" }
+      ]
+    }
+  ]
+}

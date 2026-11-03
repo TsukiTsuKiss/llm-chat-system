@@ -1,0 +1,24 @@
+{
+  "name": "未来シナリオ創造",
+  "description": "理想的な未来像から逆算した革新的戦略の構築",
+  "slots": {
+    "wild_idea": { "description": "困難を乗り越える創造的な解決策を出す担当", "count": "1" },
+    "visionary": { "description": "理想の未来像を描く担当", "count": "1" },
+    "devils_advocate": { "description": "道筋の困難と障害を列挙する担当", "count": "1" },
+    "creative": { "description": "技術進歩による実現可能性を検証する担当", "count": "1" },
+    "moderator": { "description": "ロードマップを作る進行担当", "count": "1" }
+  },
+  "phases": [
+    {
+      "type": "serial",
+      "steps": [
+        { "slot": "visionary", "action": "10年後の理想的な未来像を詳細に描く" },
+        { "slot": "devils_advocate", "action": "その未来に至る道筋の困難と障害を列挙" },
+        { "slot": "wild_idea", "action": "困難を乗り越える創造的な解決策を提案" },
+        { "slot": "creative", "action": "技術進歩による実現可能性を検証" },
+        { "slot": "visionary", "action": "更に大胆で魅力的な未来を再構想" },
+        { "slot": "moderator", "action": "実現に向けた具体的なロードマップを作成" }
+      ]
+    }
+  ]
+}

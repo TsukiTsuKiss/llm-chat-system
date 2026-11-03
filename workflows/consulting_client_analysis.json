@@ -1,0 +1,21 @@
+{
+  "name": "クライアント分析",
+  "description": "業界分析と競合調査から、提案書と次ステップまでをまとめる",
+  "slots": {
+    "researcher": { "description": "業界分析と競合調査を行う担当", "count": "1" },
+    "strategic_planner": { "description": "課題特定と解決方向性を策定する担当", "count": "1" },
+    "industry_expert": { "description": "専門知識に基づく提案をする担当", "count": "1" },
+    "project_manager": { "description": "提案書作成と次ステップ整理を行う担当", "count": "1" }
+  },
+  "phases": [
+    {
+      "type": "serial",
+      "steps": [
+        { "slot": "researcher", "action": "業界分析と競合調査" },
+        { "slot": "strategic_planner", "action": "課題特定と解決方向性の策定" },
+        { "slot": "industry_expert", "action": "専門知識に基づく提案" },
+        { "slot": "project_manager", "action": "提案書作成と次ステップ整理" }
+      ]
+    }
+  ]
+}

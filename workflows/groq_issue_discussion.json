@@ -1,0 +1,21 @@
+{
+  "name": "課題ディスカッション",
+  "description": "現場の課題や問題点について議論し、改善の方向性を探る",
+  "slots": {
+    "facilitator": { "description": "課題の現状整理を行う担当", "count": "1" },
+    "analyst": { "description": "原因分析と改善案を出す担当", "count": "1" },
+    "risk_evaluator": { "description": "実行上の障壁と副作用を指摘する担当", "count": "1" },
+    "leader": { "description": "改善方針と優先順位を決める担当", "count": "1" }
+  },
+  "phases": [
+    {
+      "type": "serial",
+      "steps": [
+        { "slot": "facilitator", "action": "課題の現状整理と議論すべき論点の確認" },
+        { "slot": "analyst", "action": "課題の原因分析と改善案の提示" },
+        { "slot": "risk_evaluator", "action": "改善案の実行上の障壁と副作用を指摘" },
+        { "slot": "leader", "action": "議論を踏まえた改善方針と優先順位の決定" }
+      ]
+    }
+  ]
+}
