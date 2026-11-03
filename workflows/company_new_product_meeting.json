@@ -1,0 +1,25 @@
+{
+  "name": "新商品開発会議",
+  "description": "新商品のアイデアから、市場分析、デザイン、技術評価、価格・販売戦略までを検討し、開発計画にまとめる",
+  "slots": {
+    "planner": { "description": "新商品のアイデアと基本構想を提案する担当", "count": "1" },
+    "analyst": { "description": "市場ニーズと競合状況を分析する担当", "count": "1" },
+    "designer": { "description": "商品デザインとユーザー体験を検討する担当", "count": "1" },
+    "programmer": { "description": "技術的実現性と開発工数を評価する担当", "count": "1" },
+    "marketer": { "description": "価格戦略と販売チャネルを提案する担当", "count": "1" },
+    "secretary": { "description": "会議内容を開発計画にまとめる担当", "count": "1" }
+  },
+  "phases": [
+    {
+      "type": "serial",
+      "steps": [
+        { "slot": "planner", "action": "新商品のアイデア提案と基本構想" },
+        { "slot": "analyst", "action": "市場ニーズと競合状況の分析" },
+        { "slot": "designer", "action": "商品デザインとユーザー体験の検討" },
+        { "slot": "programmer", "action": "技術的実現性と開発工数の評価" },
+        { "slot": "marketer", "action": "価格戦略と販売チャネルの提案" },
+        { "slot": "secretary", "action": "会議内容のまとめと開発計画の整理" }
+      ]
+    }
+  ]
+}

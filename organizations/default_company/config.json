@@ -1,291 +1,97 @@
 {
-  "organization": "default_company",
-  "demo_roles": [
-    {
-      "name": "プログラマー",
-      "assistant": "ChatGPT",
-      "model": "gpt-5.4",
-      "system_prompt_file": "roles/programmer.txt"
-    },
-    {
-      "name": "デザイナー",
-      "assistant": "Gemini",
-      "model": "gemini-3-flash-preview",
-      "system_prompt_file": "roles/designer.txt"
-    },
-    {
-      "name": "マーケター",
-      "assistant": "Anthropic",
-      "model": "claude-opus-4-6",
-      "system_prompt_file": "roles/marketer.txt"
-    }
+  "name": "総合企業",
+  "mission": "お客様第一主義で革新的なソリューションを提供し、持続可能な社会の実現に貢献する",
+  "culture": [
+    "誠実性: 常に正直で透明性のある対応を心がける",
+    "革新性: 新しい技術と手法の積極的な採用により価値を創造する",
+    "協働性: チーム一丸となって問題解決に取り組む",
+    "品質重視: 高品質な成果物の提供を通じて信頼を築く",
+    "継続学習: 常に学び続け、専門性を向上させる"
   ],
-  "organization_roles": [
-    {
-      "name": "企画",
-      "assistant": "ChatGPT",
-      "model": "gpt-5.4",
-      "system_prompt_file": "roles/planner.txt"
+  "talent_ids": ["kazuma", "mizuki", "aoi", "shou", "ryota", "shun", "kanna"],
+  "default_workflow": "company_project_planning",
+  "workflow_bindings": {
+    "company_project_planning": {
+      "planner": ["kazuma"],
+      "analyst": ["mizuki"],
+      "designer": ["aoi"],
+      "marketer": ["shou"],
+      "secretary": ["kanna"]
     },
-    {
-      "name": "分析官",
-      "assistant": "Gemini",
-      "model": "gemini-3-flash-preview",
-      "system_prompt_file": "roles/analyst.txt"
+    "company_startup_launch": {
+      "planner": ["kazuma"],
+      "marketer": ["shou"],
+      "programmer": ["ryota"],
+      "analyst": ["mizuki"],
+      "executor": ["shun"],
+      "secretary": ["kanna"]
     },
-    {
-      "name": "実行担当",
-      "assistant": "Groq",
-      "model": "openai/gpt-oss-120b",
-      "system_prompt_file": "roles/programmer.txt"
+    "company_product_development": {
+      "planner": ["kazuma"],
+      "designer": ["aoi"],
+      "programmer": ["ryota"],
+      "marketer": ["shou"],
+      "analyst": ["mizuki"],
+      "secretary": ["kanna"]
     },
-    {
-      "name": "秘書",
-      "assistant": "ChatGPT",
-      "model": "gpt-5.3-chat-latest",
-      "system_prompt_file": "roles/secretary.txt",
-      "role_type": "moderator"
-    }
-  ],
-  "workflows": {
-    "project_planning": {
-      "name": "プロジェクト企画",
-      "response_limit": 500,
-      "style": "簡潔",
-      "format": "箇条書き推奨",
-      "phases": [
-        {
-          "type": "serial",
-          "steps": [
-            {
-              "role": "企画",
-              "action": "アイデア創出と企画立案"
-            },
-            {
-              "role": "分析官",
-              "action": "実現可能性と技術的検討"
-            },
-            {
-              "role": "デザイナー",
-              "action": "UI/UX設計とユーザー体験検討"
-            },
-            {
-              "role": "マーケター",
-              "action": "市場性とビジネスモデル評価"
-            },
-            {
-              "role": "秘書",
-              "action": "全体のまとめと次のアクションプラン作成"
-            }
-          ]
-        }
-      ]
+    "company_market_research": {
+      "analyst": ["mizuki"],
+      "marketer": ["shou"],
+      "planner": ["kazuma"],
+      "executor": ["shun"],
+      "secretary": ["kanna"]
     },
-    "startup_launch": {
-      "name": "スタートアップ立ち上げ",
-      "phases": [
-        {
-          "type": "serial",
-          "steps": [
-            {
-              "role": "企画",
-              "action": "ビジネスアイデアと事業計画策定"
-            },
-            {
-              "role": "マーケター",
-              "action": "市場分析とターゲット顧客特定"
-            },
-            {
-              "role": "プログラマー",
-              "action": "技術的実現性と開発計画"
-            },
-            {
-              "role": "分析官",
-              "action": "資金調達計画とリスク評価"
-            },
-            {
-              "role": "実行担当",
-              "action": "チーム編成と初期開発着手"
-            },
-            {
-              "role": "秘書",
-              "action": "設立スケジュールと次ステップのまとめ"
-            }
-          ]
-        }
-      ]
+    "company_new_product_meeting": {
+      "planner": ["kazuma"],
+      "analyst": ["mizuki"],
+      "designer": ["aoi"],
+      "programmer": ["ryota"],
+      "marketer": ["shou"],
+      "secretary": ["kanna"]
     },
-    "product_development": {
-      "name": "製品開発",
-      "phases": [
-        {
-          "type": "serial",
-          "steps": [
-            {
-              "role": "企画",
-              "action": "製品コンセプトと要求仕様の策定"
-            },
-            {
-              "role": "デザイナー",
-              "action": "ユーザビリティとデザイン設計"
-            },
-            {
-              "role": "プログラマー",
-              "action": "技術実装と品質保証"
-            },
-            {
-              "role": "マーケター",
-              "action": "製品ポジショニングと販売戦略"
-            },
-            {
-              "role": "分析官",
-              "action": "市場反応の分析と改善提案"
-            },
-            {
-              "role": "秘書",
-              "action": "開発スケジュールと進捗管理"
-            }
-          ]
-        }
-      ]
-    },
-    "market_research": {
-      "name": "市場調査",
-      "phases": [
-        {
-          "type": "serial",
-          "steps": [
-            {
-              "role": "分析官",
-              "action": "市場データの収集と基礎分析"
-            },
-            {
-              "role": "マーケター",
-              "action": "競合分析と市場機会の特定"
-            },
-            {
-              "role": "企画",
-              "action": "事業機会の評価と戦略提案"
-            },
-            {
-              "role": "実行担当",
-              "action": "調査結果の検証と追加調査"
-            },
-            {
-              "role": "秘書",
-              "action": "調査報告書の作成と提言整理"
-            }
-          ]
-        }
-      ]
-    },
-    "new_product_meeting": {
-      "name": "新商品開発会議",
-      "phases": [
-        {
-          "type": "serial",
-          "steps": [
-            {
-              "role": "企画",
-              "action": "新商品のアイデア提案と基本構想"
-            },
-            {
-              "role": "分析官",
-              "action": "市場ニーズと競合状況の分析"
-            },
-            {
-              "role": "デザイナー",
-              "action": "商品デザインとユーザー体験の検討"
-            },
-            {
-              "role": "プログラマー",
-              "action": "技術的実現性と開発工数の評価"
-            },
-            {
-              "role": "マーケター",
-              "action": "価格戦略と販売チャネルの提案"
-            },
-            {
-              "role": "秘書",
-              "action": "会議内容のまとめと開発計画の整理"
-            }
-          ]
-        }
-      ]
-    },
-    "brainstorm_parallel": {
-      "name": "ブレインストーミング（並列意見出し）",
-      "description": "初手で複数ロールから同時にアイデアを出し、視点を広げるための並列実行",
-      "response_limit": 400,
-      "style": "自由で発散的",
-      "format": "箇条書き推奨",
-      "phases": [
-        {
-          "type": "parallel",
-          "steps": [
-            {
-              "role": "企画",
-              "action": "テーマに対する新規アイデアを3案以上提案する"
-            },
-            {
-              "role": "分析官",
-              "action": "データ観点で成立しやすい案とリスクを短く提案する"
-            },
-            {
-              "role": "デザイナー",
-              "action": "ユーザー体験の観点で刺さる案を提案する"
-            },
-            {
-              "role": "マーケター",
-              "action": "市場性と差別化の観点で案を提案する"
-            }
-          ]
-        }
-      ]
+    "company_brainstorm_parallel": {
+      "planner": ["kazuma"],
+      "analyst": ["mizuki"],
+      "designer": ["aoi"],
+      "marketer": ["shou"]
     }
   },
-  "scenarios": {
-    "debate": [
-      {
-        "name": "賛成派",
-        "assistant": "ChatGPT",
-        "model": "gpt-5.4",
-        "system_prompt_file": "roles/debate_pro.txt"
-      },
-      {
-        "name": "反対派",
-        "assistant": "Gemini",
-        "model": "gemini-3-flash-preview",
-        "system_prompt_file": "roles/debate_con.txt"
-      }
+  "common_directives": [
+    "実際に確認していないことを、確認した・調べた・実行したと言わない。ウェブ検索が使えないときは、外部サイト・リポジトリ・ファイルは見られない",
+    "出典のない数値や統計を書かない。不明なことは『要確認』と明記し、推測は推測と書く"
+  ],
+  "role_directives": {
+    "planner": [
+      "この議論では企画担当として、新規事業やプロジェクトの企画立案を行う。市場機会を見つけ、大胆で革新的なアイデアを複数の選択肢と代替案とともに提案する",
+      "ユーザーニーズと市場動向を考慮し、実現可能性を段階的に検討する。競合分析による差別化と、プロトタイプ思考による素早い検証も使う",
+      "提案は企画書形式で構造化し、ターゲット市場と顧客セグメント、収益モデル、リスクと機会、実装ロードマップとマイルストーンを含める"
     ],
-    "brainstorm": [
-      {
-        "name": "創造性重視",
-        "assistant": "ChatGPT",
-        "model": "gpt-5.4",
-        "system_prompt_file": "roles/creative.txt"
-      },
-      {
-        "name": "実現性重視",
-        "assistant": "Groq",
-        "model": "openai/gpt-oss-120b",
-        "system_prompt_file": "roles/realistic.txt"
-      }
+    "analyst": [
+      "この議論ではデータアナリスト（分析官）として、データと統計的な手法に基づいて客観的に分析し、意思決定を支える洞察を示す",
+      "市場調査・トレンド分析、リスク評価と予測を担当し、数値やグラフを用いて明確に説明する。リスクと機会の両面から検討し、実現可能性を重視する"
     ],
-    "interview": [
-      {
-        "name": "面接官",
-        "assistant": "Gemini",
-        "model": "gemini-3-flash-preview",
-        "system_prompt_file": "roles/interviewer.txt"
-      },
-      {
-        "name": "候補者",
-        "assistant": "ChatGPT",
-        "model": "gpt-5.4",
-        "system_prompt_file": "roles/candidate.txt"
-      }
+    "designer": [
+      "この議論ではUX・ビジュアルデザインの専門家として、ユーザー中心設計で美しく使いやすいデザインを提案する",
+      "インターフェースとインタラクション、ユーザビリティとアクセシビリティ、情報アーキテクチャを考慮し、色彩・タイポグラフィ・レイアウトを具体的に説明する",
+      "ユーザビリティの観点から技術仕様を評価し、マーケティング戦略との整合とブランドの視覚的表現を確保する。実装方針はプログラマーと協力して決める"
+    ],
+    "marketer": [
+      "この議論ではマーケティングの専門家として、ブランド戦略とポジショニング、顧客獲得とリテンション、市場調査と競合分析について、具体的で実用的な助言をする",
+      "データドリブンに判断し、費用対効果、ROIとKPIの設定・測定を常に考える。ターゲット顧客の行動パターンを分析し、競合との差別化ポイントを特定する",
+      "製品・サービスの市場性を評価し、デザインや技術的制約がブランド戦略に与える影響を戦略に反映する"
+    ],
+    "programmer": [
+      "この議論ではプログラマーとして、技術的な実現可能性を評価し、開発工数を現実的に見積もる",
+      "複数の言語やアーキテクチャの経験に基づき、コード例と複数のアプローチ、潜在的な問題点やリスクを示す。セキュリティとスケーラビリティの観点からも助言し、デザイナー・マーケターと協力して進める"
+    ],
+    "executor": [
+      "この議論では実行担当（プログラマー）として、実務に移せる形で、チーム編成・初期開発の着手・調査結果の検証と追加調査を担当する",
+      "技術的な実現手段と開発工数を具体的に示し、潜在的な問題点やリスクも指摘する"
+    ],
+    "secretary": [
+      "この議論では秘書（会議の総括役）として、議論の流れを整理して記録し、決定事項と未決定事項を分けて示す",
+      "アクションアイテムは期限と担当者を明記して箇条書きにし、次回までの宿題や課題、フォローアップが必要な事項を特定する",
+      "簡潔で要点を絞った要約と、丁寧で誤解のない表現を使い、重要度に応じて情報に優先順位を付ける"
     ]
   }
 }

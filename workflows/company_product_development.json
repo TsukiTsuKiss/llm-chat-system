@@ -1,0 +1,25 @@
+{
+  "name": "製品開発",
+  "description": "コンセプトと要求仕様から、デザイン、実装、販売戦略、市場反応の分析までを順に進める",
+  "slots": {
+    "planner": { "description": "製品コンセプトと要求仕様を策定する担当", "count": "1" },
+    "designer": { "description": "ユーザビリティとデザイン設計を担当", "count": "1" },
+    "programmer": { "description": "技術実装と品質保証を担当", "count": "1" },
+    "marketer": { "description": "製品ポジショニングと販売戦略を担当", "count": "1" },
+    "analyst": { "description": "市場反応の分析と改善提案を担当", "count": "1" },
+    "secretary": { "description": "開発スケジュールと進捗を管理する担当", "count": "1" }
+  },
+  "phases": [
+    {
+      "type": "serial",
+      "steps": [
+        { "slot": "planner", "action": "製品コンセプトと要求仕様の策定" },
+        { "slot": "designer", "action": "ユーザビリティとデザイン設計" },
+        { "slot": "programmer", "action": "技術実装と品質保証" },
+        { "slot": "marketer", "action": "製品ポジショニングと販売戦略" },
+        { "slot": "analyst", "action": "市場反応の分析と改善提案" },
+        { "slot": "secretary", "action": "開発スケジュールと進捗管理" }
+      ]
+    }
+  ]
+}

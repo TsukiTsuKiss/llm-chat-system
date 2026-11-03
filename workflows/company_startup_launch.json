@@ -1,0 +1,25 @@
+{
+  "name": "スタートアップ立ち上げ",
+  "description": "事業計画から市場分析、技術的実現性、資金計画、初期開発着手までを順に進める",
+  "slots": {
+    "planner": { "description": "事業計画を策定する担当", "count": "1" },
+    "marketer": { "description": "市場分析とターゲット顧客の特定を担当", "count": "1" },
+    "programmer": { "description": "技術的実現性と開発計画を担当", "count": "1" },
+    "analyst": { "description": "資金調達計画とリスク評価を担当", "count": "1" },
+    "executor": { "description": "チーム編成と初期開発着手を担当", "count": "1" },
+    "secretary": { "description": "設立スケジュールをまとめる担当", "count": "1" }
+  },
+  "phases": [
+    {
+      "type": "serial",
+      "steps": [
+        { "slot": "planner", "action": "ビジネスアイデアと事業計画策定" },
+        { "slot": "marketer", "action": "市場分析とターゲット顧客特定" },
+        { "slot": "programmer", "action": "技術的実現性と開発計画" },
+        { "slot": "analyst", "action": "資金調達計画とリスク評価" },
+        { "slot": "executor", "action": "チーム編成と初期開発着手" },
+        { "slot": "secretary", "action": "設立スケジュールと次ステップのまとめ" }
+      ]
+    }
+  ]
+}

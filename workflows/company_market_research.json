@@ -1,0 +1,23 @@
+{
+  "name": "市場調査",
+  "description": "データ収集と競合分析から、事業機会の評価、調査結果の検証、報告書作成までを進める",
+  "slots": {
+    "analyst": { "description": "市場データの収集と基礎分析を担当", "count": "1" },
+    "marketer": { "description": "競合分析と市場機会の特定を担当", "count": "1" },
+    "planner": { "description": "事業機会の評価と戦略提案を担当", "count": "1" },
+    "executor": { "description": "調査結果の検証と追加調査を担当", "count": "1" },
+    "secretary": { "description": "調査報告書を作成する担当", "count": "1" }
+  },
+  "phases": [
+    {
+      "type": "serial",
+      "steps": [
+        { "slot": "analyst", "action": "市場データの収集と基礎分析" },
+        { "slot": "marketer", "action": "競合分析と市場機会の特定" },
+        { "slot": "planner", "action": "事業機会の評価と戦略提案" },
+        { "slot": "executor", "action": "調査結果の検証と追加調査" },
+        { "slot": "secretary", "action": "調査報告書の作成と提言整理" }
+      ]
+    }
+  ]
+}

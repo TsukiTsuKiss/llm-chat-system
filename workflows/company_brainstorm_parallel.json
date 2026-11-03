@@ -1,0 +1,21 @@
+{
+  "name": "ブレインストーミング（並列意見出し）",
+  "description": "初手で複数の役割から同時にアイデアを出し、視点を広げる",
+  "slots": {
+    "planner": { "description": "新規アイデアを提案する担当", "count": "1" },
+    "analyst": { "description": "データ観点で成立しやすい案とリスクを出す担当", "count": "1" },
+    "designer": { "description": "ユーザー体験の観点で案を出す担当", "count": "1" },
+    "marketer": { "description": "市場性と差別化の観点で案を出す担当", "count": "1" }
+  },
+  "phases": [
+    {
+      "type": "parallel",
+      "steps": [
+        { "slot": "planner", "action": "テーマに対する新規アイデアを3案以上提案する" },
+        { "slot": "analyst", "action": "データ観点で成立しやすい案とリスクを短く提案する" },
+        { "slot": "designer", "action": "ユーザー体験の観点で刺さる案を提案する" },
+        { "slot": "marketer", "action": "市場性と差別化の観点で案を提案する" }
+      ]
+    }
+  ]
+}

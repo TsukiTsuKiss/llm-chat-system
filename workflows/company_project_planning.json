@@ -1,0 +1,23 @@
+{
+  "name": "プロジェクト企画",
+  "description": "アイデア創出から、実現可能性・UX・市場性の評価、アクションプランまでをまとめる",
+  "slots": {
+    "planner": { "description": "アイデアを創出し企画を立案する担当", "count": "1" },
+    "analyst": { "description": "実現可能性を検討する担当", "count": "1" },
+    "designer": { "description": "UI/UX設計を検討する担当", "count": "1" },
+    "marketer": { "description": "市場性とビジネスモデルを評価する担当", "count": "1" },
+    "secretary": { "description": "全体をまとめる担当", "count": "1" }
+  },
+  "phases": [
+    {
+      "type": "serial",
+      "steps": [
+        { "slot": "planner", "action": "アイデア創出と企画立案" },
+        { "slot": "analyst", "action": "実現可能性と技術的検討" },
+        { "slot": "designer", "action": "UI/UX設計とユーザー体験検討" },
+        { "slot": "marketer", "action": "市場性とビジネスモデル評価" },
+        { "slot": "secretary", "action": "全体のまとめと次のアクションプラン作成" }
+      ]
+    }
+  ]
+}
