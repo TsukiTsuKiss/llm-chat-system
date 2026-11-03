@@ -16,8 +16,9 @@ SANDBOX_SKIP_FILES = frozenset({"run_all.sh"})
 
 CODE_BLOCK_RE = re.compile(r"```(\w+)?\n(.*?)```", re.DOTALL)
 FILENAME_LINE_RE = re.compile(r"^ファイル名:\s*(\S+)\s*$")
-BACKTICK_FILE_RE = re.compile(r"^`?([\w./-]+\.(?:py|js|sh|html|css|json|md))`?\s*$")
+BACKTICK_FILE_RE = re.compile(r"^(?:#{1,6}\s*)?[`*]*([\w./-]+\.(?:py|js|sh|html|css|json|md))[`*]*\s*$")
 COMMENT_FILE_RE = re.compile(r"^#\s*([\w./-]+\.(?:py|js|sh|html|css|json|md))\s*$")
+KEPT_EXTENSIONS = (".py", ".js", ".sh", ".html", ".css", ".json", ".md", ".toml")
 
 LANG_EXT = {
     "python": "py",
@@ -26,6 +27,9 @@ LANG_EXT = {
     "js": "js",
     "bash": "sh",
     "sh": "sh",
+    "html": "html",
+    "css": "css",
+    "json": "json",
 }
 
 
@@ -37,15 +41,14 @@ def _safe_relative_path(raw: str) -> str | None:
 
 
 def _hint_from_prefix(prefix: str) -> str | None:
-    lines = prefix.rstrip().splitlines()
-    for line in reversed(lines[-8:]):
-        stripped = line.strip()
-        if not stripped:
-            continue
+    lines = [ln.strip() for ln in prefix.rstrip().splitlines()[-8:]]
+    # 区切り線は無視する。見出し・バッククォート形式は直前の行だけを見る（離れた見出しを別ブロックに誤用しない）
+    candidates = [ln for ln in lines if ln and not re.fullmatch(r"[-*_]{3,}", ln)]
+    for i, stripped in enumerate(reversed(candidates)):
         m = FILENAME_LINE_RE.match(stripped)
         if m:
             return _safe_relative_path(m.group(1))
-        m = BACKTICK_FILE_RE.match(stripped)
+        m = BACKTICK_FILE_RE.match(stripped) if i == 0 else None
         if m:
             return _safe_relative_path(m.group(1))
     return None
@@ -86,7 +89,7 @@ def _should_extract_step(action: str) -> bool:
         return True
     if action.startswith("終了条件"):
         return False
-    if "レビュー" in action:
+    if "レビュー" in action or "動作確認" in action:
         return False
     return True
 
@@ -105,7 +108,7 @@ def _prune_junk_artifacts(files: dict[str, str]) -> dict[str, str]:
     result = dict(files)
     to_remove: list[str] = []
     for rel, content in result.items():
-        if not rel.endswith((".py", ".js", ".sh", ".html", ".css", ".json", ".md", ".toml")):
+        if not rel.endswith(KEPT_EXTENSIONS):
             to_remove.append(rel)
             continue
         if rel.startswith("code_") and _is_incomplete_test_snippet(content, rel):
@@ -120,9 +123,7 @@ def _prune_junk_artifacts(files: dict[str, str]) -> dict[str, str]:
 
 def normalize_artifact_paths(files: dict[str, str]) -> dict[str, str]:
     """Infer paths from test imports when LLM omitted filename hints."""
-    normalized = {
-        k: v for k, v in files.items() if k.endswith((".py", ".js", ".sh", ".html", ".css"))
-    }
+    normalized = {k: v for k, v in files.items() if k.endswith(KEPT_EXTENSIONS)}
     to_remove: set[str] = set()
 
     test_rels = [rel for rel, content in normalized.items() if _is_test_content(content, rel)]
@@ -278,6 +279,31 @@ class ApplyArtifactsResult:
 
 def sandbox_session_dir(root: Path, session_id: str) -> Path:
     return root / "sandbox" / f"session_{session_id}"
+
+
+@dataclass(frozen=True)
+class SaveSandboxResult:
+    ok: bool
+    message: str
+    session_dir: Path | None = None
+    files: tuple[str, ...] = ()
+
+
+def save_sandbox_from_session(root: Path, session_id: str) -> SaveSandboxResult:
+    """セッションログからコードを抽出して sandbox/ に保存する（作業ツリー・Git には触れない）。"""
+    session_id = (session_id or "").strip()
+    if not session_id:
+        return SaveSandboxResult(False, "session_id が未指定です")
+    log_path = session_log_path(root, session_id)
+    if not log_path.is_file():
+        return SaveSandboxResult(False, f"セッション `{session_id}` が見つかりません")
+    session_dir = save_session_artifacts(root, session_id, log_path=log_path)
+    if session_dir is None:
+        return SaveSandboxResult(False, f"セッション `{session_id}` に保存できるコードがありません")
+    files = tuple(p.relative_to(session_dir).as_posix() for p in list_sandbox_artifact_files(session_dir))
+    shown = ", ".join(f"`{f}`" for f in files[:8]) + (f" … +{len(files) - 8}" if len(files) > 8 else "")
+    message = f"`sandbox/session_{session_id}/` に {len(files)} 件を保存しました（{shown}）"
+    return SaveSandboxResult(True, message, session_dir, files)
 
 
 def list_sandbox_artifact_files(session_dir: Path) -> list[Path]:

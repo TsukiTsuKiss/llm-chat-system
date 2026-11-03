@@ -8,7 +8,7 @@ from typing import Any
 
 import gradio as gr
 
-from studio.artifacts import apply_session_artifacts
+from studio.artifacts import apply_session_artifacts, save_sandbox_from_session
 from studio.minutes import save_minutes_from_session
 from studio.session_report import (
     FlowTheme,
@@ -130,6 +130,7 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
                 resume_btn = gr.Button("再開", **_SAVE_BTN)
                 minutes_btn = gr.Button("議事録 (.json + .md)", **_SAVE_BTN)
                 export_btn = gr.Button("エクスポート (.md)", **_SAVE_BTN)
+                sandbox_btn = gr.Button("sandbox に保存", **_SAVE_BTN)
                 adopt_btn = gr.Button("成果物採用", **_SAVE_BTN)
                 timing_btn = gr.Button("タイミング再生", **_SAVE_BTN)
                 timing_regen_btn = gr.Button("音声を作り直して再生", **_SAVE_BTN)
@@ -271,6 +272,14 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
             return result.message
         return f"**議事録** — {result.message}"
 
+    def on_save_sandbox(session_id: str | None):
+        if not session_id:
+            return "セッションを選択してください"
+        result = save_sandbox_from_session(root, session_id)
+        if not result.ok:
+            return result.message
+        return f"**sandbox に保存** — {result.message}"
+
     def on_adopt(session_id: str | None):
         if not session_id:
             return "セッションを選択してください"
@@ -406,6 +415,11 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
     )
     minutes_btn.click(
         on_minutes,
+        inputs=[session_dd],
+        outputs=[session_msg],
+    )
+    sandbox_btn.click(
+        on_save_sandbox,
         inputs=[session_dd],
         outputs=[session_msg],
     )
