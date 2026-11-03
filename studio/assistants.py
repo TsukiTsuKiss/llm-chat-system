@@ -162,10 +162,14 @@ WEB_SEARCH_TOOLS: dict[str, dict[str, Any]] = {
     "ChatGoogleGenerativeAI": {"google_search": {}},
 }
 
-# Anthropic は既定 1024 だと thinking/検索で使い切り本文が途切れる
-WEB_SEARCH_EXTRA_KWARGS: dict[str, dict[str, Any]] = {
-    "ChatAnthropic": {"max_tokens": 4096},
+# Anthropic は既定 1024 だと thinking で使い切り、本文が空になったり途切れたりする
+DEFAULT_EXTRA_KWARGS: dict[str, dict[str, Any]] = {
+    "ChatAnthropic": {"max_tokens": 8192},
 }
+
+
+class EmptyResponseError(RuntimeError):
+    """モデルが本文の空な応答を返した。"""
 
 
 def build_llm(
@@ -179,8 +183,7 @@ def build_llm(
     kwargs: dict[str, Any] = {"model": model}
     if temperature is not None:
         kwargs["temperature"] = temperature
-    if web_search:
-        kwargs.update(WEB_SEARCH_EXTRA_KWARGS.get(assistant_cfg["class"], {}))
+    kwargs.update(DEFAULT_EXTRA_KWARGS.get(assistant_cfg["class"], {}))
     llm = cls(**kwargs)
     if web_search:
         tool = WEB_SEARCH_TOOLS.get(assistant_cfg["class"])
@@ -255,6 +258,8 @@ def invoke_llm_step(
                         chunks.append(text)
                         on_chunk(text)
                 output_text = sanitize_model_output("".join(chunks))
+                if not output_text:
+                    raise EmptyResponseError(f"{model} が空の応答を返しました")
                 elapsed = time.perf_counter() - start
                 tokens_in, tokens_out, source = estimate_tokens(input_bundle), estimate_tokens(output_text), "estimate"
                 cost = compute_cost(model, tokens_in, tokens_out, costs)
@@ -273,6 +278,8 @@ def invoke_llm_step(
             response = chain.invoke(payload)
             elapsed = time.perf_counter() - start
             output_text = sanitize_model_output(content_to_text(getattr(response, "content", response)))
+            if not output_text:
+                raise EmptyResponseError(f"{model} が空の応答を返しました")
             tokens_in, tokens_out, source = extract_usage(response, input_bundle, output_text)
             cost = compute_cost(model, tokens_in, tokens_out, costs)
             history.add_message(HumanMessage(content=user_message))

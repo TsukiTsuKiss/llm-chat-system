@@ -31,6 +31,9 @@ def detect_api_error(error_str: str) -> str | None:
     # gpt-oss がツールを呼ぼうとして Groq が拒否する。毎回起きるわけではないので、再試行すれば通る
     if "tool choice is none" in error_str_lower or "model called a tool" in error_str_lower:
         return "tool_call"
+    # 本文が空の応答（thinking で上限を使い切るなど）。再試行すると通ることがある
+    if "空の応答" in error_str:
+        return "empty"
     return None
 
 
@@ -63,7 +66,7 @@ def handle_api_error(
             return True
         return False
 
-    if error_code == "tool_call" and attempt < max_retries - 1:
+    if error_code in ("tool_call", "empty") and attempt < max_retries - 1:
         return True
 
     if error_code in ("429", "503", "504") and attempt < max_retries - 1:
