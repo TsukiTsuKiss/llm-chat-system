@@ -1,0 +1,21 @@
+{
+  "name": "AI自動プログラミング開発",
+  "description": "アーキテクトの設計と、AI実装エンジニアの実装を交互に進める",
+  "slots": {
+    "ai_architect": { "description": "設計・品質確認・運用方針を担当", "count": "1" },
+    "ai_implementer": { "description": "実装・テスト・ドキュメント作成を担当", "count": "1" }
+  },
+  "phases": [
+    {
+      "type": "serial",
+      "steps": [
+        { "slot": "ai_architect", "action": "システム全体のアーキテクチャ設計と技術選定" },
+        { "slot": "ai_implementer", "action": "コア機能の実装とモジュール構造の作成" },
+        { "slot": "ai_architect", "action": "実装の品質確認とセキュリティレビュー" },
+        { "slot": "ai_implementer", "action": "テストコードの実装とエラーハンドリング" },
+        { "slot": "ai_architect", "action": "デプロイ戦略と運用方針の策定" },
+        { "slot": "ai_implementer", "action": "ドキュメントとサンプルコードの作成" }
+      ]
+    }
+  ]
+}

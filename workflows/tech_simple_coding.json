@@ -1,0 +1,19 @@
+{
+  "name": "シンプルコーディング",
+  "description": "軽量で単純なプログラムを、計画、実装、レビューの3ステップで素早く作る",
+  "slots": {
+    "planner": { "description": "複雑度評価と要件整理を担当", "count": "1" },
+    "implementer": { "description": "シンプルな実装を担当", "count": "1" },
+    "reviewer": { "description": "コードレビューと確認を担当", "count": "1" }
+  },
+  "phases": [
+    {
+      "type": "serial",
+      "steps": [
+        { "slot": "planner", "action": "複雑度評価と要件整理（簡易実装判定）" },
+        { "slot": "implementer", "action": "シンプル実装とコメント付きコード作成" },
+        { "slot": "reviewer", "action": "コードレビューと実行確認" }
+      ]
+    }
+  ]
+}

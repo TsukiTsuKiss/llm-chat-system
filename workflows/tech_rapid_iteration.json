@@ -1,0 +1,21 @@
+{
+  "name": "高速反復開発",
+  "description": "実装、フィードバックによる優先度決定、デザイン調整、品質チェックを短いサイクルで回す",
+  "slots": {
+    "fullstack": { "description": "機能実装とデプロイを担当", "count": "1" },
+    "product_owner": { "description": "フィードバック収集と次の優先度決定を担当", "count": "1" },
+    "designer": { "description": "ユーザビリティ改善とデザイン調整を担当", "count": "1" },
+    "lead_engineer": { "description": "コード品質チェックとリファクタリングを担当", "count": "1" }
+  },
+  "phases": [
+    {
+      "type": "serial",
+      "steps": [
+        { "slot": "fullstack", "action": "機能実装とデプロイ" },
+        { "slot": "product_owner", "action": "ユーザーフィードバック収集と次の優先度決定" },
+        { "slot": "designer", "action": "ユーザビリティ改善とデザイン調整" },
+        { "slot": "lead_engineer", "action": "コード品質チェックとリファクタリング" }
+      ]
+    }
+  ]
+}

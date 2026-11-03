@@ -1,0 +1,24 @@
+{
+  "name": "コード生成・検証",
+  "description": "実装とテスターの検証を、合格が出るまで繰り返す（最大5回）",
+  "slots": {
+    "implementer": { "description": "実行可能なコードの生成と修正を担当", "count": "1" },
+    "tester": { "description": "検証と合否判定を担当", "count": "1" }
+  },
+  "phases": [
+    {
+      "type": "loop",
+      "max_iterations": 5,
+      "exit": { "type": "marker", "marker": "✅ テスト結果: 合格" },
+      "phases": [
+        {
+          "type": "serial",
+          "steps": [
+            { "slot": "implementer", "action": "実行可能なコードを生成する。2回目以降は、前回の指摘に沿って全ファイルを修正して出力する" },
+            { "slot": "tester", "action": "コードを読んで検証し、合格判定をする" }
+          ]
+        }
+      ]
+    }
+  ]
+}

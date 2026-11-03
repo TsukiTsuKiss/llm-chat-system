@@ -1,337 +1,102 @@
 {
-  "organization": "tech_startup",
-  "demo_roles": [
-    {
-      "name": "フルスタックエンジニア",
-      "assistant": "ChatGPT",
-      "model": "gpt-5.4",
-      "system_prompt_file": "roles/programmer.txt"
-    },
-    {
-      "name": "UI/UXデザイナー",
-      "assistant": "Gemini",
-      "model": "gemini-3-flash-preview",
-      "system_prompt_file": "roles/designer.txt"
-    },
-    {
-      "name": "プロダクトオーナー",
-      "assistant": "Groq",
-      "model": "openai/gpt-oss-120b",
-      "system_prompt_file": "roles/planner.txt"
-    }
+  "name": "テックスタートアップ",
+  "mission": "技術革新で世界を変え、ユーザーの生活をより豊かで便利にする",
+  "culture": [
+    "スピード重視: 迅速な意思決定と高速な実行力",
+    "技術革新: 最先端技術の積極的な採用と開発",
+    "ユーザー中心: ユーザー体験を最優先に考える",
+    "データドリブン: データに基づいた判断と改善",
+    "グローバル思考: 世界市場を視野に入れた戦略立案"
   ],
-  "organization_roles": [
-    {
-      "name": "CTO",
-      "assistant": "ChatGPT",
-      "model": "gpt-5.4",
-      "system_prompt_file": "roles/programmer.txt"
+  "talent_ids": ["kazuma", "aoi", "ryota", "shun", "takumi", "nozomi", "naoki", "subaru", "hayato", "misaki", "chihiro", "kensa_tashika"],
+  "default_workflow": "tech_mvp_development",
+  "workflow_bindings": {
+    "tech_mvp_development": {
+      "product_owner": ["kazuma"],
+      "designer": ["aoi"],
+      "fullstack": ["ryota"],
+      "cto": ["takumi"]
     },
-    {
-      "name": "リードエンジニア",
-      "assistant": "Groq",
-      "model": "openai/gpt-oss-120b",
-      "system_prompt_file": "roles/programmer.txt"
-    },
-    {
-      "name": "プロダクトマネージャー",
-      "assistant": "ChatGPT",
-      "model": "gpt-5.3-chat-latest",
-      "system_prompt_file": "roles/planner.txt",
-      "role_type": "moderator"
-    },
-    {
-      "name": "AIアーキテクト",
-      "assistant": "ChatGPT",
-      "model": "gpt-5.4",
-      "system_prompt_file": "roles/ai_architect.txt"
-    },
-    {
-      "name": "AI実装エンジニア",
-      "assistant": "Anthropic",
-      "model": "claude-opus-4-6",
-      "system_prompt_file": "roles/ai_implementer.txt"
-    },
-    {
-      "name": "軽量実装エンジニア",
-      "assistant": "Groq",
-      "model": "openai/gpt-oss-20b",
-      "system_prompt_file": "roles/ai_implementer.txt"
-    },
-    {
-      "name": "軽量レビューア",
-      "assistant": "Groq",
-      "model": "openai/gpt-oss-20b",
-      "system_prompt_file": "roles/programmer.txt"
-    },
-    {
-      "name": "軽量プランナー",
-      "assistant": "Groq",
-      "model": "openai/gpt-oss-20b",
-      "system_prompt_file": "roles/planner.txt"
-    },
-    {
-      "name": "コードテスター",
-      "assistant": "Groq",
-      "model": "openai/gpt-oss-20b",
-      "system_prompt_file": "roles/code_tester.txt"
-    }
-  ],
-  "workflows": {
-    "mvp_development": {
-      "name": "MVP開発",
-      "phases": [
-        {
-          "type": "serial",
-          "steps": [
-            {
-              "role": "プロダクトオーナー",
-              "action": "最小機能要件の定義とユーザーストーリー作成"
-            },
-            {
-              "role": "UI/UXデザイナー",
-              "action": "シンプルなプロトタイプとワイヤーフレーム作成"
-            },
-            {
-              "role": "フルスタックエンジニア",
-              "action": "迅速な実装とテスト環境構築"
-            },
-            {
-              "role": "CTO",
-              "action": "技術選定とアーキテクチャ判断"
-            }
-          ]
-        }
-      ]
-    },
-    "rapid_iteration": {
-      "name": "高速反復開発",
-      "phases": [
-        {
-          "type": "serial",
-          "steps": [
-            {
-              "role": "フルスタックエンジニア",
-              "action": "機能実装とデプロイ"
-            },
-            {
-              "role": "プロダクトオーナー",
-              "action": "ユーザーフィードバック収集と次の優先度決定"
-            },
-            {
-              "role": "UI/UXデザイナー",
-              "action": "ユーザビリティ改善とデザイン調整"
-            },
-            {
-              "role": "リードエンジニア",
-              "action": "コード品質チェックとリファクタリング"
-            }
-          ]
-        }
-      ]
+    "tech_rapid_iteration": {
+      "fullstack": ["ryota"],
+      "product_owner": ["kazuma"],
+      "designer": ["aoi"],
+      "lead_engineer": ["shun"]
     },
     "tech_sprint": {
-      "name": "技術スプリント",
-      "phases": [
-        {
-          "type": "serial",
-          "steps": [
-            {
-              "role": "CTO",
-              "action": "技術課題の特定と解決方針策定"
-            },
-            {
-              "role": "リードエンジニア",
-              "action": "実装計画と技術選定"
-            },
-            {
-              "role": "フルスタックエンジニア",
-              "action": "集中的な実装作業"
-            },
-            {
-              "role": "プロダクトマネージャー",
-              "action": "進捗管理とリリース計画"
-            }
-          ]
-        }
-      ]
+      "cto": ["takumi"],
+      "lead_engineer": ["shun"],
+      "fullstack": ["ryota"],
+      "product_manager": ["nozomi"]
     },
-    "ai_auto_programming": {
-      "name": "AI自動プログラミング開発",
-      "phases": [
-        {
-          "type": "serial",
-          "steps": [
-            {
-              "role": "AIアーキテクト",
-              "action": "システム全体のアーキテクチャ設計と技術選定"
-            },
-            {
-              "role": "AI実装エンジニア",
-              "action": "コア機能の実装とモジュール構造の作成"
-            },
-            {
-              "role": "AIアーキテクト",
-              "action": "実装の品質確認とセキュリティレビュー"
-            },
-            {
-              "role": "AI実装エンジニア",
-              "action": "テストコードの実装とエラーハンドリング"
-            },
-            {
-              "role": "AIアーキテクト",
-              "action": "デプロイ戦略と運用方針の策定"
-            },
-            {
-              "role": "AI実装エンジニア",
-              "action": "ドキュメントとサンプルコードの作成"
-            }
-          ]
-        }
-      ]
+    "tech_ai_auto_programming": {
+      "ai_architect": ["naoki"],
+      "ai_implementer": ["subaru"]
     },
-    "hello_world_development": {
-      "name": "Hello World プログラム作成 (Python)",
-      "phases": [
-        {
-          "type": "serial",
-          "steps": [
-            {
-              "role": "プロダクトマネージャー",
-              "action": "要件定義：Python で 'Hello, World\\n' を出力するプログラムの仕様確認"
-            },
-            {
-              "role": "AIアーキテクト",
-              "action": "技術選定：Python の最適な実装方法とコード構造の決定"
-            },
-            {
-              "role": "AI実装エンジニア",
-              "action": "実装：Python で Hello World プログラムのコード作成"
-            },
-            {
-              "role": "リードエンジニア",
-              "action": "Python コードレビューと品質チェック"
-            },
-            {
-              "role": "AI実装エンジニア",
-              "action": "Python テスト作成と実行確認"
-            },
-            {
-              "role": "CTO",
-              "action": "最終確認とドキュメント作成"
-            }
-          ]
-        }
-      ]
+    "tech_simple_coding": {
+      "planner": ["chihiro"],
+      "implementer": ["hayato"],
+      "reviewer": ["misaki"]
     },
-    "simple_coding": {
-      "name": "シンプルコーディング",
-      "description": "軽量で単純なプログラムの迅速な実装",
-      "phases": [
-        {
-          "type": "serial",
-          "steps": [
-            {
-              "role": "軽量プランナー",
-              "action": "複雑度評価と要件整理（簡易実装判定）"
-            },
-            {
-              "role": "軽量実装エンジニア",
-              "action": "シンプル実装とコメント付きコード作成"
-            },
-            {
-              "role": "軽量レビューア",
-              "action": "コードレビューと実行確認"
-            }
-          ]
-        }
-      ]
-    },
-    "code_and_run": {
-      "name": "コード生成・実行",
-      "description": "コード生成と即座のサンドボックス実行",
-      "phases": [
-        {
-          "type": "loop",
-          "max_iterations": 3,
-          "exit_condition": "✅ テスト結果: 合格",
-          "phases": [
-            {
-              "type": "serial",
-              "steps": [
-                {
-                  "role": "軽量実装エンジニア",
-                  "action": "実行可能なコード生成"
-                },
-                {
-                  "role": "コードテスター",
-                  "action": "サンドボックスでの安全な実行・検証・合格判定"
-                }
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    "code_and_run_iterative": {
-      "name": "反復コード生成・実行",
-      "description": "テスト合格まで自動修正を繰り返すコード生成",
-      "phases": [
-        {
-          "type": "loop",
-          "max_iterations": 5,
-          "exit_condition": "✅ テスト結果: 合格",
-          "phases": [
-            {
-              "type": "serial",
-              "steps": [
-                {
-                  "role": "軽量実装エンジニア",
-                  "action": "実行可能なコード生成"
-                },
-                {
-                  "role": "コードテスター",
-                  "action": "実行・検証・合格判定"
-                },
-                {
-                  "role": "軽量実装エンジニア",
-                  "action": "エラー修正とコード改善"
-                }
-              ]
-            }
-          ]
-        }
-      ]
+    "tech_code_and_run": {
+      "implementer": ["hayato"],
+      "tester": ["kensa_tashika"]
     }
   },
-  "scenarios": {
-    "brainstorm": [
-      {
-        "name": "未来志向派",
-        "assistant": "ChatGPT",
-        "model": "gpt-5.4",
-        "system_prompt_file": "roles/creative.txt"
-      },
-      {
-        "name": "エンジニア視点",
-        "assistant": "Groq",
-        "model": "openai/gpt-oss-120b",
-        "system_prompt_file": "roles/realistic.txt"
-      }
+  "common_directives": [
+    "実際に確認していないことを、確認した・調べた・実行したと言わない。ウェブ検索が使えないときは、外部サイト・リポジトリ・ファイルは見られない",
+    "出典のない数値や統計を書かない。不明なことは『要確認』と明記し、推測は推測と書く"
+  ],
+  "role_directives": {
+    "product_owner": [
+      "この議論ではプロダクトオーナーとして、最小機能要件の定義、ユーザーストーリーの作成、ユーザーフィードバックに基づく優先度の判断を担当する",
+      "新規事業やプロジェクトの企画立案と市場機会の発見を行い、大胆で革新的な案を、ユーザーニーズと市場動向を踏まえて提案する"
     ],
-    "auto_programming": [
-      {
-        "name": "AIアーキテクト",
-        "assistant": "ChatGPT",
-        "model": "gpt-5.4",
-        "system_prompt_file": "roles/ai_architect.txt"
-      },
-      {
-        "name": "AI実装エンジニア",
-        "assistant": "Anthropic",
-        "model": "claude-opus-4-6",
-        "system_prompt_file": "roles/ai_implementer.txt"
-      }
+    "designer": [
+      "この議論ではUX・ビジュアルデザインの専門家として、ユーザー中心設計で、使いやすく美しいインターフェースを提案する",
+      "ユーザビリティとアクセシビリティ、情報アーキテクチャ、色彩・タイポグラフィ・レイアウトを具体的に説明する。実装方針はエンジニアと協力して決める"
+    ],
+    "fullstack": [
+      "この議論ではフルスタックエンジニアとして、迅速な実装とテスト環境の構築を担当する。コード例を積極的に示し、複数のアプローチと潜在的な問題点やリスクも挙げる",
+      "各ファイルのコードブロックの直前の行に「ファイル名: <相対パス>」だけを書く（例: ファイル名: index.html）。ファイル名の行を書かないコードブロックは、成果物として保存されない。実行手順やコマンド例のコードブロックには、ファイル名の行を付けない"
+    ],
+    "cto": [
+      "この議論ではCTOとして、技術選定とアーキテクチャの判断を担当する。技術的な実現可能性、セキュリティ、スケーラビリティ、開発工数を現実的に評価し、判断の根拠を示す"
+    ],
+    "lead_engineer": [
+      "この議論ではリードエンジニアとして、実装計画、技術選定、コード品質のチェック、リファクタリングを担当する",
+      "セキュリティとパフォーマンスの観点から、具体的な改善点を挙げる"
+    ],
+    "product_manager": [
+      "この議論ではプロダクトマネージャー（進行役）として、議論の流れを整理し、進捗管理とリリース計画にまとめる",
+      "決定事項と未決定事項を分け、次のアクションを担当と期限つきで箇条書きにする"
+    ],
+    "ai_architect": [
+      "この議論ではAI駆動開発のアーキテクトとして、システム設計と実装指針を示す。モジュラー設計、拡張性、自動化、品質担保、パフォーマンスを重視する",
+      "最新のフレームワークと技術スタックを選定し、API ファースト、クラウドネイティブ、CI/CD、セキュリティとプライバシーに配慮する。選択肢ごとのメリット・デメリットと、プロトタイプから本格実装への段階的なロードマップを示す"
+    ],
+    "ai_implementer": [
+      "この議論ではAI実装エンジニアとして、アーキテクトの設計に沿った、そのまま動く完全なコードを書く。ユニットテストとエッジケース、エラーハンドリングを含める",
+      "各ファイルのコードブロックの直前の行に「ファイル名: <相対パス>」だけを書く（例: ファイル名: app.py）。ファイル名の行を書かないコードブロックは、成果物として保存されない。実行手順やコマンド例のコードブロックには、ファイル名の行を付けない",
+      "JavaScript (.js) では TypeScript の型注釈を使わず、JSDoc でコメントを書き、Node.js での実行を前提にする。Python (.py) では必要な import を含め、テストでは必要な関数を import する"
+    ],
+    "planner": [
+      "この議論では軽量プランナーとして、要件を整理し、プロジェクトの複雑度を評価して、最適な開発アプローチを判定する",
+      "シンプル（Hello World や標準ライブラリだけの数十行以下のプログラム）は tech_simple_coding または tech_code_and_run、複数モジュールにまたがる、または保守・拡張が前提のものは tech_mvp_development を推奨する",
+      "回答は次の形式で書く。\n📋 プロジェクト分析結果:\n・複雑度レベル: [シンプル/クイック/フル開発]\n・推奨ワークフロー: [ワークフローID]\n・理由: [判定根拠]\n・要件概要: [整理された要件]"
+    ],
+    "implementer": [
+      "各ファイルのコードブロックの直前の行に「ファイル名: <相対パス>」だけを書く（例: ファイル名: main.py）。ファイル名の行を書かないコードブロックは、成果物として保存されない。実行手順やコマンド例のコードブロックには、ファイル名の行を付けない",
+      "毎回、完成したコードをすべて出力する（差分のみは不可）。2回目以降は、直前のテスターの指摘に沿って修正する"
+    ],
+    "reviewer": [
+      "この議論ではコードレビューアとして、コードを読んで構文、ロジック、依存関係、エラーハンドリングを確認する。実際には実行できないので、実行したとは書かない"
+    ],
+    "tester": [
+      "この議論ではコードテスターとして、直前のコードを検証し、合格か不合格かを厳格に判定する。実際にはコードを実行できないので、実行したとは書かず、コードを読んで想定される実行結果を示す",
+      "合格の条件は、構文エラーがないこと、実行時エラーが起きないこと、テストケースがすべて成功すること、期待される機能が動くこと、エラーハンドリングが適切なこと。すべて満たすときだけ合格にする",
+      "合格のときは、1行目に「✅ テスト結果: 合格」と書き、続けて構文チェック、実行テスト、エラーハンドリング、機能テストの結果と、想定される実行結果を書く",
+      "不合格のときは、1行目に「❌ テスト結果: 不合格」と書き、続けて具体的なエラーや問題点と、修正提案を箇条書きにする。「合格」という文字列は、合格と判定するとき以外は書かない"
     ]
   }
 }

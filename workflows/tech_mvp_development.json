@@ -1,0 +1,21 @@
+{
+  "name": "MVP開発",
+  "description": "最小機能要件の定義から、プロトタイプ、実装、技術判断までを順に進める",
+  "slots": {
+    "product_owner": { "description": "最小機能要件とユーザーストーリーを定義する担当", "count": "1" },
+    "designer": { "description": "プロトタイプとワイヤーフレームを作る担当", "count": "1" },
+    "fullstack": { "description": "迅速な実装とテスト環境構築を担当", "count": "1" },
+    "cto": { "description": "技術選定とアーキテクチャ判断を担当", "count": "1" }
+  },
+  "phases": [
+    {
+      "type": "serial",
+      "steps": [
+        { "slot": "product_owner", "action": "最小機能要件の定義とユーザーストーリー作成" },
+        { "slot": "designer", "action": "シンプルなプロトタイプとワイヤーフレーム作成" },
+        { "slot": "fullstack", "action": "迅速な実装とテスト環境構築" },
+        { "slot": "cto", "action": "技術選定とアーキテクチャ判断" }
+      ]
+    }
+  ]
+}
