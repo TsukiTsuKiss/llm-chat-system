@@ -442,7 +442,8 @@ def build_settings_tab(
 
     for key in binding_row_keys:
         ctrl, spec = binding_rows[key]
-        ctrl.change(
+        # change だと読み込み時の更新でも発火し、全スロット分の要求が走って検証エラーになる
+        ctrl.input(
             _make_binding_handler(spec.workflow_id, spec.slot_name, spec.count),
             inputs=[ctrl, org_bindings_state],
             outputs=[org_bindings_state],
