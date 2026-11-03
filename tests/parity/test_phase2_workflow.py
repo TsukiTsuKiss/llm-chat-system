@@ -222,6 +222,30 @@ def test_quiz_parallel_receives_turn_prior(
         assert "問題に回答する" in msg
 
 
+def test_parallel_failure_keeps_other_responses(
+    trio_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def flaky_invoke(talent_id: str, step_number: int, **kwargs: object) -> object:
+        if talent_id == "beta":
+            raise RuntimeError("Error response 429: Rate limit exceeded")
+        return invoke_mock_step(talent_id, step_number, **kwargs)
+
+    monkeypatch.setattr("studio.engine.invoke_mock_step", flaky_invoke)
+
+    MockAssistant.reset()
+    ctx = load_session_context("trio", trio_root, workflow_id="quiz")
+    events = collect_events(engine := SessionEngine(ctx), "クイズ", stream=False)
+
+    errors = [e for e in events if e.type == "step_error"]
+    assert [(e.payload["talent_id"], e.payload["error"].split(":")[0]) for e in errors] == [("beta", "RuntimeError")]
+    done_ids = [e.payload["talent_id"] for e in events if e.type == "step_done"]
+    assert "gamma" in done_ids and "beta" not in done_ids
+    assert done_ids[-1] == "alpha"
+
+    lines = [json.loads(line) for line in engine.state.logger.log_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert any(row["type"] == "step_error" and row["talent_id"] == "beta" for row in lines)
+
+
 def test_quiz_binding_missing_reports_e301(trio_root: Path) -> None:
     config_path = trio_root / "organizations" / "trio" / "config.json"
     config = json.loads(config_path.read_text(encoding="utf-8"))

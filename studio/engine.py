@@ -666,6 +666,7 @@ class SessionEngine:
 
         order = {tid: i for i, (tid, _) in enumerate(tasks)}
         outcomes: list[StepOutcome] = []
+        failures: list[tuple[str, str]] = []
 
         if ai_tasks:
             max_workers = min(
@@ -692,7 +693,15 @@ class SessionEngine:
                     for talent_id, action, step_no in ai_step_numbers
                 }
                 for future in as_completed(futures):
-                    outcomes.append(future.result())
+                    try:
+                        outcomes.append(future.result())
+                    except Exception as exc:
+                        failures.append((futures[future], f"{type(exc).__name__}: {exc}"))
+
+        # 並列フェーズで 1 人が失敗しても、ターン全体を落とさず他の応答を残す
+        for talent_id, error in failures:
+            state.logger.log_step_error(talent_id, error)
+            yield EngineEvent("step_error", {"talent_id": talent_id, "error": error, "retry": False})
 
         for talent_id, action in human_tasks:
             prior = turn_prior + [
