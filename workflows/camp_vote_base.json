@@ -1,0 +1,28 @@
+{
+  "name": "投票（共通）",
+  "description": "部長が案を提示し、全員賛成になるまで繰り返す汎用投票",
+  "slots": {
+    "host": { "description": "賛否を答えるサークルメンバー", "count": "1" },
+    "club_member": { "description": "賛否を答えるサークルメンバー", "count": "1" },
+    "soloist": { "description": "実用面から賛否を答えるゲスト", "count": "1" },
+    "captain": { "description": "案を1つに絞って賛否を問う部長", "count": "1" }
+  },
+  "phases": [
+    {
+      "type": "loop",
+      "max_iterations": 3,
+      "exit": { "type": "marker", "marker": "全員賛成" },
+      "phases": [
+        {
+          "type": "serial",
+          "steps": [
+            { "slot": "captain", "action": "直前の議論から最有力案を1つに絞り、全員に賛否を問う" },
+            { "slot": "host", "action": "部長の案に賛成か反対か、理由とともに答える" },
+            { "slot": "club_member", "action": "部長の案に賛成か反対か、一言で答える" },
+            { "slot": "soloist", "action": "部長の案に実用面から短く答える。3人全員が賛成なら最後に「全員賛成」と必ず明記する" }
+          ]
+        }
+      ]
+    }
+  ]
+}

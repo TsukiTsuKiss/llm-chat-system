@@ -30,6 +30,7 @@ def nokuru_root(studio_root: Path) -> Path:
         "talents/hinata.json",
         "talents/satsuki.json",
         "talents/kaede.json",
+        "talents/yuki.json",
     ):
         src = repo / name
         if src.is_file():
@@ -45,7 +46,12 @@ def nokuru_root(studio_root: Path) -> Path:
                 for p in src.glob("*.json"):
                     shutil.copy2(p, dest / p.name)
 
-    mapping = {"hinata": {"assistant": "mock"}, "satsuki": {"assistant": "mock"}, "kaede": {"assistant": "mock"}}
+    mapping = {
+        "hinata": {"assistant": "mock"},
+        "satsuki": {"assistant": "mock"},
+        "kaede": {"assistant": "mock"},
+        "yuki": {"assistant": "mock"},
+    }
     (studio_root / "organizations" / "nokuru" / "model_mapping.json").write_text(
         json.dumps(mapping, ensure_ascii=False, indent=2),
         encoding="utf-8",

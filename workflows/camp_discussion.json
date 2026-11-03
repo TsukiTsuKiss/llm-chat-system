@@ -1,0 +1,22 @@
+{
+  "name": "キャンプ談義",
+  "description": "キャンプにまつわるテーマについて自由に語り合う",
+  "slots": {
+    "host": { "description": "テーマを発表し、話題をまとめる", "count": "1" },
+    "club_member": { "description": "自分の体験や思いを話す", "count": "1" },
+    "soloist": { "description": "ソロキャンプ経験から鋭い一言を添えるゲスト", "count": "1" },
+    "captain": { "description": "一言添える部長", "count": "1" }
+  },
+  "phases": [
+    {
+      "type": "serial",
+      "steps": [
+        { "slot": "host", "action": "今日のテーマを発表して議論を始める" },
+        { "slot": "club_member", "action": "テーマについて自分の体験や思いを話す" },
+        { "slot": "captain", "action": "部長の視点で一言添える" },
+        { "slot": "soloist", "action": "ソロキャンプ経験をもとに鋭い一言を添える" },
+        { "slot": "host", "action": "話題を整理してみんなの気持ちをまとめる" }
+      ]
+    }
+  ]
+}

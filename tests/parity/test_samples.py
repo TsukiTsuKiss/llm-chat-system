@@ -35,6 +35,7 @@ def nokuru_mock_mapping(studio_root: Path) -> Path:
         "talents/hinata.json",
         "talents/satsuki.json",
         "talents/kaede.json",
+        "talents/yuki.json",
         "samples",
     ):
         src = repo / name
@@ -51,6 +52,7 @@ def nokuru_mock_mapping(studio_root: Path) -> Path:
         "hinata": {"assistant": "mock"},
         "satsuki": {"assistant": "mock"},
         "kaede": {"assistant": "mock"},
+        "yuki": {"assistant": "mock"},
     }
     (studio_root / "organizations" / "nokuru" / "model_mapping.json").write_text(
         json.dumps(mapping, ensure_ascii=False, indent=2),

@@ -1,5 +1,14 @@
 {
-  "hinata": { "assistant": "mock" },
-  "satsuki": { "assistant": "mock" },
-  "kaede": { "assistant": "mock" }
+  "hinata": {
+    "assistant": "mock"
+  },
+  "satsuki": {
+    "assistant": "mock"
+  },
+  "kaede": {
+    "assistant": "mock"
+  },
+  "yuki": {
+    "assistant": "mock"
+  }
 }

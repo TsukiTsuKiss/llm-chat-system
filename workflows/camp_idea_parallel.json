@@ -1,0 +1,26 @@
+{
+  "name": "キャンプアイデア出し（並列）",
+  "description": "テーマについてみんなが一斉にアイデアを出し、部長がまとめる",
+  "slots": {
+    "host": { "description": "自由にアイデアを提案する", "count": "1" },
+    "club_member": { "description": "食べたいもの・やりたいことを提案する", "count": "1" },
+    "soloist": { "description": "ソロ経験から実用的・穴場的なアイデアを出すゲスト", "count": "1" },
+    "captain": { "description": "意見を整理して計画の候補をまとめる部長", "count": "1" }
+  },
+  "phases": [
+    {
+      "type": "parallel",
+      "steps": [
+        { "slot": "host", "action": "テーマについて自分なりのアイデアや行きたい場所を自由に提案する" },
+        { "slot": "club_member", "action": "食べたいもの・やりたいことを提案する" },
+        { "slot": "soloist", "action": "ソロ経験をもとに実用的・穴場的な視点でアイデアを提案する" }
+      ]
+    },
+    {
+      "type": "serial",
+      "steps": [
+        { "slot": "captain", "action": "3人の意見を整理してキャンプ計画の候補をまとめる" }
+      ]
+    }
+  ]
+}

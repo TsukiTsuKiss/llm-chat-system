@@ -1,0 +1,22 @@
+{
+  "name": "キャンプ計画",
+  "description": "春休みのキャンプ先・装備・食事をみんなで楽しく計画する",
+  "slots": {
+    "host": { "description": "方向性を示し、計画を決定する", "count": "1" },
+    "club_member": { "description": "食べたいキャンプ飯や行きたい場所を提案する", "count": "1" },
+    "soloist": { "description": "実態・装備・天候など実用情報を補足するゲスト", "count": "1" },
+    "captain": { "description": "手間・アクセス・温泉など現実的な視点でバランスを取る部長", "count": "1" }
+  },
+  "phases": [
+    {
+      "type": "serial",
+      "steps": [
+        { "slot": "host", "action": "候補のキャンプ地や日程の概要を提示し、議論の方向性を決める" },
+        { "slot": "club_member", "action": "食べたいキャンプ飯や行ってみたい場所を提案する" },
+        { "slot": "soloist", "action": "候補地の実態・装備・天候など実用的な情報を補足する" },
+        { "slot": "captain", "action": "準備の手間・アクセス・温泉など現実的な視点でバランスを取る" },
+        { "slot": "host", "action": "みんなの意見をまとめてキャンプ計画を決定する" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "name": "キャンプ議題→投票",
+  "description": "議論でアイデアを出した後、全員賛成になるまで投票して決定する",
+  "slots": {
+    "host": { "description": "行きたいキャンプ地を提案し、賛否を答える", "count": "1" },
+    "club_member": { "description": "キャンプ飯の観点で提案し、賛否を答える", "count": "1" },
+    "soloist": { "description": "ソロ経験から穴場を提案し、賛否を答える", "count": "1" },
+    "captain": { "description": "案を絞って賛否を問う部長", "count": "1" }
+  },
+  "phases": [
+    {
+      "type": "parallel",
+      "steps": [
+        { "slot": "host", "action": "行きたいキャンプ地のアイデアを熱くプレゼンする" },
+        { "slot": "club_member", "action": "キャンプ飯の観点でオススメの場所を提案する" },
+        { "slot": "soloist", "action": "ソロ経験から穴場・実用的な候補地を提案する" }
+      ]
+    },
+    {
+      "type": "loop",
+      "max_iterations": 3,
+      "exit": { "type": "marker", "marker": "全員賛成" },
+      "phases": [
+        {
+          "type": "serial",
+          "steps": [
+            { "slot": "captain", "action": "直前の議論から最有力案を1つに絞り、全員に賛否を問う" },
+            { "slot": "host", "action": "部長の案に賛成か反対か、理由とともに答える" },
+            { "slot": "club_member", "action": "部長の案に賛成か反対か、一言で答える" },
+            { "slot": "soloist", "action": "部長の案に実用面から短く答える。3人全員が賛成なら最後に「全員賛成」と必ず明記する" }
+          ]
+        }
+      ]
+    }
+  ]
+}
