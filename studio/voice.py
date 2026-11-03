@@ -33,6 +33,8 @@ VOICE_DICTIONARY_FILE = "voice_dictionary.json"
 PENDING_DICTIONARY_FILE = "voice_dictionary.pending.json"
 
 _MD_LINK = re.compile(r"\[([^\]]*)\]\([^)]*\)")
+# ``` で囲まれたコード（閉じ忘れは末尾まで）は長くて読み上げが終わらないので読まない
+_CODE_BLOCK = re.compile(r"```.*?(?:```|\Z)", re.DOTALL)
 _URL = re.compile(r"https?://\S+")
 # 単語中の _（live_stack など）は辞書の照合に必要なので残し、強調用の _ だけ除く
 _MD_MARKS = re.compile(
@@ -54,6 +56,7 @@ _BACKSTAGE = re.compile(
 
 def clean_for_speech(text: str, *, strip_backstage: bool = True) -> str:
     text = _ODD_HYPHENS.sub("-", _ODD_SPACES.sub(" ", text))
+    text = _CODE_BLOCK.sub("", text)
     text = _MD_MARKS.sub("", text)
     if strip_backstage:
         text = _BACKSTAGE.sub("", text)

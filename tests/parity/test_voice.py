@@ -776,6 +776,13 @@ def test_clean_for_speech_normalizes_odd_spaces_and_hyphens():
     assert clean_for_speech("Raspberry\u202fPi\u00a0Zero\u20092W と Wi\u2011Fi") == "Raspberry Pi Zero 2W と Wi-Fi"
 
 
+def test_clean_for_speech_skips_code_blocks():
+    text = "実装します。\n\n## index.html\n\n```html\n<p>こんにちは</p>\n```\n\n完成です。"
+    assert clean_for_speech(text) == "実装します。\n index.html\n完成です。"
+    assert clean_for_speech("説明です。\n```python\nprint('x')") == "説明です。"
+    assert clean_for_speech("`inline` は残します。") == "inline は残します。"
+
+
 def test_clean_for_speech_drops_backstage_notes():
     assert clean_for_speech("本文です。\n\n（進行メモ）前の発言で日曜日とありました。\n続き") == "本文です。"
     assert clean_for_speech("本文です。\n\n**ディレクター点検**\n- 未確認です") == "本文です。"

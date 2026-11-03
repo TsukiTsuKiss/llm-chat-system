@@ -1471,7 +1471,7 @@ AI の変更が常に1コミット=1セッションの粒度で履歴に残り�
 | 合成 | VOICEVOX ENGINE の `/audio_query` → `/synthesis`。既定の接続先は `http://127.0.0.1:50021`（`--voicevox-url` / 環境変数 `VOICEVOX_URL`） |
 | 声の割当 | `organizations/<org>/voice_mapping.json`（人材 ID → `speaker` + 任意の `speed` / `pitch` / `intonation`）。実設定は `.gitignore`、`voice_mapping.example.json` をコミット。`talents/*.json` には声を書かない。マッピングのない人材は読み上げない |
 | 読み辞書 | ルート直下 `voice_dictionary.json`（共通）に `organizations/<org>/voice_dictionary.json` を重ね、同じ表記は組織側を優先。合成直前に置換するだけで、表示・ログの本文は変えない |
-| 読み上げ前処理 | Markdown 記号・URL・発言末尾の裏方メモ（進行メモ / ディレクター点検）を除去し、文単位で約 60 文字ごとに分割して合成 |
+| 読み上げ前処理 | コードブロック（```）・Markdown 記号・URL・発言末尾の裏方メモ（進行メモ / ディレクター点検）を除去し、文単位で約 60 文字ごとに分割して合成 |
 | 複数 ENGINE | `--voicevox-url` をカンマ区切りで複数指定すると、文を空いている ENGINE へ振り分けて並列合成。接続できない ENGINE は外して続行し、全滅時のみ読み上げを中止。ENGINE の VOICEVOX バージョンは揃える。外した ENGINE（起動時に未応答のものを含む）は、`EngineMonitor` の定期確認（5 秒ごとの `/version`）で応答すれば同じセッションの合成に戻る |
 | ENGINE の LED（Web） | チェックボックスの下に ENGINE ごとの LED を表示（消灯=未検出 / 緑=待機 / 赤=合成中、0.5 秒周期で更新、ホバーで URL）。全 ENGINE が赤なら並列合成が効いている。`EngineMonitor` は URL 構成ごとに全セッションで共有 |
 | CLI | `--voice`。step 終了ごとに合成し、`sessions/audio/<session_id>/NN_<talent_id>.wav` に保存、Windows ではサーバー側スピーカーで再生。接続不可時は警告して読み上げなしで続行 |
