@@ -41,9 +41,11 @@
     "module": "langchain_mistralai",
     "class": "ChatMistralAI",
     "models": [
-      "mistral-large-latest",
-      "mistral-medium-latest",
-      "mistral-small-latest"
+      "mistral-large-4",
+      "ministral-14b-latest",
+      "ministral-8b-latest",
+      "ministral-3b-latest",
+      "codestral-latest"
     ]
   },
   "Together": {
