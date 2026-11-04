@@ -118,7 +118,7 @@ def build_settings_tab(
     initial_org = chat_org if chat_org in org_ids else (org_ids[0] if org_ids else None)
     initial_wf = _resolve_settings_workflow_id(chat_workflow, chat_org or "", wf_ids, root)
 
-    with gr.Tab("⚙️ 設定編集"):
+    with gr.Tab("⚙️ 設定編集") as settings_tab:
         with gr.Column(elem_classes=["studio-settings-panel"]):
             gr.Markdown("人材・組織・ワークフローを編集します。保存前にバリデーションを実行します（§8.4）。")
 
@@ -862,7 +862,8 @@ def build_settings_tab(
         ],
     )
 
-    org_id_dd.change(
+    # 組織の作成・削除・同期は、各ハンドラーが全項目を返すので、change で二重に読み込まない
+    org_id_dd.input(
         load_org,
         inputs=[org_id_dd],
         outputs=[
@@ -955,28 +956,6 @@ def build_settings_tab(
         wf_json, wf_msg = load_workflow(wf_value or "")
         return gr.update(value=wf_value), wf_json, wf_msg
 
-    handles.org_dd.change(
-        bootstrap_settings_from_chat,
-        inputs=[handles.org_dd, handles.wf_dd],
-        outputs=[
-            org_id_dd,
-            org_name,
-            org_mission,
-            org_culture,
-            org_talent_ids,
-            org_bindings_state,
-            org_directives_json,
-            org_default_wf,
-            org_mapping_state,
-            org_talent_ids_order,
-            org_msg,
-            *_mapping_row_output_list(),
-            *_bindings_row_output_list(),
-            wf_id_dd,
-            wf_json,
-            wf_msg,
-        ],
-    )
     handles.wf_dd.change(
         sync_wf_editor_from_chat,
         inputs=[handles.org_dd, handles.wf_dd],
@@ -986,25 +965,35 @@ def build_settings_tab(
     demo.load(load_talent, inputs=[talent_id_dd], outputs=[
         talent_name, talent_personality, talent_experience, talent_tags, talent_prompt, talent_msg,
     ])
-    demo.load(
-        bootstrap_settings_from_chat,
-        inputs=[handles.org_dd, handles.wf_dd],
-        outputs=[
-            org_id_dd,
-            org_name,
-            org_mission,
-            org_culture,
-            org_talent_ids,
-            org_bindings_state,
-            org_directives_json,
-            org_default_wf,
-            org_mapping_state,
-            org_talent_ids_order,
-            org_msg,
-            *_mapping_row_output_list(),
-            *_bindings_row_output_list(),
-            wf_id_dd,
-            wf_json,
-            wf_msg,
-        ],
+
+    # チャット側の組織を切り替えるたびに数百個の部品を更新するとブラウザが止まるので、タブを開いたときだけ同期する
+    synced_org = gr.State(None)
+    settings_outputs = [
+        org_id_dd,
+        org_name,
+        org_mission,
+        org_culture,
+        org_talent_ids,
+        org_bindings_state,
+        org_directives_json,
+        org_default_wf,
+        org_mapping_state,
+        org_talent_ids_order,
+        org_msg,
+        *_mapping_row_output_list(),
+        *_bindings_row_output_list(),
+        wf_id_dd,
+        wf_json,
+        wf_msg,
+    ]
+
+    def sync_settings_on_select(chat_org: str, chat_wf: str, synced: str | None):
+        if synced == chat_org:
+            return (*[gr.skip()] * len(settings_outputs), synced)
+        return (*bootstrap_settings_from_chat(chat_org, chat_wf), chat_org)
+
+    settings_tab.select(
+        sync_settings_on_select,
+        inputs=[handles.org_dd, handles.wf_dd, synced_org],
+        outputs=[*settings_outputs, synced_org],
     )
