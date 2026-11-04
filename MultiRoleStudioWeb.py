@@ -399,7 +399,7 @@ def build_ui(
                             )
                             send_btn = gr.Button("送信", variant="primary")
                             live_timing = gr.HTML("", visible=False, elem_id="studio-live-timing")
-                    with gr.Column(scale=1, min_width=220):
+                    with gr.Column(scale=1, min_width=260):
                         status_tb = gr.Textbox(label="状態", lines=1, interactive=False)
                         upload_files = gr.File(
                             label="ファイルを会話に取り込む（テキスト系）",
