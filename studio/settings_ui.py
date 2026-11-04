@@ -222,6 +222,8 @@ def build_settings_tab(
                     org_save_btn = gr.Button("組織 config を保存", **_SAVE_BTN)
                     org_mapping_state = gr.State({})
                     org_talent_ids_order = gr.State([])
+                    # Tabs 直下に State を置くと、後続のタブが二重に登録されるので、タブの中で作る
+                    synced_org = gr.State(None)
                     org_mapping_note = gr.Markdown("")
 
                     mapping_row_ids: list[str] = list(talent_ids)
@@ -967,7 +969,6 @@ def build_settings_tab(
     ])
 
     # チャット側の組織を切り替えるたびに数百個の部品を更新するとブラウザが止まるので、タブを開いたときだけ同期する
-    synced_org = gr.State(None)
     settings_outputs = [
         org_id_dd,
         org_name,
