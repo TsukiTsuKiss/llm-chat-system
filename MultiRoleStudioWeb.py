@@ -292,7 +292,7 @@ def build_ui(
     led_monitor = engine_monitor(parse_voicevox_urls(voicevox_url))
     led_monitor.start()
 
-    with gr.Blocks(title=f"MultiRoleStudio Web {VERSION}", fill_height=True) as demo:
+    with gr.Blocks(title=f"MultiRoleStudio Web {VERSION}", fill_height=True, analytics_enabled=False) as demo:
         session_state = gr.State(WebSession(root=root, voicevox_url=voicevox_url))
         valid_wf_state = gr.State(default_wf)
         pending_wf_hint_state = gr.State("")

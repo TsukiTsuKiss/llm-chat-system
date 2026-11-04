@@ -448,3 +448,15 @@ def test_resume_branch_preserves_user_context_rag(studio_root: Path) -> None:
         user_context_rag=False,
     )
     assert session2.engine.state.user_context_rag_enabled is False
+
+
+def test_workflow_availability_cache_follows_config_edits(studio_root: Path) -> None:
+    _copy_nokuru_tree(studio_root)
+    assert workflow_available_for_org(studio_root, "nokuru", "quiz") is True
+
+    config_path = studio_root / "organizations" / "nokuru" / "config.json"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config.get("workflow_bindings", {}).pop("quiz", None)
+    config_path.write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    assert workflow_available_for_org(studio_root, "nokuru", "quiz") is False

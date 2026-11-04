@@ -72,14 +72,44 @@ def workflow_dropdown_choices(root: Path) -> list[tuple[str, str]]:
     ]
 
 
+_AVAILABILITY_CACHE: dict[tuple[str, str], tuple[tuple, dict[str | None, bool]]] = {}
+
+
+def _config_fingerprint(root: Path, org_id: str) -> tuple:
+    """設定ファイルの更新時刻の並び。変わったら、ワークフローの使用可否を読み直す。"""
+    stamps = []
+    for pattern in (f"organizations/{org_id}/*.json", "workflows/*.json", "talents/*.json", "*.json"):
+        for path in sorted(root.glob(pattern)):
+            stat = path.stat()
+            stamps.append((path.as_posix(), stat.st_mtime_ns, stat.st_size))
+    return tuple(stamps)
+
+
+def _availability_results(root: Path, org_id: str) -> dict[str | None, bool]:
+    fingerprint = _config_fingerprint(root, org_id)
+    key = (str(root), org_id)
+    cached = _AVAILABILITY_CACHE.get(key)
+    if cached is None or cached[0] != fingerprint:
+        cached = (fingerprint, {})
+        _AVAILABILITY_CACHE[key] = cached
+    return cached[1]
+
+
+def _check_available(results: dict[str | None, bool], root: Path, org_id: str, workflow_id: str | None) -> bool:
+    workflow = workflow_id or None
+    if workflow not in results:
+        try:
+            load_session_context(org_id, root, workflow_id=workflow)
+            results[workflow] = True
+        except StudioValidationError:
+            results[workflow] = False
+    return results[workflow]
+
+
 def workflow_available_for_org(root: Path, org_id: str, workflow_id: str | None) -> bool:
     if not org_id:
         return workflow_id in (None, "")
-    try:
-        load_session_context(org_id, root, workflow_id=workflow_id or None)
-        return True
-    except StudioValidationError:
-        return False
+    return _check_available(_availability_results(root, org_id), root, org_id, workflow_id)
 
 
 def organizations_with_workflow(root: Path, workflow_id: str) -> list[str]:
@@ -110,8 +140,9 @@ def workflow_unavailable_note(root: Path, org_id: str, workflow_id: str) -> str:
 def workflow_dropdown_choices_for_org(root: Path, org_id: str) -> list[tuple[str, str]]:
     """Chat tab: all workflows; unavailable ones are labeled but not executable."""
     choices: list[tuple[str, str]] = [(DIRECT_WORKFLOW_LABEL, DIRECT_WORKFLOW_VALUE)]
+    results = _availability_results(root, org_id) if org_id else {}
     for wf_id in list_workflows(root):
-        if org_id and workflow_available_for_org(root, org_id, wf_id):
+        if org_id and _check_available(results, root, org_id, wf_id):
             choices.append((wf_id, wf_id))
         else:
             label = wf_id if not org_id else f"{wf_id}{UNCONFIGURED_WORKFLOW_LABEL_SUFFIX}"

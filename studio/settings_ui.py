@@ -417,12 +417,13 @@ def build_settings_tab(
 
     for _tid in mapping_row_ids:
         _, asst_dd, model_dd = mapping_rows[_tid]
-        asst_dd.change(
+        # change だと読み込み時の更新でも発火し、全人材分の要求が走る
+        asst_dd.input(
             _make_assistant_handler(_tid),
             inputs=[asst_dd, org_mapping_state],
             outputs=[org_mapping_state, asst_dd, model_dd, org_mapping_note],
         )
-        model_dd.change(
+        model_dd.input(
             _make_model_handler(_tid),
             inputs=[model_dd, org_mapping_state],
             outputs=[org_mapping_state, org_mapping_note],
