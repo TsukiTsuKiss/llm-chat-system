@@ -833,3 +833,30 @@ def test_stop_reading_update_drops_queue_and_voice(tmp_path: Path):
     assert audio is None
     assert session.voice is None and not session.voice_enabled
     assert session.relay.next_if_idle() is None
+
+
+def test_reading_ui_is_hidden_while_timing_replay_is_shown(tmp_path: Path):
+    import gradio as gr
+
+    from studio.web_ui import WebSession, live_tick_update, reading_ui_toggle_update
+
+    audio_dir = tmp_path / "sessions" / "audio" / "old"
+    audio_dir.mkdir(parents=True)
+    (audio_dir / "timeline.jsonl").write_text(
+        json.dumps({"kind": "utterance", "t": 1.0, "file": "01_a.wav", "duration": 2.0}) + "\n", encoding="utf-8"
+    )
+    session = WebSession(root=tmp_path)
+
+    assert [u["visible"] for u in reading_ui_toggle_update(session, True)] == [True] * 3
+
+    session.replay_session_id = "old"
+    _timing, led, player, stop = live_tick_update(session, True, True)
+    assert led["visible"] is player["visible"] is stop["visible"] is False
+
+    # 表示が変わらなければ、部品は更新しない
+    _timing, led, player, stop = live_tick_update(session, True, True)
+    assert led == player == stop == gr.skip()
+
+    session.reset_chat()
+    _timing, led, _player, _stop = live_tick_update(session, True, True)
+    assert led["visible"] is True

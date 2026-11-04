@@ -37,9 +37,10 @@ from studio.web_ui import (
     initial_workflow_for_org,
     last_rag_injection_preview,
     list_organizations,
-    live_timing_update,
+    live_tick_update,
     load_org_panel,
     next_audio_update,
+    reading_ui_toggle_update,
     stop_reading_update,
     upload_limits_from_config,
     workflow_available_for_org,
@@ -743,8 +744,8 @@ def build_ui(
         )
         audio_timer = gr.Timer(1.0)
         voice_cb.change(
-            lambda on: [gr.update(visible=bool(on))] * 3,
-            inputs=[voice_cb],
+            reading_ui_toggle_update,
+            inputs=[session_state, voice_cb],
             outputs=[engine_led, audio_player, stop_reading_btn],
             queue=False,
             show_progress="hidden",
@@ -774,9 +775,9 @@ def build_ui(
         )
         live_timer = gr.Timer(1.0)
         live_timer.tick(
-            live_timing_update,
-            inputs=[session_state, timing_cb],
-            outputs=[live_timing],
+            live_tick_update,
+            inputs=[session_state, timing_cb, voice_cb],
+            outputs=[live_timing, engine_led, audio_player, stop_reading_btn],
             queue=False,
             show_progress="hidden",
         )

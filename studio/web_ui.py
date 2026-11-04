@@ -441,6 +441,11 @@ class WebSession:
     replay_session_id: str = ""
     # reset_chat のたびに増やす。実行中だった古い生成が、新しい画面を上書きしないための印
     epoch: int = 0
+    # 読み上げ関連の部品（LED・プレーヤー・止めるボタン）の、最後に送った表示状態
+    reading_ui_shown: bool | None = None
+
+    def replay_chart_shown(self) -> bool:
+        return self.published_timing.startswith("replay:")
 
     def live_chart_shown(self) -> bool:
         return bool(self.published_timing) and not self.published_timing.startswith("replay:")
@@ -1002,6 +1007,28 @@ def _playing_update(session: WebSession):
     session.playing_seq += 1
     # 同じ発言番号を続けて送っても change が発火するよう、連番を付ける
     return f"{session.playing_seq}:{'' if playing is None else playing}"
+
+
+def reading_ui_visible(session: WebSession, voice_on: bool) -> bool:
+    """読み上げ関連の部品の表示。読み上げが有効で、タイミング再生（独自のプレーヤー）を出していないときだけ出す。"""
+    return bool(voice_on) and not session.replay_chart_shown()
+
+
+def reading_ui_toggle_update(session: WebSession, voice_on: bool):
+    visible = reading_ui_visible(session, voice_on)
+    session.reading_ui_shown = visible
+    return [gr.update(visible=visible)] * 3
+
+
+def live_tick_update(session: WebSession, show: bool, voice_on: bool):
+    """(ライブのチャート, LED, プレーヤー, 止めるボタン) の更新。表示が変わったときだけ部品を更新する。"""
+    timing = live_timing_update(session, show)
+    visible = reading_ui_visible(session, voice_on)
+    if visible == session.reading_ui_shown:
+        return timing, gr.skip(), gr.skip(), gr.skip()
+    session.reading_ui_shown = visible
+    update = gr.update(visible=visible)
+    return timing, update, update, update
 
 
 def live_timing_update(session: WebSession, show: bool = True):
