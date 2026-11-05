@@ -1837,7 +1837,7 @@ Phase 4 で Gradio Web 版に共通して適用する。
 | **`--port` / `--share`** | 起動引数・環境変数でポート指定・Gradio 公開トンネル（旧 Web 版踏襲） | 4 |
 | **Soft テーマ** | Gradio テーマ（任意。旧 ChatWeb.py 踏襲） | 4 |
 | **操作ボタン色** | CSS 変数 `--button-primary-*` / `--button-secondary-*` で全タブの primary ボタンを統一（Phase 4b: 水色。項目ラベルは Soft テーマの紫チップのまま） | 4b |
-| **日本語ページ・翻訳バー抑制** | Gradio 6 の HTML テンプレートは `<html lang="en">` 固定。`launch(head=…)` や JS だけでは view-source / Edge 翻訳バーに効かない。**`templates/gradio/frontend/index.html`（`lang="ja"` + `notranslate`）を Jinja2 ChoiceLoader で優先**（`studio/gradio_template.py`）。Gradio バージョンアップ時は asset ハッシュ要確認 | 4b |
+| **日本語ページ・翻訳バー抑制** | Gradio 6 の HTML テンプレートは `<html lang="en">` 固定。`launch(head=…)` や JS だけでは view-source / Edge 翻訳バーに効かない。**インストール済み Gradio の `frontend/index.html` に `lang="ja"` + `notranslate` を足したものを起動時に生成し、Jinja2 ChoiceLoader で優先**（`studio/gradio_template.py`。asset ハッシュは Gradio 本体のものをそのまま使うので、バージョンが違っても真っ白にならない） | 4b |
 | **イベント JS の順序** | `click(..., js=...)` の `js` は **Python `fn` より先**に実行される。タブ切替・スクロール等「更新後にやりたい」クライアント処理は **`.then(fn=None, js=...)`** で後段に置く（Phase 5a 再開で実証） | 5a |
 | **起動時 `--org`** | `MultiRoleStudioWeb.py --org <id>` は `studio_config.default_org` より優先（8.3 節） | 5 |
 | **起動時 `--workflow`** | `MultiRoleStudioWeb.py --workflow <id>` で起動時のワークフローを選ぶ。選択順は `--workflow` → 組織の `default_workflow` → 直接送信。その組織で実行できない（未設定・不明）ときは警告して次の候補へ | 6 |

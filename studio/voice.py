@@ -7,7 +7,10 @@ import json
 import os
 import queue
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
 import threading
 import time
 import urllib.error
@@ -26,6 +29,33 @@ except ImportError:  # Windows 以外は保存のみ
     winsound = None  # type: ignore[assignment]
 
 from studio.voice_timeline import TimelineRecorder
+
+# Windows 以外で wav を再生するコマンド（先に見つかったものを使う）
+_LINUX_PLAYERS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("pw-play", ()),
+    ("paplay", ()),
+    ("aplay", ("-q",)),
+    ("ffplay", ("-nodisp", "-autoexit", "-loglevel", "quiet")),
+    ("afplay", ()),
+)
+
+
+def _find_player() -> list[str] | None:
+    for name, args in _LINUX_PLAYERS:
+        path = shutil.which(name)
+        if path:
+            return [path, *args]
+    return None
+
+
+def _play_with_command(player: list[str], wav: bytes) -> None:
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+        tmp.write(wav)
+    try:
+        subprocess.run([*player, tmp.name], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+    finally:
+        Path(tmp.name).unlink(missing_ok=True)
+
 
 DEFAULT_BASE_URL = os.getenv("VOICEVOX_URL", "http://127.0.0.1:50021").rstrip("/")
 VOICE_MAPPING_FILES = ("voice_mapping.json", "voice_mapping.example.json")
@@ -418,7 +448,10 @@ class VoiceReader:
         self._monitor = monitor
         self._removed: set[str] = set(standby)
         self._engine_lock = threading.Lock()
-        self._play = play and winsound is not None
+        self._player = None if winsound is not None else _find_player()
+        self._play = play and (winsound is not None or self._player is not None)
+        if play and not self._play:
+            print("[voice] 再生コマンド (pw-play/paplay/aplay/ffplay) が見つからないため wav を保存のみします", file=sys.stderr)
         self._on_utterance = on_utterance
         self._out_dir: Path | None = None
         self._count = 0
@@ -597,4 +630,7 @@ class VoiceReader:
     def _playback_loop(self) -> None:
         while (wav := self._playback.get()) is not None:
             if self._play:
-                winsound.PlaySound(wav, winsound.SND_MEMORY)
+                if winsound is not None:
+                    winsound.PlaySound(wav, winsound.SND_MEMORY)
+                else:
+                    _play_with_command(self._player, wav)
