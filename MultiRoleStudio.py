@@ -30,7 +30,7 @@ from studio.voice import (
 )
 from studio.workflow_validate import workflow_has_interrupt_on, workflow_has_user_exit
 
-VERSION = "0.6.2"
+VERSION = "0.6.3"
 
 
 def print_event(event: EngineEvent, *, use_stream: bool) -> None:
@@ -143,17 +143,23 @@ def validate_batch_mode(ctx, topic: str | None) -> None:
         )
 
 
+def voice_requested(args: argparse.Namespace) -> bool:
+    # --voicevox-url を明示したときは、--voice がなくても読み上げる
+    return bool(args.voice) or args.voicevox_url is not None
+
+
 def create_voice_reader(args: argparse.Namespace, ctx) -> VoiceReader | None:
-    if not args.voice:
+    if not voice_requested(args):
         return None
+    voicevox_url = args.voicevox_url or DEFAULT_BASE_URL
     mapping = load_voice_mapping(ctx.root, ctx.org_id)
     if not mapping:
         print(f"[voice] organizations/{ctx.org_id}/voice_mapping.json がないため読み上げません", file=sys.stderr)
         return None
-    configured = parse_voicevox_urls(args.voicevox_url)
+    configured = parse_voicevox_urls(voicevox_url)
     urls = [url for url in configured if engine_available(url)]
     if not urls:
-        print(f"[voice] VOICEVOX ({args.voicevox_url}) に接続できないため読み上げません", file=sys.stderr)
+        print(f"[voice] VOICEVOX ({voicevox_url}) に接続できないため読み上げません", file=sys.stderr)
         return None
     for url in configured:
         if url not in urls:
@@ -330,12 +336,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--voice",
         action="store_true",
-        help="VOICEVOX で発言を読み上げ、sessions/audio/<session_id>/ に wav を保存する",
+        help="VOICEVOX で発言を読み上げ、sessions/audio/<session_id>/ に wav を保存する（--voicevox-url を指定したときも有効）",
     )
     parser.add_argument(
         "--voicevox-url",
-        default=DEFAULT_BASE_URL,
-        help="VOICEVOX の接続先（既定: 環境変数 VOICEVOX_URL または http://127.0.0.1:50021）。カンマ区切りで複数指定すると並列合成",
+        default=None,
+        help=f"VOICEVOX の接続先。指定すると読み上げを有効にする（このオプションなしで --voice のみのときの既定: {DEFAULT_BASE_URL}）。カンマ区切りで複数指定すると並列合成",
     )
     parser.add_argument(
         "--apply",

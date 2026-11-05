@@ -775,6 +775,9 @@ sandbox/session_20250814_141337/
 
 ## 📈 バージョン履歴
 
+### MultiRoleStudio v0.6.3 (2026-11-06)
+- 🔊 **`--voicevox-url` で読み上げを有効化** - CLI で `--voicevox-url` を指定すると、`--voice` を付けなくても読み上げる（Web 版と同じ感覚）。`--voice` だけを付けたときの接続先は、従来どおり既定（環境変数 `VOICEVOX_URL`、なければ `http://127.0.0.1:50021`）
+
 ### MultiRoleStudioWeb v0.10.0 / MultiRoleStudio v0.6.2 (2026-11-04)
 - 💾 **sandbox へ保存** - セッションタブに「sandbox へ保存」ボタンを追加。保存済みセッションの成果物を、後から `sandbox/` へ取り出せる
 - 🔇 **コードブロックの読み飛ばし** - 読み上げでコードブロックを読まない

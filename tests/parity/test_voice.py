@@ -860,3 +860,13 @@ def test_reading_ui_is_hidden_while_timing_replay_is_shown(tmp_path: Path):
     session.reset_chat()
     _timing, led, _player, _stop = live_tick_update(session, True, True)
     assert led["visible"] is True
+
+
+def test_cli_voicevox_url_alone_enables_reading():
+    import argparse
+
+    from MultiRoleStudio import voice_requested
+
+    assert voice_requested(argparse.Namespace(voice=False, voicevox_url="http://pc:50021"))
+    assert voice_requested(argparse.Namespace(voice=True, voicevox_url=None))
+    assert not voice_requested(argparse.Namespace(voice=False, voicevox_url=None))
