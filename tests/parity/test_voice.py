@@ -870,3 +870,27 @@ def test_cli_voicevox_url_alone_enables_reading():
     assert voice_requested(argparse.Namespace(voice=False, voicevox_url="http://pc:50021"))
     assert voice_requested(argparse.Namespace(voice=True, voicevox_url=None))
     assert not voice_requested(argparse.Namespace(voice=False, voicevox_url=None))
+
+
+def test_playback_survives_a_failed_clip(tmp_path: Path, monkeypatch):
+    calls: list[bytes] = []
+
+    class FakeWinsound:
+        SND_MEMORY = 4
+
+        @staticmethod
+        def PlaySound(wav, flags):
+            calls.append(wav)
+            if wav == b"bad":
+                raise RuntimeError("Failed to play sound")
+
+    monkeypatch.setattr(voice, "winsound", FakeWinsound)
+    monkeypatch.setattr(voice.time, "sleep", lambda _s: None)
+    reader = VoiceReader(tmp_path, {"a": {"speaker": 1}}, play=True)
+    assert reader._play
+
+    reader._play_one(b"bad")
+    reader._play_one(b"good")
+
+    assert calls == [b"bad", b"bad", b"good"]
+    reader.close(wait=False)

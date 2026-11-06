@@ -630,7 +630,19 @@ class VoiceReader:
     def _playback_loop(self) -> None:
         while (wav := self._playback.get()) is not None:
             if self._play:
+                self._play_one(wav)
+
+    def _play_one(self, wav: bytes) -> None:
+        # 再生に失敗しても、スレッドを止めない（止まると以降の発言が読まれない）。デバイスが一瞬使えない場合に備え、1 回だけやり直す
+        for attempt in range(2):
+            try:
                 if winsound is not None:
                     winsound.PlaySound(wav, winsound.SND_MEMORY)
                 else:
                     _play_with_command(self._player, wav)
+                return
+            except (RuntimeError, OSError) as exc:
+                if attempt == 0:
+                    time.sleep(0.3)
+                    continue
+                print(f"[voice] 再生に失敗したので、この音声を飛ばします（wav は保存済み）: {exc}", file=sys.stderr)
