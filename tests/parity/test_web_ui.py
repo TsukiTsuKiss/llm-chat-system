@@ -139,6 +139,23 @@ def test_renderer_step_done_includes_display_name() -> None:
     assert "hello" in renderer.messages[0]["content"]
 
 
+def test_process_events_throttles_chunk_updates(studio_root: Path) -> None:
+    from studio.web_ui import process_events
+
+    def events():
+        yield EngineEvent("step_start", {"talent_id": "a", "display_name": "A"})
+        for _ in range(300):
+            yield EngineEvent("chunk", {"talent_id": "a", "text": "x"})
+        yield EngineEvent("step_done", {"talent_id": "a", "display_name": "A", "text": "x" * 300})
+
+    session = WebSession(root=studio_root)
+    updates = list(process_events(session, events()))
+
+    assert len(updates) < 20
+    assert updates[-1][1] == IDLE_STATUS
+    assert any("x" * 300 in m["content"] for m in updates[-1][0])
+
+
 def test_renderer_streaming_chunks() -> None:
     renderer = ChatEventRenderer()
     renderer.apply(

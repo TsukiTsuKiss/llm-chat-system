@@ -54,7 +54,7 @@ from web_input_utils import (
     user_context_default_from_config,
 )
 
-VERSION = "0.10.0"
+VERSION = "0.10.5"
 
 DEFAULT_ORG = os.getenv("MULTIROLESTUDIOWEB_ORG", "")
 DEFAULT_PORT = int(os.getenv("MULTIROLESTUDIOWEB_PORT", "7862"))
@@ -176,15 +176,30 @@ SCROLL_TO_PLAYING_JS = """
 (playing) => {
   const w = window;
   w.__studioPlayingVal = playing;
+  // 発言欄の再描画でクラスが消えても、描画の前に付け直す（付け直しが遅れると枠が点滅する）
+  w.__studioApplyPlaying = () => {
+    const root = document.querySelector('#studio-chatbot');
+    if (!root) return -1;
+    const m = /^\\d+:(\\d*)$/.exec(w.__studioPlayingVal || '');
+    const idx = m && m[1] !== '' ? Number(m[1]) : -1;
+    [...root.querySelectorAll('.message-row')].forEach((r, i) => r.classList.toggle('studio-playing', i === idx));
+    return idx;
+  };
+  const watched = document.querySelector('#studio-chatbot');
+  if (watched && w.__studioObsRoot !== watched) {
+    w.__studioObsRoot = watched;
+    new MutationObserver(() => w.__studioApplyPlaying()).observe(watched, {
+      subtree: true, childList: true, attributes: true, attributeFilter: ['class'],
+    });
+  }
+  w.__studioApplyPlaying();
   if (w.__studioRaf) return;
   w.__studioRaf = requestAnimationFrame(() => {
     w.__studioRaf = 0;
     const root = document.querySelector('#studio-chatbot');
     if (!root) return;
     const rows = [...root.querySelectorAll('.message-row')];
-    const m = /^\\d+:(\\d*)$/.exec(w.__studioPlayingVal || '');
-    const idx = m && m[1] !== '' ? Number(m[1]) : -1;
-    rows.forEach((r, i) => r.classList.toggle('studio-playing', i === idx));
+    const idx = w.__studioApplyPlaying();
     if (!rows.length) { w.__studioPlayingIdx = -1; return; }
     let box = rows[0].parentElement;
     while (box && !(box.scrollHeight > box.clientHeight && /(auto|scroll)/.test(getComputedStyle(box).overflowY))) {
@@ -239,9 +254,11 @@ window.addEventListener('message', (e) => {
 )
 
 
-def _msg_input_update(placeholder: str = DEFAULT_MSG_PLACEHOLDER) -> dict:
-    """Keep the textbox empty; only change the placeholder hint."""
-    return gr.update(value="", placeholder=placeholder)
+def _msg_input_update(placeholder: str = DEFAULT_MSG_PLACEHOLDER, *, clear: bool = True) -> dict:
+    """clear=False のときは、入力中の文字を消さずにプレースホルダーだけ変える。"""
+    if clear:
+        return gr.update(value="", placeholder=placeholder)
+    return gr.update(placeholder=placeholder)
 
 
 def _upload_input_update(clear: bool = False) -> dict:
@@ -496,6 +513,7 @@ def build_ui(
             voice: bool,
         ):
             try:
+                first = True
                 for messages, status, show_choice, placeholder, clear_upload in handle_chat_submit(
                     session,
                     user_text,
@@ -515,10 +533,11 @@ def build_ui(
                         session,
                         status,
                         gr.update(visible=show_choice),
-                        _msg_input_update(placeholder),
+                        _msg_input_update(placeholder, clear=first),
                         _upload_input_update(clear_upload),
                         last_rag_injection_preview(session),
                     )
+                    first = False
             except StudioValidationError as exc:
                 yield (
                     session.renderer.copy_messages(),
@@ -532,6 +551,7 @@ def build_ui(
 
         def on_choice(session: WebSession, choice: str):
             result = handle_choice(session, choice)
+            first = True
             if isinstance(result, tuple):
                 messages, status, show_choice, placeholder, clear_upload = result
                 yield (
@@ -550,10 +570,11 @@ def build_ui(
                     session,
                     status,
                     gr.update(visible=show_choice),
-                    _msg_input_update(placeholder),
+                    _msg_input_update(placeholder, clear=first),
                     _upload_input_update(clear_upload),
                     last_rag_injection_preview(session),
                 )
+                first = False
 
         def sync_chat_prefs(
             session: WebSession,

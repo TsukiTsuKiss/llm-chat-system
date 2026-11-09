@@ -5,6 +5,7 @@ from __future__ import annotations
 import sys
 import threading
 import re
+import time
 import unicodedata
 from dataclasses import dataclass, field
 from html import escape
@@ -41,7 +42,10 @@ UNCONFIGURED_WORKFLOW_LABEL_SUFFIX = " — 未設定"
 UIUpdate = tuple[list[dict[str, str]], str, bool, str, bool]
 
 IDLE_STATUS = "待機中（メッセージを入力してください）"
+# ストリーミングのチャンクごとに画面を更新すると、ブラウザの描画が追いつかず状態や入力欄が遅れるので、この間隔で間引く
+CHUNK_UI_INTERVAL = 0.2
 FILE_ONLY_DEFAULT = "添付ファイルの内容を要約してください。"
+REPLY_FILE_ONLY_DEFAULT = "添付しました。"
 VOICE_SWITCH_PATTERN = re.compile(
     r"(?:音声設定|読み上げ設定|読み上げ|音声)\s*(?:[:：=]\s*)?(on|off|オン|オフ|有効|無効|1|0)(?=\s|$)",
     re.IGNORECASE,
@@ -240,6 +244,42 @@ def resolve_user_input_with_attachments(
         display = f"{text}\n\n📎 添付: {', '.join(attachment_names)}"
 
     return text, display, attachment_context, attachment_names
+
+
+def resolve_reply_with_attachments(
+    user_text: str,
+    files,
+    limits: dict[str, int],
+) -> tuple[str, str, str, list[str]]:
+    """質問への返答用。返答文、チャット表示、追加する添付内容、ファイル名を返す。"""
+    reply = (user_text or "").strip()
+    paths = gradio_file_paths(files)
+    attachment_context = ""
+    attachment_names: list[str] = []
+
+    if paths:
+        attachment_context, report = read_attachment_files(paths, limits)
+        if not report.ok:
+            raise StudioValidationError(report.errors)
+        attachment_names = [path.name for path in paths]
+
+    if not reply and attachment_names:
+        reply = REPLY_FILE_ONLY_DEFAULT
+
+    display = reply
+    if reply and attachment_names:
+        display = f"{reply}\n\n📎 添付: {', '.join(attachment_names)}"
+
+    return reply, display, attachment_context, attachment_names
+
+
+def _append_attachment_context(session: "WebSession", attachment_context: str) -> None:
+    state = session.engine.state if session.engine is not None else None
+    if state is None or not attachment_context:
+        return
+    state.attachment_context = (
+        f"{state.attachment_context}\n\n{attachment_context}" if state.attachment_context else attachment_context
+    )
 
 
 def talents_markdown(ctx: SessionContext) -> str:
@@ -794,6 +834,7 @@ def process_events(
 ) -> Generator[UIUpdate, None, None]:
     epoch = session.epoch
     event = first_event if first_event is not None else next(generator)
+    last_chunk_yield = 0.0
     while True:
         if session.epoch != epoch:
             generator.close()
@@ -805,13 +846,17 @@ def process_events(
             yield _pending_ui(session, pending_kind, event)
             return
 
-        yield (
-            session.renderer.copy_messages(),
-            _status_from_event(event),
-            False,
-            "メッセージを入力…",
-            False,
-        )
+        now = time.monotonic()
+        if event.type != "chunk" or now - last_chunk_yield >= CHUNK_UI_INTERVAL:
+            if event.type == "chunk":
+                last_chunk_yield = now
+            yield (
+                session.renderer.copy_messages(),
+                _status_from_event(event),
+                False,
+                "メッセージを入力…",
+                False,
+            )
 
         try:
             event = next(generator)
@@ -907,6 +952,7 @@ def handle_chat_submit(
     voice: bool = False,
 ) -> Generator[UIUpdate, None, None] | UIUpdate:
     text = (user_text or "").strip()
+    limits = upload_limits or {}
 
     if session.pending is not None:
         if session.pending.kind == "await_choice":
@@ -918,7 +964,18 @@ def handle_chat_submit(
                 False,
             )
             return
-        if not text:
+        try:
+            reply, reply_display, reply_context, _ = resolve_reply_with_attachments(text, files, limits)
+        except StudioValidationError as exc:
+            yield (
+                session.renderer.copy_messages(),
+                exc.format_all(),
+                False,
+                "メッセージを入力…",
+                False,
+            )
+            return
+        if not reply:
             name = session.pending.event.payload.get("display_name", "human")
             yield (
                 session.renderer.copy_messages(),
@@ -928,7 +985,8 @@ def handle_chat_submit(
                 False,
             )
             return
-        session.renderer.add_user(text)
+        _append_attachment_context(session, reply_context)
+        session.renderer.add_user(reply_display)
         yield (
             session.renderer.copy_messages(),
             "実行中…",
@@ -936,10 +994,9 @@ def handle_chat_submit(
             "メッセージを入力…",
             True,
         )
-        yield from resume_after_reply(session, text)
+        yield from resume_after_reply(session, reply)
         return
 
-    limits = upload_limits or {}
     try:
         prompt_text, display_text, attachment_context, attachment_names = (
             resolve_user_input_with_attachments(text, files, limits)

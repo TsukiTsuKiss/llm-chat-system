@@ -173,3 +173,34 @@ def test_web_interrupt_pending_and_resume(studio_root: Path, monkeypatch: pytest
         m.get("role") == "user" and "選択肢Aです" in m.get("content", "")
         for m in final_messages
     )
+
+
+def test_web_interrupt_reply_accepts_attachment(studio_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _write_interrupt_demo(studio_root)
+    monkeypatch.setenv("STUDIO_MOCK_INTERRUPT", "【ユーザー確認】")
+    MockAssistant.reset()
+    session = WebSession(root=studio_root)
+    kwargs = dict(
+        org_id="solo",
+        workflow_value="interrupt_demo",
+        stream=False,
+        temperature=0.7,
+        user_context=False,
+    )
+    for _ in handle_chat_submit(session, "開始", **kwargs):
+        if session.pending is not None:
+            break
+    assert session.pending is not None
+
+    sample = studio_root / "readme_sample.txt"
+    sample.write_text("添付の本文", encoding="utf-8")
+    final_messages = []
+    for final_messages, *_ in handle_chat_submit(session, "", files=[str(sample)], **kwargs):
+        pass
+
+    assert session.pending is None
+    assert "添付の本文" in session.engine.state.attachment_context
+    assert any(
+        m.get("role") == "user" and "📎 添付: readme_sample.txt" in m.get("content", "")
+        for m in final_messages
+    )
