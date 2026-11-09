@@ -1,0 +1,5 @@
+{
+  "shiori": { "label": "春日部つむぎ", "speaker": 8 },
+  "kuro": { "label": "剣崎雌雄", "speaker": 21, "when_action": "方針を1回だけ確認" },
+  "daichi": { "label": "青山龍星", "speaker": 13, "when_action": "【判定】" }
+}

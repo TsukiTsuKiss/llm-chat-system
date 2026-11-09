@@ -1,0 +1,9 @@
+{
+  "fumi": { "assistant": "ChatGPT", "model": "gpt-5.4", "web_search": true },
+  "shiori": { "assistant": "ChatGPT", "model": "gpt-5.4" },
+  "kotoha": { "assistant": "ChatGPT", "model": "gpt-5.4" },
+  "kuro": { "assistant": "Gemini", "model": "gemini-3.1-pro-preview" },
+  "souta": { "assistant": "Groq", "model": "openai/gpt-oss-120b" },
+  "misaki": { "assistant": "Groq", "model": "openai/gpt-oss-120b" },
+  "daichi": { "assistant": "ChatGPT", "model": "gpt-5.4" }
+}
