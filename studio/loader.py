@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import copy
 import json
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -75,12 +77,11 @@ def load_ai_assistants(root: Path, report: ValidationReport) -> dict[str, dict[s
     return data
 
 
-def scan_talents(root: Path, report: ValidationReport) -> dict[str, dict[str, Any]]:
-    talents: dict[str, dict[str, Any]] = {}
-    talents_dir = root / "talents"
-    if not talents_dir.is_dir():
-        return talents
+_TALENT_CACHE: dict[str, tuple[tuple, dict[str, dict[str, Any]], list[StudioError]]] = {}
 
+
+def _scan_talents_uncached(talents_dir: Path, report: ValidationReport) -> dict[str, dict[str, Any]]:
+    talents: dict[str, dict[str, Any]] = {}
     for path in sorted(talents_dir.glob("*.json")):
         talent_id = path.stem
         data = load_json_file(path, report)
@@ -89,6 +90,31 @@ def scan_talents(root: Path, report: ValidationReport) -> dict[str, dict[str, An
         validate_schema_document(data, "talent", f"talents/{path.name}", report)
         talents[talent_id] = data
     return talents
+
+
+def scan_talents(root: Path, report: ValidationReport) -> dict[str, dict[str, Any]]:
+    talents_dir = root / "talents"
+    if not talents_dir.is_dir():
+        return {}
+
+    # ワークフローの使用可否を何十回も確かめるので、更新時刻が同じ間は走査と検証を使い回す
+    with os.scandir(talents_dir) as entries:
+        stamps = sorted(
+            (entry.name, entry.stat().st_mtime_ns, entry.stat().st_size)
+            for entry in entries
+            if entry.name.endswith(".json") and entry.is_file()
+        )
+    fingerprint = tuple(stamps)
+    key = str(talents_dir.resolve())
+    cached = _TALENT_CACHE.get(key)
+    if cached is None or cached[0] != fingerprint:
+        local = ValidationReport()
+        talents = _scan_talents_uncached(talents_dir, local)
+        cached = (fingerprint, talents, list(local.errors))
+        _TALENT_CACHE[key] = cached
+
+    report.extend(cached[2])
+    return copy.deepcopy(cached[1])
 
 
 def load_organization_config(org_id: str, root: Path, report: ValidationReport) -> dict[str, Any] | None:

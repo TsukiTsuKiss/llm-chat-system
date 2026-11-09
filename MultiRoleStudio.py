@@ -30,7 +30,7 @@ from studio.voice import (
 )
 from studio.workflow_validate import workflow_has_interrupt_on, workflow_has_user_exit
 
-VERSION = "0.6.3"
+VERSION = "0.6.4"
 
 
 def print_event(event: EngineEvent, *, use_stream: bool) -> None:
