@@ -130,6 +130,7 @@ multi_logs/
 studio_config.json
 organizations/*/model_mapping.json
 organizations/*/voice_mapping.json
+organizations/*/voice_dictionary.pending.json
 user_context/*
 !user_context/my_context.example.md
 !user_context/corpus/
