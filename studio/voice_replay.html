@@ -44,9 +44,17 @@
 <div id="controls">
   <button id="play" class="replay-only">▶ 再生</button>
   <button id="restart" class="replay-only">⏮ 最初から</button>
+  <button id="prev" class="replay-only">⏪ 前の発言</button>
+  <button id="next" class="replay-only">⏩ 次の発言</button>
   <input id="seek" class="replay-only" type="range" min="0" max="1000" value="0">
   <span id="time">0:00.0 / 0:00.0</span>
   <button id="toreplay">▶ このセッションを再生</button>
+  <label class="replay-only">再生方式
+    <select id="mode">
+      <option value="continuous" selected>連続</option>
+      <option value="realtime">実時間</option>
+    </select>
+  </label>
   <label class="replay-only">速度
     <select id="speed">
       <option value="0.5">0.5x</option>
@@ -245,6 +253,19 @@ let wasReady = false;
 
 const fmt = (s) => `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, "0")}`;
 const speed = () => parseFloat($("speed").value);
+
+// 連続再生で、発言と発言の間に残す無音（秒）
+const CONTINUOUS_GAP = 0.3;
+
+// 連続再生: 音が鳴っていない区間（回答・合成の待ち）を飛ばし、次の発言の手前まで時計を進める
+function skipSilence(t) {
+  const plays = model.plays;
+  if (!plays.length || plays.some((p) => p.start <= t && t < p.end)) return t;
+  let next = null;
+  for (const p of plays) if (p.start > t && (!next || p.start < next.start)) next = p;
+  if (!next) return total;
+  return next.start - t > CONTINUOUS_GAP ? next.start - CONTINUOUS_GAP : t;
+}
 
 function pxPerSec() {
   const v = $("scale").value;
@@ -474,6 +495,7 @@ function frame(ts) {
   } else {
     if (playing) {
       now = Math.min(total, now + ((ts - lastTs) / 1000) * speed());
+      if ($("mode").value === "continuous") now = skipSilence(now);
       if (now >= total) pause();
     }
     syncAudio();
@@ -528,6 +550,25 @@ $("play").addEventListener("click", () => {
 });
 $("toreplay").addEventListener("click", toReplay);
 $("restart").addEventListener("click", () => { resetAudio(); now = 0; view.scrollLeft = 0; });
+
+// 前・次の発言へ。「前」は、今の発言を BACK_RESTART 秒以上聞いていればその頭、そうでなければひとつ前の発言の頭へ戻る
+const BACK_RESTART = 2;
+function jumpUtterance(dir) {
+  const starts = model.plays.map((p) => p.start).sort((a, b) => a - b);
+  let target;
+  if (dir > 0) {
+    target = starts.find((s) => s > now + 0.01);
+    if (target === undefined) return;
+  } else {
+    const cur = starts.filter((s) => s <= now + 0.01).pop();
+    if (cur !== undefined && now - cur > BACK_RESTART) target = cur;
+    else target = (starts.filter((s) => s < (cur === undefined ? now : cur) - 0.01).pop()) ?? 0;
+  }
+  resetAudio();
+  now = target;
+}
+$("prev").addEventListener("click", () => jumpUtterance(-1));
+$("next").addEventListener("click", () => jumpUtterance(1));
 $("seek").addEventListener("input", (e) => { resetAudio(); now = (e.target.value / 1000) * total; });
 $("sound").addEventListener("change", () => { if (!$("sound").checked) resetAudio(); });
 

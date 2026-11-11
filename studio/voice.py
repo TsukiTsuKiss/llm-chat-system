@@ -20,6 +20,7 @@ import wave
 from collections import deque
 from collections.abc import Sequence
 from concurrent.futures import Future, ThreadPoolExecutor
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Callable
 
@@ -141,11 +142,16 @@ def load_voice_mapping(root: Path, org_id: str) -> dict[str, dict[str, Any]]:
     return {}
 
 
+def _normalize_surface(surface: str) -> str:
+    # 本文は clean_for_speech で空白・ハイフンを揃えるため、辞書の表記も同じ形にして照合を外さない
+    return _ODD_HYPHENS.sub("-", _ODD_SPACES.sub(" ", surface))
+
+
 def _read_dictionary(path: Path) -> dict[str, str]:
     if not path.is_file():
         return {}
     data = json.loads(path.read_text(encoding="utf-8"))
-    return {k: v for k, v in data.items() if isinstance(k, str) and isinstance(v, str) and k}
+    return {_normalize_surface(k): v for k, v in data.items() if isinstance(k, str) and isinstance(v, str) and k}
 
 
 def read_pending_dictionary(path: Path) -> dict[str, Any]:
@@ -168,7 +174,7 @@ def _read_pending_readings(path: Path) -> dict[str, str]:
             continue  # 承認するまで読み上げに適用しない
         reading = entry.get("reading") if isinstance(entry, dict) else entry
         if isinstance(reading, str) and reading and surface:
-            readings[surface] = reading
+            readings[_normalize_surface(surface)] = reading
     return readings
 
 
@@ -182,10 +188,66 @@ def load_voice_dictionary(root: Path, org_id: str) -> dict[str, str]:
     }
 
 
+REGEX_PREFIX = "re:"
+_warned: set[str] = set()
+
+
+def _warn_once(message: str) -> None:
+    if message not in _warned:
+        _warned.add(message)
+        print(f"[voice] {message}", file=sys.stderr)
+
+
+def _is_ascii_alnum(ch: str) -> bool:
+    return ch.isascii() and ch.isalnum()
+
+
+def _is_ascii_alnum_boundary(prev: str, ch: str) -> bool:
+    return (_is_ascii_alnum(prev) and not ch.isascii()) or (not prev.isascii() and _is_ascii_alnum(ch))
+
+
+@lru_cache(maxsize=None)
+def _compile_surface(surface: str) -> re.Pattern[str] | None:
+    """辞書の表記を照合用の正規表現にする。不正な `re:` 式は None（警告を出して無視する）。"""
+    if surface.startswith(REGEX_PREFIX):
+        try:
+            pattern = re.compile(surface[len(REGEX_PREFIX):])
+        except re.error as exc:
+            _warn_once(f"辞書の正規表現が不正なので無視します: {surface} ({exc})")
+            return None
+        if pattern.match(""):
+            _warn_once(f"辞書の正規表現が空文字に一致するので無視します: {surface}")
+            return None
+        return pattern
+    # 表記の空白は有無どちらにも一致させ、英数字と日本語の境目は空白の有無を問わない（数字どうしなどは厳密に照合）
+    parts: list[str] = []
+    prev = ""
+    for ch in surface:
+        if ch == " ":
+            parts.append(" ?")
+        else:
+            if prev and prev != " " and _is_ascii_alnum_boundary(prev, ch):
+                parts.append(" ?")
+            parts.append(re.escape(ch))
+        prev = ch
+    return re.compile("".join(parts))
+
+
 def apply_dictionary(text: str, dictionary: dict[str, str]) -> str:
-    # 長い表記を先に置換し、短い表記が一部を壊さないようにする
-    for surface in sorted(dictionary, key=len, reverse=True):
-        text = text.replace(surface, dictionary[surface])
+    # 長い表記を先に置換し、短い表記が一部を壊さないようにする。`re:` の表記は最後に、書かれた順で適用する
+    plain = [s for s in dictionary if not s.startswith(REGEX_PREFIX)]
+    for surface in sorted(plain, key=len, reverse=True):
+        pattern = _compile_surface(surface)
+        reading = dictionary[surface]
+        text = pattern.sub(lambda _m, r=reading: r, text)
+    for surface in (s for s in dictionary if s.startswith(REGEX_PREFIX)):
+        pattern = _compile_surface(surface)
+        if pattern is None:
+            continue
+        try:
+            text = pattern.sub(dictionary[surface], text)
+        except (re.error, IndexError) as exc:
+            _warn_once(f"辞書の置換先が不正なので無視します: {surface} ({exc})")
     return text
 
 

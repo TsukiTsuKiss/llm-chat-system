@@ -173,6 +173,39 @@ def test_apply_dictionary_prefers_longer_surface():
     assert voice.apply_dictionary("株探と株探の記事", {"株探": "カブタン", "株": "カブ"}) == "カブタンとカブタンの記事"
 
 
+def test_dictionary_surface_with_odd_space_matches_cleaned_text(tmp_path: Path):
+    org_dir = tmp_path / "organizations" / "x"
+    org_dir.mkdir(parents=True)
+    (org_dir / "voice_dictionary.json").write_text(
+        json.dumps({"H\u202fII領域": "エイチツーリョウイキ"}, ensure_ascii=False), encoding="utf-8"
+    )
+    dictionary = voice.load_voice_dictionary(tmp_path, "x")
+    cleaned = voice.clean_for_speech("H\u202fII領域は")
+    assert voice.apply_dictionary(cleaned, dictionary) == "エイチツーリョウイキは"
+
+
+def test_dictionary_plain_surface_ignores_space_variants():
+    dictionary = {"H II領域": "エイチツー", "Pi Zero 2W": "パイゼロ", "51": "ゴジュウイチ"}
+    for text in ("H II領域", "HII領域", "H II 領域", "HII 領域"):
+        assert voice.apply_dictionary(text, dictionary) == "エイチツー"
+    assert voice.apply_dictionary("PiZero2Wと Pi Zero2W", dictionary) == "パイゼロと パイゼロ"
+    # 数字どうしの間の空白は吸収しない
+    assert voice.apply_dictionary("5 1と51", dictionary) == "5 1とゴジュウイチ"
+
+
+def test_dictionary_regex_entries_need_prefix_and_bad_ones_are_ignored(capsys):
+    dictionary = {
+        "re:H[ -]?II": "エイチツー",
+        "re:(\\d+)分": "\\1フン",
+        "re:(": "壊れた式",
+        "re:x*": "空一致",
+        "[ab]": "プレーン",
+    }
+    assert voice.apply_dictionary("H-IIと30分と[ab]と ab", dictionary) == "エイチツーと30フンとプレーンと ab"
+    err = capsys.readouterr().err
+    assert "re:(" in err and "re:x*" in err
+
+
 def test_voice_reader_applies_dictionary(tmp_path: Path, monkeypatch):
     spoken: list[str] = []
     monkeypatch.setattr(voice, "synthesize", lambda text, entry, base_url=voice.DEFAULT_BASE_URL: spoken.append(text) or b"RIFF")
