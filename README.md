@@ -253,6 +253,7 @@ python MultiRoleStudioWeb.py --org broadcast_studio --no-browser --host 0.0.0.0 
 
 **model_mapping:** 実行時に読む正本は `organizations/<org>/model_mapping.json`（`.gitignore`）。
 `assistant` は `ai_assistants_config.json` のキー、`model` はその JSON 内の文字列。
+`ai_assistants_config.json` の各プロバイダーには、任意で `model_param`（モデル名を渡す引数名。既定 `model`）、`system_param`（システムプロンプトを渡す引数名。無ければメッセージ）、`base_url`（https の接続先）、`api_key_env`（API キーを読む環境変数名）を書ける（例: Opper は `model_name` / `instructions`、さくらの AI Engine は `ChatOpenAI` + `base_url` + `SAKURA_AI_API_KEY`）。これらはサーバー側の設定だけから読み、アップロードファイルからは受け付けない（API キーを別のサーバーへ送られないようにするため）。旧版（`legacy/`）はこれらを読まない。さくらの AI Engine のアカウントトークンは `<UUID>:<シークレット>` の形式で、この文字列全体を環境変数に入れる。
 `.example` / `.providers.example` をコピーして編集する。CSV の `model` 列は**手動で写すときの参照用**（実行時には読まない）。
 
 #### クイズ・ベンチマーク（`--benchmark`）
@@ -842,6 +843,10 @@ sandbox/session_20250814_141337/
 ## 🔄 更新履歴
 
 ## 📈 バージョン履歴
+
+### MultiRoleStudioWeb v0.12.2 / MultiRoleStudio v0.7.6 (2026-11-12)
+- 🔌 **プロバイダー設定を設定ファイルで定義** - `ai_assistants_config.json` に `model_param` / `system_param` / `base_url` / `api_key_env` を追加。Opper（`ChatOpperAI`）が `model=` を黙って無視し、既定モデルで動いていた問題を修正。temperature を持たないクライアントでは渡さず、実効値を記録する
+- 🌸 **さくらの AI Engine をプロバイダーに追加**（`SakuraAI`、OpenAI 互換 Chat Completions、`SAKURA_AI_API_KEY`）
 
 ### MultiRoleStudioWeb v0.12.1 / MultiRoleStudio v0.7.5 (2026-11-12)
 - 💰 **単価の単位を修正** - `model_costs.csv` の 2025 年登録分（48 行）が 100 万トークンあたりの値で、列の単位（1K トークンあたり）と 1000 倍ずれていたのを、換算して直す。桁違いを検知するテストを追加

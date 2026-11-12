@@ -24,6 +24,10 @@ git checkout legacy-ui-pre-migration
 git show legacy-ui-pre-migration:Chat.py
 ```
 
+## 新しいプロバイダー設定について
+
+`ai_assistants_config.json` の `model_param` / `system_param` / `base_url` / `api_key_env` は Studio 専用です。旧版は読みません（Opper の特別扱いは旧版のコード内に残っています）。`SakuraAI` など、これらの設定が必要なプロバイダーは、旧版では動きません。
+
 ## ドキュメント
 
 - [MultiRoleChat マニュアル](../docs/multi-role-chat/README.md)

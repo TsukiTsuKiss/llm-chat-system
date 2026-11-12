@@ -24,6 +24,8 @@ def required_api_keys(assistant_name: str, assistant_cfg: dict[str, Any] | None)
     if assistant_name in RESERVED_ASSISTANTS:
         return ()
     cfg = assistant_cfg or {}
+    if cfg.get("api_key_env"):
+        return (str(cfg["api_key_env"]),)
     class_name = cfg.get("class", "")
     module_name = cfg.get("module", "")
     if class_name in _ASSISTANT_CLASS_API_KEYS:

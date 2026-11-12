@@ -78,6 +78,8 @@
   "Opper": {
     "module": "langchain_opperai",
     "class": "ChatOpperAI",
+    "model_param": "model_name",
+    "system_param": "instructions",
     "models": [
       "groq/gpt-oss-120b",
       "groq/gpt-oss-20b",
@@ -125,6 +127,22 @@
       "xai/grok-build-0.1",
       "mistral/mistral-large-2512",
       "mistral/mistral-small-2603"
+    ]
+  },
+  "SakuraAI": {
+    "module": "langchain_openai",
+    "class": "ChatOpenAI",
+    "base_url": "https://api.ai.sakura.ad.jp/v1",
+    "api_key_env": "SAKURA_AI_API_KEY",
+    "models": [
+      "gpt-oss-120b",
+      "llm-jp-3.1-8x13b-instruct4",
+      "preview/Qwen3.6-35B-A3B",
+      "preview/gemma-4-31B-it",
+      "preview/Kimi-K2.7-Code",
+      "preview/Qwen3-VL-30B-A3B-Instruct",
+      "preview/Phi-4-mini-instruct-cpu",
+      "preview/Qwen3-0.6B-cpu"
     ]
   }
 }

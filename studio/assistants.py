@@ -173,21 +173,57 @@ class EmptyResponseError(RuntimeError):
     """モデルが本文の空な応答を返した。"""
 
 
+def _load_client_class(assistant_cfg: dict[str, Any]):
+    module = importlib.import_module(assistant_cfg["module"])
+    return getattr(module, assistant_cfg["class"])
+
+
+def supports_temperature(assistant_cfg: dict[str, Any]) -> bool:
+    """クライアントが temperature を持つか。持たないとき（ChatOpperAI など）は渡しても黙って無視される。"""
+    if not assistant_cfg.get("module") or not assistant_cfg.get("class"):
+        return True
+    fields = getattr(_load_client_class(assistant_cfg), "model_fields", None) or {}
+    return not fields or "temperature" in fields
+
+
+def _reported_temperature(assistant_cfg: dict[str, Any], temperature: float | None) -> float | None:
+    return temperature if supports_temperature(assistant_cfg) else None
+
+
 def build_llm(
     assistant_cfg: dict[str, Any],
     model: str,
     temperature: float | None,
     web_search: bool = False,
     client_kwargs: dict[str, Any] | None = None,
+    system_prompt: str | None = None,
 ):
-    module = importlib.import_module(assistant_cfg["module"])
-    cls = getattr(module, assistant_cfg["class"])
-    kwargs: dict[str, Any] = {"model": model}
-    if temperature is not None:
+    """クライアントを作る。引数名や接続先は ai_assistants_config.json（サーバー側の設定）だけから読み、外部入力は受け付けない。
+
+    model_param: モデル名を渡す引数名（既定 model） / system_param: システムプロンプトを渡す引数名（無ければメッセージ）
+    base_url: https の接続先 / api_key_env: API キーを読む環境変数名
+    """
+    cls = _load_client_class(assistant_cfg)
+    fields = getattr(cls, "model_fields", None) or {}
+    kwargs: dict[str, Any] = {assistant_cfg.get("model_param") or "model": model}
+    if temperature is not None and supports_temperature(assistant_cfg):
         kwargs["temperature"] = temperature
     kwargs.update(DEFAULT_EXTRA_KWARGS.get(assistant_cfg["class"], {}))
+    base_url = assistant_cfg.get("base_url")
+    if base_url:
+        if not str(base_url).startswith("https://"):
+            raise ValueError(f"base_url は https:// で始めてください: {base_url}")
+        kwargs["base_url"] = base_url
+    key_env = assistant_cfg.get("api_key_env")
+    if key_env:
+        api_key = os.environ.get(key_env, "").strip()
+        if not api_key:
+            raise RuntimeError(f"環境変数 {key_env} が未設定です")
+        kwargs["api_key"] = api_key
+    system_param = assistant_cfg.get("system_param")
+    if system_param and system_prompt:
+        kwargs[system_param] = system_prompt
     # クラスが持つフィールドだけ渡す（プロバイダーごとに引数が違うため）
-    fields = getattr(cls, "model_fields", None) or {}
     for key, value in (client_kwargs or {}).items():
         info = fields.get(key)
         if info is not None:
@@ -202,15 +238,15 @@ def build_llm(
     return llm
 
 
-def build_chain(system_prompt: str, history: ConversationHistory, llm):
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            SystemMessagePromptTemplate.from_template("{system_prompt}"),
-            MessagesPlaceholder(variable_name="history"),
-            HumanMessagePromptTemplate.from_template("{input}"),
-        ]
+def build_chain(system_prompt: str | None, history: ConversationHistory, llm):
+    """system_prompt が None のときはシステムメッセージを入れない（クライアントの system_param で渡したとき）。"""
+    messages: list[Any] = []
+    if system_prompt is not None:
+        messages.append(SystemMessagePromptTemplate.from_template("{system_prompt}"))
+    messages.extend(
+        [MessagesPlaceholder(variable_name="history"), HumanMessagePromptTemplate.from_template("{input}")]
     )
-    return prompt | llm
+    return ChatPromptTemplate.from_messages(messages) | llm
 
 
 def extract_usage(response: Any, input_text: str, output_text: str) -> tuple[int, int, str]:
@@ -253,8 +289,12 @@ def invoke_llm_step(
 
     while attempt < max_retries:
         try:
-            llm = build_llm(assistant_cfg, model, effective_temperature, web_search, client_kwargs)
-            chain = build_chain(system_prompt, history, llm)
+            system_in_client = bool(assistant_cfg.get("system_param"))
+            llm = build_llm(
+                assistant_cfg, model, effective_temperature, web_search, client_kwargs,
+                system_prompt=system_prompt if system_in_client else None,
+            )
+            chain = build_chain(None if system_in_client else system_prompt, history, llm)
             messages = history.get_messages()
             payload = {"system_prompt": system_prompt, "history": messages, "input": user_message}
 
@@ -282,7 +322,7 @@ def invoke_llm_step(
                     tokens_source=source,
                     cost=cost,
                     stream=True,
-                    temperature=effective_temperature,
+                    temperature=_reported_temperature(assistant_cfg, effective_temperature),
                 )
 
             response = chain.invoke(payload)
@@ -302,7 +342,7 @@ def invoke_llm_step(
                 tokens_source=source,
                 cost=cost,
                 stream=False,
-                temperature=effective_temperature,
+                temperature=_reported_temperature(assistant_cfg, effective_temperature),
             )
         except MockTemperatureError:
             raise
