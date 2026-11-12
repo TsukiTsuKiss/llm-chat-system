@@ -28,6 +28,9 @@ Thumbs.db
 *.swo
 *~
 
+# Cursor
+.cursorrules
+
 # ユーティリティスクリプト (独立ツール群)
 util/
 !util/
