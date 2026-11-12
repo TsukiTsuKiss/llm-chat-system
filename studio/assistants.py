@@ -78,6 +78,7 @@ class InvokeResult:
     tokens_source: str
     cost: float
     stream: bool
+    temperature: float | None = None  # 実際に使った値（非対応で外したときは None）
 
 
 class MockAssistant:
@@ -177,6 +178,7 @@ def build_llm(
     model: str,
     temperature: float | None,
     web_search: bool = False,
+    client_kwargs: dict[str, Any] | None = None,
 ):
     module = importlib.import_module(assistant_cfg["module"])
     cls = getattr(module, assistant_cfg["class"])
@@ -184,6 +186,12 @@ def build_llm(
     if temperature is not None:
         kwargs["temperature"] = temperature
     kwargs.update(DEFAULT_EXTRA_KWARGS.get(assistant_cfg["class"], {}))
+    # クラスが持つフィールドだけ渡す（プロバイダーごとに引数が違うため）
+    fields = getattr(cls, "model_fields", None) or {}
+    for key, value in (client_kwargs or {}).items():
+        info = fields.get(key)
+        if info is not None:
+            kwargs[getattr(info, "alias", None) or key] = value
     llm = cls(**kwargs)
     if web_search:
         tool = WEB_SEARCH_TOOLS.get(assistant_cfg["class"])
@@ -236,6 +244,7 @@ def invoke_llm_step(
     web_search: bool = False,
     max_retries: int = 3,
     retry_delay: float = 2.0,
+    client_kwargs: dict[str, Any] | None = None,
 ) -> InvokeResult:
     input_bundle = f"{system_prompt}\n{user_message}"
     attempt = 0
@@ -244,7 +253,7 @@ def invoke_llm_step(
 
     while attempt < max_retries:
         try:
-            llm = build_llm(assistant_cfg, model, effective_temperature, web_search)
+            llm = build_llm(assistant_cfg, model, effective_temperature, web_search, client_kwargs)
             chain = build_chain(system_prompt, history, llm)
             messages = history.get_messages()
             payload = {"system_prompt": system_prompt, "history": messages, "input": user_message}
@@ -273,6 +282,7 @@ def invoke_llm_step(
                     tokens_source=source,
                     cost=cost,
                     stream=True,
+                    temperature=effective_temperature,
                 )
 
             response = chain.invoke(payload)
@@ -292,6 +302,7 @@ def invoke_llm_step(
                 tokens_source=source,
                 cost=cost,
                 stream=False,
+                temperature=effective_temperature,
             )
         except MockTemperatureError:
             raise

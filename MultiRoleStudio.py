@@ -4,11 +4,13 @@
 from __future__ import annotations
 
 import argparse
+import shlex
 import sys
 from pathlib import Path
 
 from studio.artifacts import apply_session_artifacts
 from studio.assistants import MockAssistant
+from studio.benchmark import format_summary_table, load_questions, miss_lines, run_benchmark
 from studio.bindings import org_has_human_talent, workflow_participating_talent_ids
 from studio.display import format_session_end_lines, format_step_metrics_line
 from studio.engine import EngineEvent, SessionEngine, collect_events
@@ -30,7 +32,7 @@ from studio.voice import (
 )
 from studio.workflow_validate import workflow_has_interrupt_on, workflow_has_user_exit
 
-VERSION = "0.6.5"
+VERSION = "0.7.5"
 
 
 def print_event(event: EngineEvent, *, use_stream: bool) -> None:
@@ -267,6 +269,42 @@ def run_interactive(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_benchmark_cli(args: argparse.Namespace) -> int:
+    root = Path(args.root)
+    try:
+        ctx = load_session_context(args.org, root)
+        questions = load_questions(Path(args.benchmark))
+        talent_ids = [t.strip() for t in args.talents.split(",") if t.strip()] if args.talents else None
+        max_parallel = args.max_parallel or int(ctx.studio_config.get("max_parallel_calls", 8))
+        report = run_benchmark(
+            ctx,
+            questions,
+            out_root=root / args.bench_out,
+            trials=args.trials,
+            style=args.style,
+            talent_ids=talent_ids,
+            max_parallel=max_parallel,
+            per_provider=args.per_provider,
+            rpm=args.rpm,
+            retries=args.retries,
+            temperature=args.temperature,
+            progress=print,
+            questions_path=Path(args.benchmark),
+            command="python MultiRoleStudio.py " + shlex.join(args.argv),
+        )
+    except StudioValidationError as exc:
+        print(exc.format_all(), file=sys.stderr)
+        return 1
+    except (OSError, ValueError) as exc:
+        print(f"[benchmark] {exc}", file=sys.stderr)
+        return 1
+    print("\n" + format_summary_table(report.summary))
+    for line in miss_lines(report.rows):
+        print(line)
+    print(f"\n結果: {report.out_dir}")
+    return 0
+
+
 def run_apply(args: argparse.Namespace) -> int:
     root = Path(args.root)
     branch = f"studio/{args.apply}" if args.apply_branch else None
@@ -313,6 +351,15 @@ def run_user_context_reindex(args: argparse.Namespace) -> int:
     result = reindex_corpus(root, studio_config)
     print(result.message)
     return 0 if result.ok else 1
+
+
+def _temperature_arg(value: str) -> float | None:
+    if value.lower() == "default":
+        return None
+    try:
+        return float(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"数値か default を指定してください: {value}") from None
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -386,6 +433,31 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="user_context/corpus を index 再構築（付録D.10）",
     )
+    parser.add_argument(
+        "--benchmark",
+        metavar="QUESTIONS",
+        default=None,
+        help="問題セット（JSON / JSONL）を組織の全モデルに流し、自動採点して集計する",
+    )
+    parser.add_argument("--trials", type=int, default=1, help="--benchmark: 同じ問題を何回ずつ流すか（既定: 1）")
+    parser.add_argument(
+        "--style",
+        choices=("answer", "reason"),
+        default="reason",
+        help="--benchmark: answer=答えだけ / reason=簡潔な理由つき（既定）",
+    )
+    parser.add_argument("--talents", default=None, help="--benchmark: 対象の人材 ID（カンマ区切り。既定は組織の全員）")
+    parser.add_argument("--max-parallel", type=int, default=None, help="--benchmark: 全体の同時実行数（既定: studio_config の max_parallel_calls）")
+    parser.add_argument("--per-provider", type=int, default=4, help="--benchmark: プロバイダーごとの同時実行数（既定: 4）")
+    parser.add_argument("--rpm", type=float, default=None, help="--benchmark: モデルごとの 1 分あたりの呼び出し上限（レート制限の回避。既定: 制限なし）")
+    parser.add_argument("--retries", type=int, default=2, help="--benchmark: 失敗した呼び出しの再試行回数（既定: 2）")
+    parser.add_argument(
+        "--temperature",
+        type=_temperature_arg,
+        default=0.0,
+        help="--benchmark: temperature（既定: 0。default でプロバイダー既定値）",
+    )
+    parser.add_argument("--bench-out", default="benchmark_results", help="--benchmark: 結果の出力先（既定: benchmark_results）")
     parser.add_argument("--version", action="version", version=f"MultiRoleStudio {VERSION}")
     return parser
 
@@ -393,6 +465,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    args.argv = list(sys.argv[1:] if argv is None else argv)
     if args.stream == "on":
         args.stream = True
     elif args.stream == "off":
@@ -409,6 +482,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.apply:
         return run_apply(args)
+
+    if args.benchmark:
+        return run_benchmark_cli(args)
 
     if args.topic:
         return run_batch(args)

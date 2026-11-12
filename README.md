@@ -49,7 +49,7 @@
 - **記録・レポート・再開**: 会話は `sessions/` に保存され、発言の流れを Mermaid の図で示した Markdown のレポートを見たり、エクスポートしたりできます。過去のセッションは、分岐セッションとして再開できます。
 - **議事録**: セッションから、決定事項などをまとめた議事録を、`minutes/<組織>/<テーマ>.json` と `.md` に作ります。上書きで最新を保ち、版の履歴は Git で見る方式です。
 - **成果物の採用**: 開発系のワークフローが出力したコードは、`sandbox/` に保存され、採用すると作業ツリーへ反映して、Git にコミットできます。
-- **費用の表示**: 発言ごとの費用と、セッション終了時のモデル別の集計表（回数・トークン・費用）を表示します。費用は、`model_costs.csv` の単価から計算した推定値で、単価（目安）は、自分で設定・更新できます。単価を更新していないと、実際の請求と差が出ます。
+- **費用の表示**: 発言ごとの費用と、セッション終了時のモデル別の集計表（回数・トークン・費用）を表示します。費用は、`model_costs.csv` の単価から計算した推定値で、単価（目安）は、自分で設定・更新できます。単価を更新していないと、実際の請求と差が出ます。**単価の単位は 1K（1,000）トークンあたりの米ドル**です（100 万トークンあたりの価格は 1000 で割って入れる）。`model_costs.csv` にないモデルは既定単価（`default` 行）で概算され、ベンチマークでは「単価未登録」と警告します。
 
 設計の詳細は、[設計書](docs/MultiRoleStudio/design.md) を参照してください。
 
@@ -239,6 +239,7 @@ python MultiRoleStudioWeb.py --org broadcast_studio --no-browser --host 0.0.0.0 
 | `--web-search` | ウェブ検索を有効にする。`model_mapping` で `"web_search": true` の人材のみ。対応: Groq / OpenAI / xAI / Anthropic / Gemini |
 | `--voice` | VOICEVOX で発言を読み上げ、`sessions/audio/<session_id>/` に wav を保存 |
 | `--voicevox-url` | VOICEVOX の接続先（既定: 環境変数 `VOICEVOX_URL`、なければ `http://127.0.0.1:50021`）。カンマ区切りで複数指定すると並列合成 |
+| `--benchmark` | 問題セット（JSON / JSONL）を組織の全モデルに流し、自動採点・集計する（下の「クイズ・ベンチマーク」） |
 
 各 step 終了時に `[assistant/model] | 秒 | in=… out=… (api/estimate) | tok/s | $…` を表示する。
 
@@ -253,6 +254,22 @@ python MultiRoleStudioWeb.py --org broadcast_studio --no-browser --host 0.0.0.0 
 **model_mapping:** 実行時に読む正本は `organizations/<org>/model_mapping.json`（`.gitignore`）。
 `assistant` は `ai_assistants_config.json` のキー、`model` はその JSON 内の文字列。
 `.example` / `.providers.example` をコピーして編集する。CSV の `model` 列は**手動で写すときの参照用**（実行時には読まない）。
+
+#### クイズ・ベンチマーク（`--benchmark`）
+
+同じ問題セットを、組織の全モデル（`model_mapping.json` の割当）に同条件で流し、正解率・速度・コストを自動で集計する。人格は付けず、共通の簡素な指示を使う（`--style answer` で答えだけ、`--style reason` で簡潔な理由つき）。
+
+```bash
+python MultiRoleStudio.py --org quiz_evaluation --benchmark samples/benchmark/questions.example.json --trials 3
+```
+
+- **問題セット**: JSON（配列または `{"questions": [...]}`）または JSONL。置き場所は自由で、`--benchmark` にパスを渡す（自分用は `benchmark_questions/` に置くと `.gitignore` される。同梱例: `benchmark_questions/*.example.json` は追跡）。各問は `id`（省略時は通し番号）、`question`、`choices`（`{"A": "…"}`、省略可）、`answer`（省略すると採点しない）。例: [samples/benchmark/questions.example.json](samples/benchmark/questions.example.json)。
+- **採点**: 回答の最終行『答え: ○』を読む（選択肢がある問題は記号、ない問題は文字列の一致）。取れない回答は誤答扱い。
+- **安定性**: `--trials` で回数を増やすと、速度は平均より外れ値に強い中央値と p95 で見られる。失敗した呼び出しは `--retries` 回まで再試行し、それでも失敗したものはエラーとして記録（正解率の分母に入れない）。`--per-provider` でプロバイダーごとの同時数を抑えると、レート制限を避けやすい。`--rpm N` でモデルごとの 1 分あたりの呼び出し数を上限できる（例: Gemini Tier 1 の 25 回/分なら `--rpm 20`）。それでも 429 が出たときは、サーバーが示す秒数だけ同じモデルを止めて再試行し、待ち時間は応答時間に含めない（ライブラリ内部の再試行を無効化する。対応しないクライアントでは内部の再試行が残るので、コンソールに `Retrying ...` が出たら速度を高めに見ておく）。待った回数はレポートに記録する。
+- **temperature**: 既定は 0（正解率と再現性を見るため固定）。`--temperature default` でプロバイダー既定値にできる。温度を受け付けないモデルは自動で既定値になるため、レポートの条件に「既定値で実行したモデル」を記録し、`results.csv` の `temperature` 列に実際の値を残す。
+- **出力**: `benchmark_results/<日時>/` に `summary.md`（実行条件〔問題セットのパスと内容の hash、試行、指示、temperature、同時数、実行コマンド〕・タレントとプロバイダー・モデルの対応表・順位表・問題別の正解数・誤答した問題・使用した問題の一覧。表は「プロバイダー (モデル)」で表示し、タレント名は対応表だけに出す。記事にそのまま貼れる）、`results.csv`（試行ごと、Excel で開ける）、`summary.csv`（モデル別）、`raw.jsonl`（回答全文つき）を保存し、記事に貼れる Markdown の順位表と、誤答のあった問題を画面に表示する。順位は正解率優先、同率は中央値の短い順。
+- 問題集は著作権に注意する（結果フォルダ `benchmark_results/` は `.gitignore`）。
+- **Web UI**: `python MultiRoleStudioWeb.py` の「🎯 ベンチマーク」タブで、同じことができる。組織と対象モデルを選び、問題セット（JSON / JSONL）をアップロード（または `benchmark_questions/` から選択）し、試行回数・指示・temperature・呼び出し上限・同時数を指定して実行する。実行前に API 呼び出し回数の見積もりを表示し、実行中は進捗と「中断」ボタン、終わったら順位表などを画面に出して結果ファイル（`summary.md` あり）をダウンロードできる。過去の結果も一覧から開ける。中断したときは、そこまでの結果を保存する。
 
 #### ニュース番組と読み上げ（VOICEVOX）
 
@@ -408,6 +425,8 @@ python MultiRoleStudioWeb.py --org broadcast_studio --workflow broadcast_topic_s
 | `studio/sessions_ui.py` | セッションタブ UI |
 | `studio/web_ui.py` | エンジンイベント → Gradio 表示、組織別 workflow 選択肢 |
 | `studio/voice.py` | VOICEVOX 読み上げ（合成・保存・ブラウザ再生キュー・読み辞書） |
+| `studio/benchmark.py` | クイズ・ベンチマーク（問題セット・並列実行・自動採点・集計） |
+| `studio/benchmark_ui.py` | ベンチマークタブ UI（問題セット選択・実行・結果表示） |
 | `studio/config_store.py` | 設定の保存・削除・バリデーション |
 | `studio/settings_ui.py` | 設定編集タブ UI |
 | `studio/` | loader / engine / bindings / logging / artifacts |
@@ -823,6 +842,26 @@ sandbox/session_20250814_141337/
 ## 🔄 更新履歴
 
 ## 📈 バージョン履歴
+
+### MultiRoleStudioWeb v0.12.1 / MultiRoleStudio v0.7.5 (2026-11-12)
+- 💰 **単価の単位を修正** - `model_costs.csv` の 2025 年登録分（48 行）が 100 万トークンあたりの値で、列の単位（1K トークンあたり）と 1000 倍ずれていたのを、換算して直す。桁違いを検知するテストを追加
+- ⚠️ **単価未登録の警告（ベンチマーク）** - 単価表にないモデルを、実行開始時・Web の見積もり・`summary.md`（コスト欄の `*` と条件）で警告する。`summary.csv` に `price_known` 列を追加
+
+### MultiRoleStudioWeb v0.12.0 / MultiRoleStudio v0.7.4 (2026-11-12)
+- 🎯 **Web の「ベンチマーク」タブ** - 問題セット（JSON / JSONL）をアップロードして、組織のモデルを並列実行。進捗表示・中断・順位表・結果ファイルのダウンロード・過去の結果の閉覧に対応。実行本体は CLI と共通（`studio/benchmark.py` に中断を追加）
+
+### MultiRoleStudio v0.7.3 (2026-11-12)
+- 🚦 **ベンチマークのレート制限対策** - `--rpm` でモデルごとの呼び出し頻度を上限。429 はサーバーが示す秒数だけ同じモデルを止めて再試行し、待ち時間を応答時間に含めない（ライブラリ内部の再試行を無効化）。待った回数をレポートに記録
+- 🧭 **プロバイダー・モデル基準のレポート** - 表示を「プロバイダー (モデル)」にし、タレントとの対応表を追加
+
+### MultiRoleStudio v0.7.2 (2026-11-12)
+- 📝 **ベンチマークレポートに条件と問題を記録** - `summary.md` に、問題セットのパスと hash・対象モデル・試行・指示・temperature・同時数・実行コマンド・使用した問題の一覧を追加。温度を受け付けず既定値で動いたモデルも記録する。`--temperature default` を追加
+
+### MultiRoleStudio v0.7.1 (2026-11-12)
+- 📄 **ベンチマーク結果の Markdown** - `--benchmark` の結果フォルダに `summary.md`（条件・順位表・問題別の正解数・誤答した問題）を追加
+
+### MultiRoleStudio v0.7.0 (2026-11-12)
+- 🎯 **クイズ・ベンチマーク（`--benchmark`）** - 問題セット（JSON / JSONL）を組織の全モデルに並列で流し、『答え: ○』を自動採点。複数回試行・再試行・プロバイダー別の同時数制限に対応し、正解率・中央値/p95・コストを CSV と Markdown 表で出力する
 
 ### MultiRoleStudioWeb v0.11.2 / MultiRoleStudio v0.6.5 (2026-11-11)
 - 🔤 **読み辞書の空白ゆれを吸収、正規表現も選べる** - 表記の空白の有無を問わず一致する（`H II領域` ↔ `HII領域`）。`re:` で始めた表記は正規表現として扱う（普通の表記は従来どおり）

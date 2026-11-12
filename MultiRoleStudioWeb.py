@@ -15,6 +15,7 @@ from studio.loader import load_studio_config
 from studio.validation import StudioValidationError
 from studio.settings_ui import SettingsHandles, build_settings_tab
 from studio.sessions_ui import SessionsHandles, build_sessions_tab
+from studio.benchmark_ui import build_benchmark_tab
 from studio.rag_ui import (
     CORPUS_PREVIEW_PLACEHOLDER,
     RAG_DISABLED_HINT,
@@ -54,7 +55,7 @@ from web_input_utils import (
     user_context_default_from_config,
 )
 
-VERSION = "0.11.2"
+VERSION = "0.12.1"
 
 DEFAULT_ORG = os.getenv("MULTIROLESTUDIOWEB_ORG", "")
 DEFAULT_PORT = int(os.getenv("MULTIROLESTUDIOWEB_PORT", "7862"))
@@ -462,6 +463,8 @@ def build_ui(
                 ),
                 demo,
             )
+
+            build_benchmark_tab(root, demo)
 
         def on_org_change(org_id: str, workflow_value: str) -> tuple[dict, str, str, str, str]:
             choices, value = workflow_dropdown_for_org(root, org_id or "", workflow_value)
