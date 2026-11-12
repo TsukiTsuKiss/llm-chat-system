@@ -14,7 +14,7 @@ from studio.bindings import build_direct_bindings, build_direct_workflow, expand
 from studio.history import ConversationHistory, RoleHistories
 from studio.interrupt import USER_INTERRUPT_DISPLAY, USER_INTERRUPT_TALENT, matched_interrupt_marker, resolve_interrupt_markers
 from studio.loader import SessionContext
-from studio.logging import SessionLogger, StepMetrics
+from studio.logging import DEFAULT_CURRENCY, SessionLogger, StepMetrics, currency_of
 from studio.prompts import build_system_prompt, build_user_message
 from studio.user_context import build_generation_options, resolve_session_rag
 from studio.user_context_rag import RagChunk, chunks_to_log
@@ -71,6 +71,12 @@ class StepOutcome:
     tokens_out: int
     tokens_source: str
     cost: float
+
+
+def _currency_field(model: str | None, state: EngineState) -> dict[str, str]:
+    """USD 以外のモデルのときだけ、イベントに通貨を付ける（表示の記号を合わせるため）。"""
+    currency = currency_of(model, state.logger.costs) if state.logger is not None else DEFAULT_CURRENCY
+    return {} if currency == DEFAULT_CURRENCY else {"currency": currency}
 
 
 class SessionEngine:
@@ -554,6 +560,7 @@ class SessionEngine:
                 "cost": result.cost,
                 "stream": False,
                 "judge": True,
+                **_currency_field(mapping.get("model"), state),
             },
         )
         return StepOutcome(
@@ -745,6 +752,7 @@ class SessionEngine:
                     },
                     "cost": outcome.cost,
                     "stream": outcome.stream,
+                    **_currency_field(outcome.model, state),
                 },
             )
             turn_prior.append((self._speaker_label(outcome.talent_id), outcome.text))
@@ -962,6 +970,7 @@ class SessionEngine:
                 },
                 "cost": result.cost,
                 "stream": step_stream,
+                **_currency_field(mapping.get("model"), state),
             },
         )
         return StepOutcome(

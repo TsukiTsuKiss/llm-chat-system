@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
 
-from studio.display import format_by_model_markdown_table, format_step_metrics_line
+from studio.display import format_by_model_markdown_table, format_step_metrics_line, format_total_cost
 
 DIRECT_WORKFLOW_LABEL = "直接送信"
 
@@ -358,7 +358,7 @@ def generate_session_markdown(
         lines.append(
             f"- **total_elapsed**: {float(end_record.get('total_elapsed') or 0.0):.3f}s"
         )
-        lines.append(f"- **total_cost**: ${float(end_record.get('total_cost') or 0.0):.6f}")
+        lines.append(f"- **total_cost**: {format_total_cost(end_record)}")
         table = format_by_model_markdown_table(end_record.get("by_model") or {})
         if table:
             lines.extend(["", "### by_model", table])

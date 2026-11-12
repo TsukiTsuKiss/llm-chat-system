@@ -10,12 +10,15 @@ from pathlib import Path
 from typing import Any
 
 MODEL_COSTS_FILE = "model_costs.csv"
+DEFAULT_CURRENCY = "USD"
+CURRENCY_SYMBOLS = {"USD": "$", "JPY": "¥"}
 
 
-def load_model_costs(root: Path) -> dict[str, dict[str, float]]:
+def load_model_costs(root: Path) -> dict[str, dict[str, Any]]:
+    """モデルごとの単価（1 トークンあたり、model_costs.csv の currency 列の通貨。無ければ USD）。"""
     path = root / MODEL_COSTS_FILE
-    costs: dict[str, dict[str, float]] = {
-        "default": {"input": 0.001 / 1000, "output": 0.003 / 1000},
+    costs: dict[str, dict[str, Any]] = {
+        "default": {"input": 0.001 / 1000, "output": 0.003 / 1000, "currency": DEFAULT_CURRENCY},
     }
     if not path.exists():
         return costs
@@ -27,10 +30,24 @@ def load_model_costs(root: Path) -> dict[str, dict[str, float]]:
                 costs[model_name] = {
                     "input": float(row["input_cost_per_1k_tokens"]) / 1000,
                     "output": float(row["output_cost_per_1k_tokens"]) / 1000,
+                    "currency": (row.get("currency") or "").strip().upper() or DEFAULT_CURRENCY,
                 }
     except (OSError, KeyError, ValueError):
         pass
     return costs
+
+
+def currency_of(model: str | None, costs: dict[str, dict[str, Any]]) -> str:
+    entry = costs.get(model) if model else None
+    entry = entry or costs.get("default") or {}
+    return entry.get("currency") or DEFAULT_CURRENCY
+
+
+def format_money(amount: float, currency: str = DEFAULT_CURRENCY, digits: int = 6) -> str:
+    symbol = CURRENCY_SYMBOLS.get(currency)
+    if symbol:
+        return f"{symbol}{amount:.{digits}f}"
+    return f"{amount:.{digits}f} {currency}"
 
 
 def estimate_tokens(text: str) -> int:
@@ -63,6 +80,7 @@ class StepMetrics:
     tokens_source: str
     cost: float
     phase_type: str | None = None
+    currency: str = DEFAULT_CURRENCY
 
     def to_log_record(self) -> dict[str, Any]:
         record: dict[str, Any] = {
@@ -80,6 +98,8 @@ class StepMetrics:
             },
             "cost": round(self.cost, 6),
         }
+        if self.currency != DEFAULT_CURRENCY:
+            record["currency"] = self.currency
         if self.phase_type:
             record["phase_type"] = self.phase_type
         if self.model:
@@ -100,7 +120,7 @@ class SessionLogger:
     talents: dict[str, str]
     models: dict[str, dict[str, str]]
     generation: dict[str, Any]
-    costs: dict[str, dict[str, float]] = field(default_factory=dict)
+    costs: dict[str, dict[str, Any]] = field(default_factory=dict)
     steps: list[StepMetrics] = field(default_factory=list)
     total_elapsed: float = 0.0
     parent_session_id: str | None = None
@@ -220,6 +240,7 @@ class SessionLogger:
         )
 
     def log_step(self, metrics: StepMetrics) -> None:
+        metrics.currency = currency_of(metrics.model, self.costs)
         self.steps.append(metrics)
         self.write_line(metrics.to_log_record())
 
@@ -252,6 +273,8 @@ class SessionLogger:
             bucket["tokens_in"] += step.tokens_in
             bucket["tokens_out"] += step.tokens_out
             bucket["cost"] += step.cost
+            if step.currency != DEFAULT_CURRENCY:
+                bucket["currency"] = step.currency
             if step.stream:
                 bucket["stream_on"] += 1
             else:
@@ -262,11 +285,17 @@ class SessionLogger:
         return rollup
 
     def finish(self) -> dict[str, Any]:
-        total_cost = sum(s.cost for s in self.steps)
+        # total_cost は USD の合計。USD 以外のモデルの費用は total_cost_other に通貨別で入れる
+        total_cost = sum(s.cost for s in self.steps if s.currency == DEFAULT_CURRENCY)
+        other: dict[str, float] = {}
+        for step in self.steps:
+            if step.currency != DEFAULT_CURRENCY:
+                other[step.currency] = other.get(step.currency, 0.0) + step.cost
         end_record = {
             "type": "session_end",
             "total_elapsed": round(self.total_elapsed, 3),
             "total_cost": round(total_cost, 6),
+            **({"total_cost_other": {k: round(v, 6) for k, v in other.items()}} if other else {}),
             "by_model": self.build_by_model(),
             "log_path": str(self.log_path),
         }
@@ -302,6 +331,7 @@ def steps_from_jsonl(log_path: Path) -> list[StepMetrics]:
                     tokens_source=tokens.get("source", "estimate"),
                     cost=record.get("cost", 0.0),
                     phase_type=record.get("phase_type"),
+                    currency=record.get("currency", DEFAULT_CURRENCY),
                 )
             )
     return steps

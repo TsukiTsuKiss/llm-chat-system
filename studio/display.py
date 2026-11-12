@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from studio.logging import DEFAULT_CURRENCY, format_money
+
 SPEAKER_EMOJIS = [
     "🔵", "🟠", "🟢", "🟣",
     "🔴", "🟡", "🟤", "⚫",
@@ -31,25 +33,36 @@ def format_step_metrics_line(payload: dict[str, Any]) -> str:
     ]
     if elapsed > 0 and tokens_out > 0:
         parts.append(f"{tokens_out / elapsed:.1f} tok/s")
-    parts.append(f"${cost:.6f}")
+    parts.append(format_money(cost, payload.get("currency") or DEFAULT_CURRENCY))
     return " | ".join(parts)
+
+
+def format_total_cost(payload: dict[str, Any]) -> str:
+    """session_end の合計費用。USD の合計に、他の通貨（total_cost_other）を続けて示す。"""
+    parts = [format_money(float(payload.get("total_cost") or 0), DEFAULT_CURRENCY)]
+    for currency, amount in (payload.get("total_cost_other") or {}).items():
+        parts.append(format_money(float(amount), currency))
+    return " + ".join(parts)
 
 
 def format_by_model_markdown_table(by_model: dict[str, dict[str, Any]]) -> str:
     """Markdown table for CLI session summary (stdout only; JSONL is unchanged)."""
     if not by_model:
         return ""
+    mixed = any((stats.get("currency") or DEFAULT_CURRENCY) != DEFAULT_CURRENCY for stats in by_model.values())
     lines = [
         "",
-        "| model | req | in | out | cost (USD) |",
+        "| model | req | in | out | cost |" if mixed else "| model | req | in | out | cost (USD) |",
         "|---|---:|---:|---:|---:|",
     ]
     for key in sorted(by_model):
         stats = by_model[key]
+        cost = stats.get("cost", 0)
+        cost_text = format_money(cost, stats.get("currency") or DEFAULT_CURRENCY) if mixed else f"{cost:.6f}"
         lines.append(
             f"| {key} | {stats.get('requests', 0)} | "
             f"{stats.get('tokens_in', 0)} | {stats.get('tokens_out', 0)} | "
-            f"{stats.get('cost', 0):.6f} |"
+            f"{cost_text} |"
         )
     return "\n".join(lines)
 
@@ -58,7 +71,7 @@ def format_session_end_lines(payload: dict[str, Any]) -> list[str]:
     lines = [
         (
             f"\n=== session end === {payload.get('total_elapsed', 0):.1f}s "
-            f"| total=${payload.get('total_cost', 0):.6f}"
+            f"| total={format_total_cost(payload)}"
         )
     ]
     table = format_by_model_markdown_table(payload.get("by_model") or {})

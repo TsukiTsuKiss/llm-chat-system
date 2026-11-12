@@ -22,7 +22,7 @@ from studio.assistants import InvokeResult, invoke_llm_step, invoke_mock_step
 from studio.errors import detect_api_error
 from studio.history import ConversationHistory
 from studio.loader import SessionContext
-from studio.logging import load_model_costs
+from studio.logging import currency_of, format_money, load_model_costs
 
 SYSTEM_PROMPTS = {
     "answer": (
@@ -37,12 +37,13 @@ SYSTEM_PROMPTS = {
 
 RESULT_COLUMNS = [
     "question_id", "trial", "talent_id", "name", "assistant", "model", "temperature", "status", "answer", "expected",
-    "correct", "elapsed", "wall", "tokens_in", "tokens_out", "tokens_source", "cost", "attempts", "rate_limited", "error",
+    "correct", "elapsed", "wall", "tokens_in", "tokens_out", "tokens_source", "cost", "currency", "attempts",
+    "rate_limited", "error",
 ]
 SUMMARY_COLUMNS = [
     "rank", "talent_id", "name", "provider", "model", "trials_ok", "errors", "scored", "correct", "accuracy",
-    "median_sec", "p95_sec", "mean_sec", "mean_out_tokens", "total_cost", "cost_per_correct", "rate_limited",
-    "price_known",
+    "median_sec", "p95_sec", "mean_sec", "mean_out_tokens", "total_cost", "cost_per_correct", "currency",
+    "rate_limited", "price_known",
 ]
 
 # 429 で待つときの設定（サーバーが示した待ち時間に足す余裕・示されないときの既定値・上限・1 回答あたりの待ち回数）
@@ -280,13 +281,15 @@ def _run_trial(
     gate: threading.Semaphore,
     limiter: _RateLimiter,
     cancel: threading.Event | None = None,
+    currency: str = "USD",
 ) -> tuple[dict[str, Any], str]:
     user_message = build_user_message(question)
     row: dict[str, Any] = {
         "question_id": question.id, "trial": trial, "talent_id": target.talent_id, "name": target.name,
         "assistant": target.assistant, "model": target.model, "temperature": "", "expected": question.answer or "",
         "status": "error", "answer": "", "correct": "", "elapsed": "", "wall": "", "tokens_in": "",
-        "tokens_out": "", "tokens_source": "", "cost": "", "attempts": 0, "rate_limited": 0, "error": "",
+        "tokens_out": "", "tokens_source": "", "cost": "", "currency": currency, "attempts": 0,
+        "rate_limited": 0, "error": "",
     }
     text = ""
     attempt = 0
@@ -347,6 +350,7 @@ def summarize(
                 "mean_out_tokens": round(sum(int(r["tokens_out"]) for r in ok) / len(ok), 1) if ok else "",
                 "total_cost": round(cost, 6),
                 "cost_per_correct": round(cost / correct, 6) if correct else "",
+                "currency": next((r["currency"] for r in mine if r.get("currency")), "USD"),
                 "rate_limited": sum(int(r["rate_limited"]) for r in mine),
                 "price_known": target.talent_id not in (unpriced or set()),
             }
@@ -377,7 +381,9 @@ def format_summary_table(summary: list[dict[str, Any]]) -> str:
     ]
     for entry in summary:
         tokens = f"{entry['mean_out_tokens']:.0f}" if entry["mean_out_tokens"] != "" else "-"
-        cost = f"${entry['total_cost']:.4f}" + ("" if entry.get("price_known", True) else "*")
+        cost = format_money(entry["total_cost"], entry.get("currency") or "USD", 4) + (
+            "" if entry.get("price_known", True) else "*"
+        )
         lines.append(
             f"| {entry['rank']} | {model_label(entry['provider'], entry['model'])} | {pct(entry['accuracy'])} "
             f"| {entry['correct']}/{entry['scored']} | {sec(entry['median_sec'])} | {sec(entry['p95_sec'])} "
@@ -385,6 +391,8 @@ def format_summary_table(summary: list[dict[str, Any]]) -> str:
         )
     if any(not entry.get("price_known", True) for entry in summary):
         lines.extend(["", "\\* 単価が未登録のため、既定単価で概算した値です（`model_costs.csv` に追加してください）"])
+    if len({entry.get("currency") or "USD" for entry in summary}) > 1:
+        lines.extend(["", "コストは各モデルの通貨（¥ = 円、$ = 米ドル）のままです。通貨が違う行どうしは直接は比べられません。"])
     return "\n".join(lines)
 
 
@@ -581,6 +589,7 @@ def run_benchmark(
                 row, text = _run_trial(
                     invoker, target, question, trial, system_prompt, retries, retry_delay, gates[target.assistant],
                     limiters[(target.assistant, target.model)], cancel,
+                    currency_of(target.model, costs),
                 )
             except BenchmarkCancelled:
                 return

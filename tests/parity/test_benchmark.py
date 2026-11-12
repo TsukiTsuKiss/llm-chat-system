@@ -243,6 +243,27 @@ def test_unpriced_models_are_flagged_in_report_and_progress(tmp_path: Path):
     assert "- 単価: B (unknown) は `model_costs.csv` に未登録" in markdown and "入力 $1 / 出力 $3" in markdown
 
 
+def test_costs_are_shown_in_each_models_own_currency(tmp_path: Path):
+    ctx = _ctx(tmp_path, {
+        "fast": {"assistant": "A", "model": "usd-model"}, "slow": {"assistant": "B", "model": "jpy-model"},
+        "human": {"assistant": "human"},
+    })
+    (tmp_path / "model_costs.csv").write_text(
+        "date_updated,provider,model,input_cost_per_1k_tokens,output_cost_per_1k_tokens,currency,notes\n"
+        "2026-11-12,A,usd-model,0.001,0.002,USD,\n2026-11-12,B,jpy-model,0.015,0.075,JPY,\n",
+        encoding="utf-8",
+    )
+    report = benchmark.run_benchmark(
+        ctx, [benchmark.Question("1", "Q", {"A": "a"}, "A")], out_root=tmp_path / "out",
+        invoker=lambda target, system, user: _result("答え: A", 1.0, cost=12.5),
+    )
+    assert {r["talent_id"]: r["currency"] for r in report.rows} == {"fast": "USD", "slow": "JPY"}
+    assert {e["talent_id"]: e["currency"] for e in report.summary} == {"fast": "USD", "slow": "JPY"}
+    markdown = (report.out_dir / "summary.md").read_text(encoding="utf-8")
+    assert "| $12.5000 |" in markdown and "| ¥12.5000 |" in markdown
+    assert "通貨が違う行どうしは直接は比べられません" in markdown
+
+
 def test_run_benchmark_records_errors_without_failing(tmp_path: Path):
     def invoker(target, system_prompt, user_message):
         raise TimeoutError("slow")
