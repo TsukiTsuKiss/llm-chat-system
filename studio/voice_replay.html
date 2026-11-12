@@ -29,6 +29,7 @@
   #legend { padding: 10px 20px 20px; color: #8d97a8; font-size: 13px; }
   .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin: 0 4px 0 12px; vertical-align: middle; }
   .live-badge { color: #ff4136; font-weight: bold; }
+  body.embedded { overflow: hidden; }
   body.embedded header, body.embedded #legend { display: none; }
   body.embedded #controls { padding: 6px 20px; }
   body.embedded #stage { margin-top: 4px; }
@@ -91,6 +92,21 @@
 const DATA = __DATA__;
 let LIVE = !!DATA.live;
 const BASE = DATA.base || "";
+const ORIGIN = (() => {
+  try {
+    if (window.location.origin && window.location.origin !== "null") return window.location.origin;
+  } catch (_) { /* srcdoc */ }
+  try { return window.parent.location.origin; } catch (_) { return ""; }
+})();
+function absUrl(u) {
+  if (!u) return "";
+  if (/^https?:\/\//i.test(u)) return u;
+  if (!ORIGIN) return u;
+  return ORIGIN + (u.startsWith("/") ? u : "/" + u);
+}
+const TIMELINE_URLS = [DATA.timeline_url, BASE ? BASE + "timeline.jsonl" : ""]
+  .map(absUrl)
+  .filter((u, i, a) => u && a.indexOf(u) === i);
 const $ = (id) => document.getElementById(id);
 if (LIVE) {
   document.body.classList.add("embedded", "live");
@@ -99,10 +115,10 @@ if (LIVE) {
 if (DATA.embedded) document.body.classList.add("embedded");
 $("meta").textContent = [DATA.title, DATA.session_id].filter(Boolean).join("  ");
 
-const talentOf = (file) => file.replace(/^\d+_/, "").replace(/\.wav$/, "");
+const talentOf = (file) => file.replace(/^(?:u)?\d+_/, "").replace(/\.wav$/, "");
 const hostOf = (url) => { try { return new URL(url).hostname; } catch (_) { return url; } };
 const esc = (s) => s.replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
-// 表示名末尾の役割（例: 「けんと（sports）」→「けんと」）を省いて、状態表示を短くする
+// 表示名末尾の役割（例: 「けんと（sports）」→「けんと」）を省く。棒には ID を出さない
 const short = (s) => s.replace(/\s*[（(][^）)]*[）)]\s*$/, "");
 
 const ROW_H = 22, BAR_H = 18, LANE_PAD = 8, AXIS_H = 26, LABEL_W = 150;
@@ -112,8 +128,11 @@ const GAP_MIN = 10, GAP_SHOWN = 3;
 // イベント列から、レーン・棒・全体の長さを組み立てる（ライブでは更新のたびに作り直す）
 function buildModel(events) {
   const names = Object.assign({}, DATA.names || {});
-  for (const e of events) if (e.name && e.talent_id) names[e.talent_id] = e.name;
-  const nameOf = (id) => names[id] || id;
+  for (const e of events) if (e.name && e.talent_id) names[e.talent_id] = short(e.name);
+  const nameOf = (id) => {
+    const n = short(names[id] || "");
+    return n && n !== id ? n : "";
+  };
 
   let horizon = 0;
   let ended = false;
@@ -145,6 +164,7 @@ function buildModel(events) {
     .map((e) => ({ file: e.file, t: e.t, name: nameOf(e.talent_id), text: e.text }));
 
   const engines = [];
+  for (const url of (DATA.engines || [])) if (url && !engines.includes(url)) engines.push(url);
   const synth = [];
   const finished = new Set();
   for (const e of events) {
@@ -191,7 +211,9 @@ function buildModel(events) {
   for (const url of engines) {
     lanes.push({ label: hostOf(url), led: true, bars: synth.filter((b) => b.engine === url), color: "#f0a030" });
   }
-  if (plays.length) lanes.push({ label: "ブラウザ再生", bars: plays, color: "#e5484d" });
+  if (plays.length || LIVE || DATA.play_lane) {
+    lanes.push({ label: "ブラウザ再生", bars: plays, color: "#e5484d" });
+  }
 
   for (const lane of lanes) {
     const ends = [];
@@ -418,9 +440,9 @@ function render() {
       c.globalAlpha = b.end <= now ? 0.55 : 1;
       c.fillRect(x0, by, Math.max(x1 - x0, 2), BAR_H);
       c.globalAlpha = 1;
-      if (x1 - x0 > 26) {
+      if (b.label) {
         c.save();
-        c.beginPath(); c.rect(x0, by, x1 - x0, BAR_H); c.clip();
+        c.beginPath(); c.rect(x0, by, Math.max(x1 - x0, 2), BAR_H); c.clip();
         c.fillStyle = "#fff";
         c.textBaseline = "middle";
         c.fillText(b.label, x0 + 4, by + BAR_H / 2);
@@ -506,9 +528,10 @@ function frame(ts) {
 }
 
 async function refresh() {
-  try {
-    const res = await fetch(`${BASE}timeline.jsonl?_=${Date.now()}`, { cache: "no-store" });
-    if (res.ok) {
+  for (const url of TIMELINE_URLS) {
+    try {
+      const res = await fetch(`${url}?_=${Date.now()}`, { cache: "no-store" });
+      if (!res.ok) continue;
       const lines = (await res.text()).split("\n").filter((x) => x.trim());
       const next = [];
       for (const line of lines) { try { next.push(JSON.parse(line)); } catch (_) { /* 書き込み途中の行 */ } }
@@ -519,8 +542,9 @@ async function refresh() {
         const current = anchor.t + (performance.now() - anchor.at) / 1000;
         if (model.horizon > current) anchor = { t: model.horizon, at: performance.now() };
       }
-    }
-  } catch (_) { /* 次の周期で再試行 */ }
+      return;
+    } catch (_) { /* 次の URL、または次の周期で再試行 */ }
+  }
 }
 
 async function poll() {

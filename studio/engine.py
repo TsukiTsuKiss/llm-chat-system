@@ -16,6 +16,7 @@ from studio.interrupt import USER_INTERRUPT_DISPLAY, USER_INTERRUPT_TALENT, matc
 from studio.loader import SessionContext
 from studio.logging import DEFAULT_CURRENCY, SessionLogger, StepMetrics, currency_of
 from studio.prompts import build_system_prompt, build_user_message
+from studio.quota import checks_for_session
 from studio.user_context import build_generation_options, resolve_session_rag
 from studio.user_context_rag import RagChunk, chunks_to_log
 from studio.validation import StudioError, StudioValidationError
@@ -25,6 +26,12 @@ from studio.validation import StudioError, StudioValidationError
 class EngineEvent:
     type: str
     payload: dict[str, Any]
+
+
+def _invoke_notices(result: Any) -> Iterator[EngineEvent]:
+    note = getattr(result, "notice", None)
+    if note:
+        yield EngineEvent("notice", {"text": str(note)})
 
 
 @dataclass
@@ -213,6 +220,21 @@ class SessionEngine:
         state.logger.log_user_input(user_text, attachments=attachments, context_chunks=context_chunks)
 
         workflow, bindings = self._resolve_workflow()
+        quota_blocked = False
+        for check in checks_for_session(
+            self.ctx.root,
+            self.ctx.assistants,
+            workflow,
+            bindings,
+            self.ctx.model_mapping,
+        ):
+            if check.notice:
+                yield EngineEvent("notice", {"text": check.notice})
+            if check.blocked:
+                quota_blocked = True
+        if quota_blocked:
+            return
+
         turn_prior: list[tuple[str, str]] = []
 
         yield from self._run_phases(
@@ -529,6 +551,8 @@ class SessionEngine:
                 {"talent_id": talent_id, "error": error, "retry": False},
             )
             return None
+
+        yield from _invoke_notices(result)
 
         metrics = StepMetrics(
             talent_id=talent_id,
@@ -927,6 +951,7 @@ class SessionEngine:
                     on_chunk=on_chunk if stream else None,
                     web_search=state.web_search_enabled and bool(mapping.get("web_search")),
                 )
+                yield from _invoke_notices(result)
                 if stream:
                     for chunk in chunk_buffer:
                         yield EngineEvent("chunk", {"talent_id": talent_id, "text": chunk})

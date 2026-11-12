@@ -12,7 +12,12 @@ from typing import Any, Callable, Iterator
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate, MessagesPlaceholder, SystemMessagePromptTemplate
 
-from studio.errors import detect_api_error, handle_api_error, is_temperature_unsupported_error
+from studio.errors import (
+    detect_api_error,
+    handle_api_error,
+    is_temperature_unsupported_error,
+    is_web_search_unsupported_error,
+)
 from studio.history import ConversationHistory
 from studio.logging import compute_cost, estimate_tokens
 
@@ -79,6 +84,7 @@ class InvokeResult:
     cost: float
     stream: bool
     temperature: float | None = None  # 実際に使った値（非対応で外したときは None）
+    notice: str | None = None
 
 
 class MockAssistant:
@@ -162,6 +168,11 @@ WEB_SEARCH_TOOLS: dict[str, dict[str, Any]] = {
     "ChatAnthropic": {"type": "web_search_20250305", "name": "web_search", "max_uses": 3},
     "ChatGoogleGenerativeAI": {"google_search": {}},
 }
+WEB_SEARCH_SKIP_NOTE = "ウェブ検索はこのプロバイダのメニューにないので、渡してある文脈だけで出します。"
+WEB_SEARCH_SKIP_INSTRUCTION = (
+    "ウェブ検索は使えない。渡されていない今日のニュースや未確認の出典"
+    "（「〜によると」）を断定しない。知らないことは検索できないと短く言う。"
+)
 
 # Anthropic は既定 1024 だと thinking で使い切り、本文が空になったり途切れたりする
 DEFAULT_EXTRA_KWARGS: dict[str, dict[str, Any]] = {
@@ -190,6 +201,22 @@ def _reported_temperature(assistant_cfg: dict[str, Any], temperature: float | No
     return temperature if supports_temperature(assistant_cfg) else None
 
 
+def web_search_tool_for(assistant_name: str, assistant_cfg: dict[str, Any]) -> dict[str, Any] | None:
+    """そのプロバイダに付ける検索ツール。無ければ None（呼び出し側はツールなしで進める）。
+
+    `ai_assistants_config.json` の `web_search` が false なら付けない。
+    サービスが追加されたら `web_search` を true にし、必要なら `web_search_tool` に
+    その API のツール定義を書く（無ければ class ごとの既定）。
+    """
+    _ = assistant_name
+    if assistant_cfg.get("web_search") is False:
+        return None
+    custom = assistant_cfg.get("web_search_tool")
+    if isinstance(custom, dict) and custom.get("type"):
+        return custom
+    return WEB_SEARCH_TOOLS.get(str(assistant_cfg.get("class") or ""))
+
+
 def build_llm(
     assistant_cfg: dict[str, Any],
     model: str,
@@ -197,6 +224,7 @@ def build_llm(
     web_search: bool = False,
     client_kwargs: dict[str, Any] | None = None,
     system_prompt: str | None = None,
+    assistant_name: str = "",
 ):
     """クライアントを作る。引数名や接続先は ai_assistants_config.json（サーバー側の設定）だけから読み、外部入力は受け付けない。
 
@@ -230,9 +258,9 @@ def build_llm(
             kwargs[getattr(info, "alias", None) or key] = value
     llm = cls(**kwargs)
     if web_search:
-        tool = WEB_SEARCH_TOOLS.get(assistant_cfg["class"])
+        tool = web_search_tool_for(assistant_name, assistant_cfg)
         if tool is None:
-            logger.warning("web_search は %s 未対応のため無視します", assistant_cfg["class"])
+            logger.warning("web_search は %s 未対応のため無視します", assistant_name or assistant_cfg.get("class"))
         else:
             llm = llm.bind(tools=[tool])
     return llm
@@ -286,13 +314,20 @@ def invoke_llm_step(
     attempt = 0
     effective_temperature = temperature
     temp_fallback_used = False
+    notice: str | None = None
+    use_web_search = web_search
+    if use_web_search and web_search_tool_for(assistant_name, assistant_cfg) is None:
+        notice = WEB_SEARCH_SKIP_NOTE
+        use_web_search = False
+        system_prompt = f"{system_prompt}\n\n{WEB_SEARCH_SKIP_INSTRUCTION}"
 
     while attempt < max_retries:
         try:
             system_in_client = bool(assistant_cfg.get("system_param"))
             llm = build_llm(
-                assistant_cfg, model, effective_temperature, web_search, client_kwargs,
+                assistant_cfg, model, effective_temperature, use_web_search, client_kwargs,
                 system_prompt=system_prompt if system_in_client else None,
+                assistant_name=assistant_name,
             )
             chain = build_chain(None if system_in_client else system_prompt, history, llm)
             messages = history.get_messages()
@@ -323,6 +358,7 @@ def invoke_llm_step(
                     cost=cost,
                     stream=True,
                     temperature=_reported_temperature(assistant_cfg, effective_temperature),
+                    notice=notice,
                 )
 
             response = chain.invoke(payload)
@@ -343,6 +379,7 @@ def invoke_llm_step(
                 cost=cost,
                 stream=False,
                 temperature=_reported_temperature(assistant_cfg, effective_temperature),
+                notice=notice,
             )
         except MockTemperatureError:
             raise
@@ -354,6 +391,13 @@ def invoke_llm_step(
             ):
                 effective_temperature = None
                 temp_fallback_used = True
+                continue
+
+            if use_web_search and is_web_search_unsupported_error(exc):
+                notice = WEB_SEARCH_SKIP_NOTE
+                use_web_search = False
+                if WEB_SEARCH_SKIP_INSTRUCTION not in system_prompt:
+                    system_prompt = f"{system_prompt}\n\n{WEB_SEARCH_SKIP_INSTRUCTION}"
                 continue
 
             error_code = detect_api_error(str(exc))

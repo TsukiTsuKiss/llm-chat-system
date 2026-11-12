@@ -60,7 +60,10 @@ def regenerate_audio(root: Path, session_id: str, *, urls: list[str], force: boo
     with ThreadPoolExecutor(max_workers=len(engines)) as pool:
         count = 0
         for event in targets:
-            entry = mapping.get(event["talent_id"])
+            if event.get("talent_id") == voice.USER_VOICE_ID:
+                entry = voice.user_voice_entry(mapping)
+            else:
+                entry = mapping.get(event["talent_id"])
             if entry is None:
                 result.failed.append(event["file"])
                 continue

@@ -134,6 +134,14 @@
     "class": "ChatOpenAI",
     "base_url": "https://api.ai.sakura.ad.jp/v1",
     "api_key_env": "SAKURA_AI_API_KEY",
+    "web_search": false,
+    "quota": {
+      "unit": "request",
+      "period": "calendar_month",
+      "limit": 3000,
+      "reserve": 80,
+      "max_session": 2
+    },
     "models": [
       "gpt-oss-120b",
       "llm-jp-3.1-8x13b-instruct4",

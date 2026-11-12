@@ -67,6 +67,8 @@ def print_event(event: EngineEvent, *, use_stream: bool) -> None:
         else:
             print(p["text"])
         print(format_step_metrics_line(p))
+    elif event.type == "notice":
+        print(event.payload.get("text") or "")
     elif event.type == "step_error":
         print(f"❌ {event.payload['talent_id']}: {event.payload['error']}")
     elif event.type == "await_text":

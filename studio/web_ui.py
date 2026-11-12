@@ -364,7 +364,14 @@ class ChatEventRenderer:
         self._active_idx = None
 
     def _add_system_note(self, text: str) -> None:
-        self.messages.append({"role": "assistant", "content": f"_{text}_"})
+        note = {"role": "assistant", "content": f"_{text}_"}
+        if self._active_idx is not None:
+            self.messages.insert(self._active_idx, note)
+            self._active_idx += 1
+            if self.last_done_idx is not None and self.last_done_idx >= self._active_idx - 1:
+                self.last_done_idx += 1
+        else:
+            self.messages.append(note)
 
     def add_note(self, text: str) -> None:
         self._add_system_note(text)
@@ -415,6 +422,10 @@ class ChatEventRenderer:
             talent_id = payload.get("talent_id", "?")
             display_name = payload.get("display_name") or self._last_display_name.get(talent_id, talent_id)
             self._set_active_body(display_name, talent_id, payload.get("text", ""), metrics=metrics)
+            return None
+
+        if event.type == "notice":
+            self._add_system_note(str(event.payload.get("text") or ""))
             return None
 
         if event.type == "step_error":
@@ -479,16 +490,18 @@ class WebSession:
     published_timing: str = ""
     # 再開したセッションの ID。タイミング記録があれば、チャット画面で再生できる
     replay_session_id: str = ""
+    # ユーザー入力の wav など、再生に必要な音声が揃っているか（再開時の再生成待ち）
+    replay_audio_ready: bool = True
     # reset_chat のたびに増やす。実行中だった古い生成が、新しい画面を上書きしないための印
     epoch: int = 0
     # 読み上げ関連の部品（LED・プレーヤー・止めるボタン）の、最後に送った表示状態
     reading_ui_shown: bool | None = None
 
     def replay_chart_shown(self) -> bool:
-        return self.published_timing.startswith("replay:")
+        return self.published_timing.startswith("replay")
 
     def live_chart_shown(self) -> bool:
-        return bool(self.published_timing) and not self.published_timing.startswith("replay:")
+        return bool(self.published_timing) and not self.published_timing.startswith("replay")
     def close_voice(self) -> None:
         if self.voice is not None:
             self.voice.close(wait=False)
@@ -600,6 +613,10 @@ class WebSession:
         self.close_voice()
         self.director_voice_override = None
         self.replay_session_id = ""
+        self.replay_audio_ready = True
+        self.published_timing = ""
+        self.published_playing = None
+        self.reading_ui_shown = None
         self.engine = None
         self.pending = None
         self.renderer = ChatEventRenderer()
@@ -694,11 +711,17 @@ class WebSession:
         )
 
 
-def _regenerate_quietly(root: Path, session_id: str, urls: list[str]) -> None:
+def _regenerate_quietly(
+    root: Path, session_id: str, urls: list[str], web: WebSession | None = None
+) -> None:
     try:
         regenerate_audio(root, session_id, urls=urls)
     except Exception as exc:
         print(f"[voice] 音声の再生成に失敗しました: {exc}", file=sys.stderr)
+    finally:
+        if web is not None and web.replay_session_id == session_id:
+            web.replay_audio_ready = True
+            web.published_timing = ""
 
 
 def apply_session_resume(
@@ -737,10 +760,11 @@ def apply_session_resume(
     )
     web.replay_session_id = session_id
     missing = missing_audio_files(web.root, session_id)
+    web.replay_audio_ready = not missing
     if missing:
         threading.Thread(
             target=_regenerate_quietly,
-            args=(web.root, session_id, parse_voicevox_urls(web.voicevox_url)),
+            args=(web.root, session_id, parse_voicevox_urls(web.voicevox_url), web),
             daemon=True,
         ).start()
     choices, wf_value = workflow_dropdown_for_org(web.root, resumed.org_id, workflow_value)
@@ -778,6 +802,8 @@ def _status_from_event(event: EngineEvent) -> str:
         return "応答を出力中…"
     if event.type == "step_done":
         return "応答完了"
+    if event.type == "notice":
+        return "案内"
     if event.type == "step_error":
         return "エラーが発生しました"
     if event.type == "loop_check":
@@ -1071,21 +1097,34 @@ def reading_ui_visible(session: WebSession, voice_on: bool) -> bool:
     return bool(voice_on) and not session.replay_chart_shown()
 
 
+def silent_wav():
+    """autoplay 用。長さ 0 だとコンポーネントが前の wav を残すことがあるので 1 サンプルだけ置く。"""
+    import numpy as np
+
+    return 16000, np.zeros(1, dtype=np.int16)
+
+
+def _reading_ui_chrome_updates(visible: bool):
+    """LED と停止ボタンだけ。プレーヤーは触らない（表示更新で autoplay が最後の音声を鳴らす）。"""
+    return gr.update(visible=visible), gr.update(visible=visible)
+
+
 def reading_ui_toggle_update(session: WebSession, voice_on: bool):
     visible = reading_ui_visible(session, voice_on)
     session.reading_ui_shown = visible
-    return [gr.update(visible=visible)] * 3
+    led, stop = _reading_ui_chrome_updates(visible)
+    return led, gr.update(visible=visible, value=silent_wav()), stop
 
 
 def live_tick_update(session: WebSession, show: bool, voice_on: bool):
-    """(ライブのチャート, LED, プレーヤー, 止めるボタン) の更新。表示が変わったときだけ部品を更新する。"""
+    """(ライブのチャート, LED, 止めるボタン) の更新。読み上げプレーヤーは更新しない。"""
     timing = live_timing_update(session, show)
     visible = reading_ui_visible(session, voice_on)
     if visible == session.reading_ui_shown:
-        return timing, gr.skip(), gr.skip(), gr.skip()
+        return timing, gr.skip(), gr.skip()
     session.reading_ui_shown = visible
-    update = gr.update(visible=visible)
-    return timing, update, update, update
+    led, stop = _reading_ui_chrome_updates(visible)
+    return timing, led, stop
 
 
 def live_timing_update(session: WebSession, show: bool = True):
@@ -1094,7 +1133,7 @@ def live_timing_update(session: WebSession, show: bool = True):
     key = (timeline.session_id or "") if timeline is not None else ""
     replay_id = session.replay_session_id
     if not key and replay_id and (session.root / "sessions" / "audio" / replay_id / "timeline.jsonl").is_file():
-        key = f"replay:{replay_id}"
+        key = f"replay:{replay_id}" if session.replay_audio_ready else f"replay-wait:{replay_id}"
     if not show:
         key = ""
     if key == session.published_timing:
@@ -1102,6 +1141,15 @@ def live_timing_update(session: WebSession, show: bool = True):
     session.published_timing = key
     if not key:
         return gr.update(value="", visible=False)
+    if key.startswith("replay-wait:"):
+        return gr.update(
+            value=(
+                '<div style="padding:12px 16px;color:#c3cad8;background:#161b26;'
+                "border:1px solid #2a3140;border-radius:6px;font-size:14px\">"
+                "ユーザー入力を含む音声を準備しています…</div>"
+            ),
+            visible=True,
+        )
     if key.startswith("replay:"):
         try:
             return gr.update(value=replay_iframe_html(session.root, replay_id, compact=True), visible=True)
@@ -1109,12 +1157,28 @@ def live_timing_update(session: WebSession, show: bool = True):
             return gr.update(value="", visible=False)
     if timeline is None or timeline.out_dir is None:
         return gr.update(value="", visible=False)
-    return gr.update(value=live_iframe_html(key, timeline.out_dir), visible=True)
+    ctx = session.engine.ctx if session.engine is not None else None
+    names = {
+        talent_id: info.get("name")
+        for talent_id, info in ((ctx.talents if ctx is not None else None) or {}).items()
+        if info.get("name")
+    }
+    return gr.update(
+        value=live_iframe_html(
+            key,
+            timeline.out_dir,
+            engines=parse_voicevox_urls(session.voicevox_url),
+            names=names,
+        ),
+        visible=True,
+    )
 
 
 def next_audio_update(session: WebSession):
     """(gr.Audio, 再生中の発言を知らせる隠し Textbox) の更新。チャット本文は書き換えない。変化がなければ gr.skip()。"""
-    path = session.relay.next_if_idle() if session.relay is not None else None
+    if not session.voice_enabled or session.relay is None:
+        return gr.skip(), _playing_update(session)
+    path = session.relay.next_if_idle()
     audio = load_wav_array(path) if path is not None else gr.skip()
     return audio, _playing_update(session)
 
@@ -1135,7 +1199,7 @@ def audio_finished_update(session: WebSession):
 def stop_reading_update(session: WebSession):
     """読み上げを止める。待ち行列と合成待ちを捨て、ブラウザ側の再生も止める。次の送信で読み上げは再開する。"""
     session.close_voice()
-    return None, _playing_update(session)
+    return gr.update(value=silent_wav(), visible=False), _playing_update(session)
 
 
 def handle_choice(

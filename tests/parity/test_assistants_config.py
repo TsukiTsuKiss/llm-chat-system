@@ -108,6 +108,14 @@ def test_shipped_config_declares_opper_params_and_sakura_endpoint():
     assert config["Opper"]["model_param"] == "model_name" and config["Opper"]["system_param"] == "instructions"
     sakura = config["SakuraAI"]
     assert sakura["class"] == "ChatOpenAI" and sakura["api_key_env"] == "SAKURA_AI_API_KEY"
+    assert sakura.get("web_search") is False
+    assert sakura.get("quota", {}).get("limit") == 3000
+    assert sakura.get("quota", {}).get("reserve") == 80
+    assert sakura.get("quota", {}).get("max_session") == 2
     assert "gpt-oss-120b" in sakura["models"]
+    assert assistants.web_search_tool_for("SakuraAI", sakura) is None
+    assert assistants.web_search_tool_for("ChatGPT", {"class": "ChatOpenAI"}) == {"type": "web_search"}
+    enabled = {**sakura, "web_search": True, "web_search_tool": {"type": "browser_search"}}
+    assert assistants.web_search_tool_for("SakuraAI", enabled) == {"type": "browser_search"}
     for name, entry in config.items():
         assert str(entry.get("base_url", "https://")).startswith("https://"), name

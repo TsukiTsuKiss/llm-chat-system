@@ -28,6 +28,7 @@ from studio.rag_ui import (
     run_reindex,
     search_preview_markdown,
 )
+from studio.voice_timeline import mount_timeline_route
 from studio.web_ui import (
     WebSession,
     audio_finished_update,
@@ -42,6 +43,7 @@ from studio.web_ui import (
     load_org_panel,
     next_audio_update,
     reading_ui_toggle_update,
+    silent_wav,
     stop_reading_update,
     upload_limits_from_config,
     workflow_available_for_org,
@@ -500,6 +502,9 @@ def build_ui(
                 _msg_input_update(),
                 _upload_input_update(True),
                 last_rag_injection_preview(session),
+                gr.update(value=silent_wav(), visible=False),
+                "",
+                gr.update(value="", visible=False),
             )
 
         def on_submit(
@@ -722,7 +727,18 @@ def build_ui(
         new_chat_btn.click(
             on_new_chat,
             inputs=[session_state],
-            outputs=[chatbot, session_state, status_tb, choice_row, msg_tb, upload_files, rag_inject_md],
+            outputs=[
+                chatbot,
+                session_state,
+                status_tb,
+                choice_row,
+                msg_tb,
+                upload_files,
+                rag_inject_md,
+                audio_player,
+                playing_box,
+                live_timing,
+            ],
         )
 
         submit_inputs = [
@@ -801,7 +817,7 @@ def build_ui(
         live_timer.tick(
             live_tick_update,
             inputs=[session_state, timing_cb, voice_cb],
-            outputs=[live_timing, engine_led, audio_player, stop_reading_btn],
+            outputs=[live_timing, engine_led, stop_reading_btn],
             queue=False,
             show_progress="hidden",
         )
@@ -819,6 +835,7 @@ def build_ui(
             outputs=[chatbot, session_state, status_tb, choice_row, msg_tb, upload_files, rag_inject_md],
         )
 
+    mount_timeline_route(demo.app, root)
     return demo
 
 
@@ -878,6 +895,8 @@ def main() -> None:
         prevent_thread_lock=True,
         allowed_paths=[str(root / "sessions" / "audio")],
     )
+    # launch 後の app にも載せる（起動時にルートが差し替わるとライブの棒が取れない）
+    mount_timeline_route(demo.app, root)
     print("[INFO] サーバー起動完了。終了するには q + Enter を押してください。")
     try:
         while True:

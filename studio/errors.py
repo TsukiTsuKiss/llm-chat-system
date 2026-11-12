@@ -29,12 +29,21 @@ def detect_api_error(error_str: str) -> str | None:
     if any(k in error_str_lower for k in ("timeout", "gateway timeout")):
         return "504"
     # gpt-oss がツールを呼ぼうとして Groq が拒否する。毎回起きるわけではないので、再試行すれば通る
+    if "tool type web_search not supported" in error_str_lower or (
+        "web_search not supported" in error_str_lower
+    ):
+        return "web_search_unsupported"
     if "tool choice is none" in error_str_lower or "model called a tool" in error_str_lower:
         return "tool_call"
     # 本文が空の応答（thinking で上限を使い切るなど）。再試行すると通ることがある
     if "空の応答" in error_str:
         return "empty"
     return None
+
+
+def is_web_search_unsupported_error(exc: Exception) -> bool:
+    text = str(exc).lower()
+    return "web_search not supported" in text or "tool type web_search not supported" in text
 
 
 def is_temperature_unsupported_error(exc: Exception) -> bool:

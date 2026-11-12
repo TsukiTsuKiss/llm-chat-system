@@ -263,6 +263,7 @@ def test_next_audio_update_publishes_playing_index(tmp_path: Path):
     path = tmp_path / "a.wav"
     path.write_bytes(_wav(b"\x01\x00" * 10))
     session = WebSession(root=tmp_path, relay=voice.AudioRelay())
+    session.voice_enabled = True
     session.renderer.messages = [{"role": "assistant", "content": "A"}, {"role": "assistant", "content": "B"}]
     session.relay.push(path, 1)
 
@@ -420,13 +421,26 @@ def test_voice_reader_records_timeline_and_builds_replay(tmp_path: Path, monkeyp
     assert '"session_id": "tl"' in html and "__DATA__" not in html
 
 
-def test_timeline_is_not_written_before_first_synthesis(tmp_path: Path):
+def test_timeline_is_not_written_before_session_activity(tmp_path: Path):
     from studio.voice_timeline import TimelineRecorder
 
     recorder = TimelineRecorder()
     recorder.begin(tmp_path / "sessions" / "audio" / "none", "none")
-    recorder.add("step_done", talent_id="a")
     assert not (tmp_path / "sessions").exists()
+    recorder.add("step_start", talent_id="a")
+    assert (tmp_path / "sessions" / "audio" / "none" / "timeline.jsonl").is_file()
+
+
+def test_voice_reader_writes_step_start_with_display_name(tmp_path: Path):
+    from studio.session_report import read_jsonl
+
+    reader = VoiceReader(tmp_path, {"a": {"speaker": 1}}, play=False)
+    reader.handle(EngineEvent("session_start", {"session_id": "live"}))
+    reader.handle(EngineEvent("step_start", {"talent_id": "a", "display_name": "アリス"}))
+    records = read_jsonl(tmp_path / "sessions" / "audio" / "live" / "timeline.jsonl")
+    assert records[0]["kind"] == "step_start"
+    assert records[0]["talent_id"] == "a" and records[0]["name"] == "アリス"
+    reader.close()
 
 
 def test_audio_relay_records_play_events(tmp_path: Path):
@@ -470,10 +484,28 @@ def test_voice_reader_closes_failed_synthesis_in_timeline(tmp_path: Path, monkey
 def test_live_iframe_points_page_at_gradio_file_route(tmp_path: Path):
     from studio.voice_timeline import live_iframe_html
 
-    html = live_iframe_html("live1", tmp_path / "sessions" / "audio" / "live1")
+    html = live_iframe_html(
+        "live1",
+        tmp_path / "sessions" / "audio" / "live1",
+        engines=["http://e1:50021", "http://e2:50021"],
+    )
     assert html.startswith("<iframe srcdoc=")
     assert "/gradio_api/file=" in html and "live1/" in html
+    assert "/studio/audio/live1/timeline.jsonl" in html
     assert "&quot;live&quot;: true" in html
+    assert "&quot;play_lane&quot;: true" in html
+    assert "http://e1:50021" in html and "http://e2:50021" in html
+
+
+def test_timeline_snapshot_reads_current_bytes(tmp_path: Path):
+    from studio.voice_timeline import timeline_snapshot_bytes
+
+    audio = tmp_path / "sessions" / "audio" / "sess1"
+    audio.mkdir(parents=True)
+    (audio / "timeline.jsonl").write_bytes(b'{"kind":"end","t":1}\n')
+    assert timeline_snapshot_bytes(tmp_path, "sess1") == b'{"kind":"end","t":1}\n'
+    assert timeline_snapshot_bytes(tmp_path, "../sess1") is None
+    assert timeline_snapshot_bytes(tmp_path, "missing") is None
 
 
 def test_live_timing_update_publishes_once_per_session(tmp_path: Path, monkeypatch):
@@ -487,6 +519,7 @@ def test_live_timing_update_publishes_once_per_session(tmp_path: Path, monkeypat
 
     first = live_timing_update(session)
     assert first["visible"] is True and "srcdoc" in first["value"]
+    assert session.voicevox_url in first["value"]
     assert session.published_timing == "t1"
     assert "visible" not in live_timing_update(session)
 
@@ -549,7 +582,8 @@ def test_live_timing_update_shows_replay_of_resumed_session(tmp_path: Path):
     assert not session.live_chart_shown()
 
     session.reset_chat()
-    assert live_timing_update(session)["visible"] is False
+    assert session.published_timing == ""
+    assert "visible" not in live_timing_update(session)
 
 
 def test_live_timing_update_hides_chart_when_toggled_off(tmp_path: Path):
@@ -617,6 +651,74 @@ def test_replay_backfills_utterance_text_from_session_log(tmp_path: Path):
         "\n".join(json.dumps(r) for r in log[:-1]), encoding="utf-8"
     )
     assert not [e for e in replay_data(tmp_path, "s1")["events"] if e["kind"] == "utterance_text"]
+
+
+def test_replay_injects_user_input_before_talent_audio(tmp_path: Path):
+    from studio.voice_timeline import replay_data
+
+    org_dir = tmp_path / "organizations" / "org"
+    org_dir.mkdir(parents=True)
+    (org_dir / "voice_mapping.json").write_text(json.dumps({"a": {"speaker": 1}}), encoding="utf-8")
+    log = [
+        {"type": "session_meta", "organization": "org", "workflow": "wf", "talents": {"a": "A"}},
+        {"type": "user_input", "text": "秋キャンプの行き先"},
+        {"type": "step", "talent_id": "a", "action": "x", "text": "山がいいです"},
+        {"type": "user_input", "text": "予算は？"},
+        {"type": "step", "talent_id": "a", "action": "x", "text": "一万円です"},
+    ]
+    (tmp_path / "sessions").mkdir()
+    (tmp_path / "sessions" / "u1.jsonl").write_text("\n".join(json.dumps(r, ensure_ascii=False) for r in log), encoding="utf-8")
+    audio_dir = tmp_path / "sessions" / "audio" / "u1"
+    audio_dir.mkdir(parents=True)
+    timeline = [
+        {"kind": "step_start", "t": 0.0, "talent_id": "a"},
+        {"kind": "utterance_text", "t": 1.0, "file": "01_a.wav", "talent_id": "a", "text": "山がいいです"},
+        {"kind": "utterance", "t": 1.2, "file": "01_a.wav", "duration": 1.0},
+        {"kind": "play_start", "t": 1.2, "file": "01_a.wav"},
+        {"kind": "turn_end", "t": 4.0},
+        {"kind": "step_start", "t": 20.0, "talent_id": "a"},
+        {"kind": "utterance_text", "t": 21.0, "file": "02_a.wav", "talent_id": "a", "text": "一万円です"},
+        {"kind": "utterance", "t": 21.2, "file": "02_a.wav", "duration": 1.0},
+        {"kind": "play_start", "t": 21.2, "file": "02_a.wav"},
+    ]
+    (audio_dir / "timeline.jsonl").write_text("\n".join(json.dumps(e, ensure_ascii=False) for e in timeline), encoding="utf-8")
+    (audio_dir / "u01_user.wav").write_bytes(_wav(b"\x01\x00" * 24000))
+    (audio_dir / "u02_user.wav").write_bytes(_wav(b"\x02\x00" * 12000))
+
+    data = replay_data(tmp_path, "u1")
+    assert data["names"]["user"] == "あなた"
+    texts = [e for e in data["events"] if e["kind"] == "utterance_text" and e["talent_id"] == "user"]
+    assert [e["text"] for e in texts] == ["秋キャンプの行き先", "予算は？"]
+    first_talent = next(e for e in data["events"] if e.get("file") == "01_a.wav" and e["kind"] == "play_start")
+    first_user = next(e for e in data["events"] if e.get("file") == "u01_user.wav" and e["kind"] == "play_start")
+    assert first_user["t"] < first_talent["t"]
+    second_user = next(e for e in data["events"] if e.get("file") == "u02_user.wav" and e["kind"] == "play_start")
+    second_talent = next(e for e in data["events"] if e.get("file") == "02_a.wav" and e["kind"] == "play_start")
+    assert second_user["t"] < second_talent["t"]
+
+
+def test_missing_audio_includes_user_input(tmp_path: Path):
+    from studio.voice_regen import missing_audio_files
+
+    org_dir = tmp_path / "organizations" / "org"
+    org_dir.mkdir(parents=True)
+    (org_dir / "voice_mapping.json").write_text(json.dumps({"a": {"speaker": 1}}), encoding="utf-8")
+    log = [
+        {"type": "session_meta", "organization": "org", "talents": {"a": "A"}},
+        {"type": "user_input", "text": "こんにちは"},
+        {"type": "step", "talent_id": "a", "text": "はい"},
+    ]
+    (tmp_path / "sessions").mkdir()
+    (tmp_path / "sessions" / "u2.jsonl").write_text("\n".join(json.dumps(r, ensure_ascii=False) for r in log), encoding="utf-8")
+    audio_dir = tmp_path / "sessions" / "audio" / "u2"
+    audio_dir.mkdir(parents=True)
+    (audio_dir / "timeline.jsonl").write_text(
+        json.dumps({"kind": "utterance_text", "t": 1.0, "file": "01_a.wav", "talent_id": "a", "text": "はい"}) + "\n",
+        encoding="utf-8",
+    )
+    missing = missing_audio_files(tmp_path, "u2")
+    assert "u01_user.wav" in missing
+    assert "01_a.wav" in missing
 
 
 def _regen_session(tmp_path: Path) -> Path:
@@ -863,9 +965,50 @@ def test_stop_reading_update_drops_queue_and_voice(tmp_path: Path):
 
     audio, _playing = stop_reading_update(session)
 
-    assert audio is None
+    assert audio["visible"] is False and audio["value"][1].size == 1
     assert session.voice is None and not session.voice_enabled
     assert session.relay.next_if_idle() is None
+
+
+def test_chat_replay_waits_for_user_audio_then_includes_it(tmp_path: Path):
+    from studio.web_ui import WebSession, _regenerate_quietly, live_timing_update
+
+    org_dir = tmp_path / "organizations" / "org"
+    org_dir.mkdir(parents=True)
+    (org_dir / "voice_mapping.json").write_text(json.dumps({"a": {"speaker": 1}}), encoding="utf-8")
+    log = [
+        {"type": "session_meta", "organization": "org", "talents": {"a": "A"}},
+        {"type": "user_input", "text": "議題はこれです"},
+        {"type": "step", "talent_id": "a", "text": "了解です"},
+    ]
+    (tmp_path / "sessions").mkdir()
+    (tmp_path / "sessions" / "old.jsonl").write_text(
+        "\n".join(json.dumps(r, ensure_ascii=False) for r in log), encoding="utf-8"
+    )
+    audio_dir = tmp_path / "sessions" / "audio" / "old"
+    audio_dir.mkdir(parents=True)
+    (audio_dir / "timeline.jsonl").write_text(
+        json.dumps({"kind": "utterance_text", "t": 1.0, "file": "01_a.wav", "talent_id": "a", "text": "了解です"})
+        + "\n",
+        encoding="utf-8",
+    )
+    session = WebSession(root=tmp_path)
+    session.replay_session_id = "old"
+    session.replay_audio_ready = False
+    waiting = live_timing_update(session)
+    assert waiting["visible"] is True
+    assert "準備" in waiting["value"]
+    assert session.published_timing == "replay-wait:old"
+
+    (audio_dir / "u01_user.wav").write_bytes(_wav(b"\x01\x00" * 24000))
+    _regenerate_quietly(tmp_path, "old", [], session)
+    assert session.replay_audio_ready is True
+    assert session.published_timing == ""
+
+    shown = live_timing_update(session)
+    assert shown["visible"] is True
+    assert "u01_user.wav" in shown["value"]
+    assert "議題はこれです" in shown["value"]
 
 
 def test_reading_ui_is_hidden_while_timing_replay_is_shown(tmp_path: Path):
@@ -883,16 +1026,28 @@ def test_reading_ui_is_hidden_while_timing_replay_is_shown(tmp_path: Path):
     assert [u["visible"] for u in reading_ui_toggle_update(session, True)] == [True] * 3
 
     session.replay_session_id = "old"
-    _timing, led, player, stop = live_tick_update(session, True, True)
-    assert led["visible"] is player["visible"] is stop["visible"] is False
+    _timing, led, stop = live_tick_update(session, True, True)
+    assert led["visible"] is stop["visible"] is False
 
     # 表示が変わらなければ、部品は更新しない
-    _timing, led, player, stop = live_tick_update(session, True, True)
-    assert led == player == stop == gr.skip()
+    _timing, led, stop = live_tick_update(session, True, True)
+    assert led == stop == gr.skip()
 
     session.reset_chat()
-    _timing, led, _player, _stop = live_tick_update(session, True, True)
+    _timing, led, _stop = live_tick_update(session, True, True)
     assert led["visible"] is True
+
+
+def test_reading_toggle_clears_player_so_autoplay_cannot_replay(tmp_path: Path):
+    from studio.web_ui import WebSession, reading_ui_toggle_update
+
+    session = WebSession(root=tmp_path)
+    hidden = reading_ui_toggle_update(session, False)
+    assert hidden[1]["visible"] is False
+    assert hidden[1]["value"][1].size == 1
+    shown = reading_ui_toggle_update(session, True)
+    assert shown[1]["visible"] is True
+    assert shown[1]["value"][1].size == 1
 
 
 def test_cli_voicevox_url_alone_enables_reading():

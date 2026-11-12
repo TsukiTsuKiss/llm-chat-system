@@ -236,7 +236,7 @@ python MultiRoleStudioWeb.py --org broadcast_studio --no-browser --host 0.0.0.0 
 | `--no-user-context-rag` | RAG のみ注入しない（付録D.10。`my_context` は維持） |
 | `--user-context-reindex` | `user_context/corpus/` から index 再構築 |
 | `--stream off` | ストリーミング OFF（推奨: 速度比較・ログ確認） |
-| `--web-search` | ウェブ検索を有効にする。`model_mapping` で `"web_search": true` の人材のみ。対応: Groq / OpenAI / xAI / Anthropic / Gemini |
+| `--web-search` | ウェブ検索を有効にする。`model_mapping` で `"web_search": true` の人材のみ。対応: Groq / OpenAI / xAI / Anthropic / Gemini。SakuraAI など非対応のプロバイダはツールを付けず、文脈だけで続ける |
 | `--voice` | VOICEVOX で発言を読み上げ、`sessions/audio/<session_id>/` に wav を保存 |
 | `--voicevox-url` | VOICEVOX の接続先（既定: 環境変数 `VOICEVOX_URL`、なければ `http://127.0.0.1:50021`）。カンマ区切りで複数指定すると並列合成 |
 | `--benchmark` | 問題セット（JSON / JSONL）を組織の全モデルに流し、自動採点・集計する（下の「クイズ・ベンチマーク」） |
@@ -254,6 +254,10 @@ python MultiRoleStudioWeb.py --org broadcast_studio --no-browser --host 0.0.0.0 
 **model_mapping:** 実行時に読む正本は `organizations/<org>/model_mapping.json`（`.gitignore`）。
 `assistant` は `ai_assistants_config.json` のキー、`model` はその JSON 内の文字列。
 `ai_assistants_config.json` の各プロバイダーには、任意で `model_param`（モデル名を渡す引数名。既定 `model`）、`system_param`（システムプロンプトを渡す引数名。無ければメッセージ）、`base_url`（https の接続先）、`api_key_env`（API キーを読む環境変数名）を書ける（例: Opper は `model_name` / `instructions`、さくらの AI Engine は `ChatOpenAI` + `base_url` + `SAKURA_AI_API_KEY`）。これらはサーバー側の設定だけから読み、アップロードファイルからは受け付けない（API キーを別のサーバーへ送られないようにするため）。旧版（`legacy/`）はこれらを読まない。さくらの AI Engine のアカウントトークンは `<UUID>:<シークレット>` の形式で、この文字列全体を環境変数に入れる。
+
+**ウェブ検索の三段:** セッションのチェック（または `--web-search`）と、人材の `model_mapping.web_search: true` と、プロバイダの対応が揃ったときだけツールを付ける。さくらの AI Engine（`SakuraAI`）はホスト型ウェブ検索がなく、`ai_assistants_config.json` で `"web_search": false` にしてある。チャットでチェックを入れても検索は走らず、渡した文脈（RAG / 添付）だけで答える。今日のニュースが必要なら ChatGPT / Gemini / Anthropic / Groq など対応プロバイダへ切り替える。将来さくら側に検索が付いたら、同じエントリの `web_search` を `true` にし、必要なら `web_search_tool` にツール定義を足す。
+
+**さくらの無料枠:** Chat Completions はアカウント全体で月 3,000 リクエスト（`model_costs.csv` の注記。数値は要確認）。Studio は `ai_assistants_config.json` の `quota`（`limit` 3000、`reserve` 80、`max_session` 2）と、今月のセッションログの step 数で案内する。新商品開発会議のような多人数ワークフローを SakuraAI にすると、清書用の残りを守り切れないので **API は呼ばず止める**。検証の打ち合わせは他プロバイダ、SakuraAI はソロの短い検証と清書に使う。他ツールやコントロールパネルからの利用はこの集計に入らない。
 `.example` / `.providers.example` をコピーして編集する。CSV の `model` 列は**手動で写すときの参照用**（実行時には読まない）。
 
 #### クイズ・ベンチマーク（`--benchmark`）
@@ -279,7 +283,7 @@ python MultiRoleStudio.py --org quiz_evaluation --benchmark samples/benchmark/qu
 
 **準備**
 
-1. `organizations/broadcast_studio/model_mapping.example.json`（mock）をコピーして `model_mapping.json` を作り、人材ごとに `assistant` / `model` を設定する。検索する人材には `"web_search": true` を付ける。
+1. `organizations/broadcast_studio/model_mapping.example.json`（mock）をコピーして `model_mapping.json` を作り、人材ごとに `assistant` / `model` を設定する。検索する人材には `"web_search": true` を付け、**検索対応のプロバイダ**（ChatGPT / Gemini / Anthropic / Groq 等。`SakuraAI` は不可）を割り当てる。
 2. [VOICEVOX](https://voicevox.hiroshiba.jp/) を起動しておく（アプリ版でも ENGINE 単体でもよい。既定は `http://127.0.0.1:50021`）。
 3. `voice_mapping.example.json` をコピーして `organizations/broadcast_studio/voice_mapping.json` を作り、人材 ID ごとに話者 ID を設定する。
 
@@ -319,6 +323,7 @@ python MultiRoleStudioWeb.py --org broadcast_studio
 
 左の「ウェブ検索」「読み上げ（VOICEVOX）」にチェックを入れて送信する。発言ごとの音声が、読み上げプレイヤーで順に自動再生される。
 ブラウザの自動再生制限で音が出ない場合は、プレイヤーを一度手動で再生する。
+セッションタブの「タイミング再生」では、あとから聞き返すときにユーザーの入力も読み上げる（ライブ中は読まない）。声は `voice_mapping.json` の `user`（無ければ春日部つむぎ）。
 
 **3 台構成（Studio サーバー / VOICEVOX サーバー / ブラウザ）**
 

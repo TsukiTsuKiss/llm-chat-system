@@ -139,6 +139,29 @@ def test_renderer_step_done_includes_display_name() -> None:
     assert "hello" in renderer.messages[0]["content"]
 
 
+def test_renderer_puts_notice_before_active_bubble() -> None:
+    renderer = ChatEventRenderer()
+    renderer.apply(
+        EngineEvent("step_start", {"talent_id": "solo_bot", "display_name": "ソロBot"})
+    )
+    renderer.apply(EngineEvent("notice", {"text": "ウェブ検索はこのプロバイダのメニューにない"}))
+    renderer.apply(
+        EngineEvent(
+            "step_done",
+            {
+                "talent_id": "solo_bot",
+                "display_name": "ソロBot",
+                "text": "本日のニュースは…",
+                "elapsed": 0.0,
+                "tokens": {"in": 0, "out": 0, "source": "none"},
+                "cost": 0.0,
+            },
+        )
+    )
+    assert "メニューにない" in renderer.messages[0]["content"]
+    assert "本日のニュース" in renderer.messages[1]["content"]
+
+
 def test_process_events_throttles_chunk_updates(studio_root: Path) -> None:
     from studio.web_ui import process_events
 

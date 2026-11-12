@@ -62,6 +62,11 @@ DEFAULT_BASE_URL = os.getenv("VOICEVOX_URL", "http://127.0.0.1:50021").rstrip("/
 VOICE_MAPPING_FILES = ("voice_mapping.json", "voice_mapping.example.json")
 VOICE_DICTIONARY_FILE = "voice_dictionary.json"
 PENDING_DICTIONARY_FILE = "voice_dictionary.pending.json"
+# タイミング再生でユーザー入力を読むときの予約 ID。ライブ中は合成しない。
+USER_VOICE_ID = "user"
+USER_VOICE_LABEL = "あなた"
+# 春日部つむぎ。voice_mapping.json に "user" があればそちらを使う
+DEFAULT_USER_SPEAKER = 8
 
 _MD_LINK = re.compile(r"\[([^\]]*)\]\([^)]*\)")
 # ``` で囲まれたコード（閉じ忘れは末尾まで）は長くて読み上げが終わらないので読まない
@@ -140,6 +145,14 @@ def load_voice_mapping(root: Path, org_id: str) -> dict[str, dict[str, Any]]:
             if isinstance(entry, dict) and isinstance(entry.get("speaker"), int)
         }
     return {}
+
+
+def user_voice_entry(mapping: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
+    """再生用のユーザー声。マッピングの `user` があればそれを使い、なければ既定の話者。"""
+    entry = (mapping or {}).get(USER_VOICE_ID)
+    if isinstance(entry, dict) and isinstance(entry.get("speaker"), int):
+        return {**entry, "label": entry.get("label") or USER_VOICE_LABEL}
+    return {"label": USER_VOICE_LABEL, "speaker": DEFAULT_USER_SPEAKER}
 
 
 def _normalize_surface(surface: str) -> str:
