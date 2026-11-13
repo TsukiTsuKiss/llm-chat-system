@@ -29,6 +29,8 @@ date_updated,provider,model,input_cost_per_1k_tokens,output_cost_per_1k_tokens,c
 2025-11-27,Meta,meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo,0.00018,0.00018,USD,LLaMA 3.1 8B via Together AI
 2025-11-27,Mistral,mistral-large-latest,0.001,0.004,USD,Mistral Large latest (実際に利用可能)
 2025-11-27,Mistral,mistral-small-latest,0.00025,0.001,USD,Mistral Small latest (実際に利用可能)
+2026-11-14,XAI,grok-4.7,0.002,0.006,USD,"入力 $2.00 / 出力 $6.00（100万トークンあたり）。ctx 500k"
+2026-11-14,XAI,grok-latest,0.002,0.006,USD,"最新版を指す別名。現在は grok-4.7 の単価。指す先が変わったら更新する"
 2025-11-27,Groq,llama-3.3-70b-versatile,0.00059,0.00079,USD,Production - 280 t/s (実際に利用可能)
 2025-11-27,Groq,llama-3.1-8b-instant,0.00005,0.00008,USD,Production - 560 t/s (実際に利用可能)
 2025-11-27,Perplexity,sonar,0.01,0.01,USD,Sonar model (plus $5-12 per 1000 executions)
