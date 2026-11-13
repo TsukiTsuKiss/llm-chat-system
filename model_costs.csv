@@ -41,13 +41,13 @@ date_updated,provider,model,input_cost_per_1k_tokens,output_cost_per_1k_tokens,c
 2025-12-08,OpenAI,text-embedding-3-large,0.00013,0.00013,USD,Updated via API crawl on 2025-12-08
 2025-12-08,OpenAI,text-embedding-3-small,2e-05,2e-05,USD,Updated via API crawl on 2025-12-08
 2025-12-08,OpenAI,text-embedding-ada-002,0.0001,0.0001,USD,Updated via API crawl on 2025-12-08
-2026-11-14,OpenAI,gpt-6-astra,0.01,0.05,USD,"OpenAI 公式モデルページで確認（2026-11-14）。入力 $10 / 出力 $50（100万トークンあたり）。最上位"
-2026-11-14,OpenAI,gpt-6.1-sol,0.002,0.01,USD,"OpenAI 公式モデルページで確認（2026-11-14）。入力 $2 / 出力 $10（100万トークンあたり）。Astra に近い性能を低コストで"
-2026-11-14,OpenAI,gpt-6.1-terra,0.001,0.005,USD,"OpenAI 公式モデルページで確認（2026-11-14）。入力 $1 / 出力 $5（100万トークンあたり）。高速・効率型"
-2026-11-14,OpenAI,gpt-6-luna,0.0001,0.0005,USD,"OpenAI 公式モデルページで確認（2026-11-14）。入力 $0.1 / 出力 $0.5（100万トークンあたり）。最も効率的な軽量モデル"
-2026-11-14,OpenAI,gpt-5.4,0.0025,0.015,USD,"OpenAI 公式モデルページで確認（2026-11-14）。入力 $2.50 / キャッシュ入力 $0.25 / 出力 $15.00（100万トークンあたり）。ctx 1,050,000。入力 272K 超のプロンプトはセッション全体で入力 2 倍・出力 1.5 倍（standard / batch / flex）。リージョン指定の処理は +10%"
-2026-11-14,OpenAI,gpt-5.4-mini,0.00075,0.0045,USD,"OpenAI 公式モデルページで確認（2026-11-14）。入力 $0.75 / キャッシュ入力 $0.075 / 出力 $4.50（100万トークンあたり）。ctx 400,000。リージョン指定の処理は +10%"
-2026-11-14,OpenAI,gpt-5.5,0.005,0.03,USD,"OpenAI 公式モデルページで確認（2026-11-14）。入力 $5.00 / キャッシュ入力 $0.50 / 出力 $30.00（100万トークンあたり）。ctx 1,050,000。入力 272K 超のプロンプトはセッション全体で入力 2 倍・出力 1.5 倍（standard / batch / flex）。リージョン指定の処理は +10%"
+2026-11-14,OpenAI,gpt-6-astra,0.01,0.05,USD,"入力 $10 / 出力 $50（100万トークンあたり）。最上位"
+2026-11-14,OpenAI,gpt-6.1-sol,0.002,0.01,USD,"入力 $2 / 出力 $10（100万トークンあたり）。Astra に近い性能を低コストで"
+2026-11-14,OpenAI,gpt-6.1-terra,0.001,0.005,USD,"入力 $1 / 出力 $5（100万トークンあたり）。高速・効率型"
+2026-11-14,OpenAI,gpt-6-luna,0.0001,0.0005,USD,"入力 $0.1 / 出力 $0.5（100万トークンあたり）。最も効率的な軽量モデル"
+2026-11-14,OpenAI,gpt-5.4,0.0025,0.015,USD,"入力 $2.50 / キャッシュ入力 $0.25 / 出力 $15.00（100万トークンあたり）。ctx 1,050,000。入力 272K 超のプロンプトはセッション全体で入力 2 倍・出力 1.5 倍（standard / batch / flex）。リージョン指定の処理は +10%"
+2026-11-14,OpenAI,gpt-5.4-mini,0.00075,0.0045,USD,"入力 $0.75 / キャッシュ入力 $0.075 / 出力 $4.50（100万トークンあたり）。ctx 400,000。リージョン指定の処理は +10%"
+2026-11-14,OpenAI,gpt-5.5,0.005,0.03,USD,"入力 $5.00 / キャッシュ入力 $0.50 / 出力 $30.00（100万トークンあたり）。ctx 1,050,000。入力 272K 超のプロンプトはセッション全体で入力 2 倍・出力 1.5 倍（standard / batch / flex）。リージョン指定の処理は +10%"
 2025-12-08,Anthropic,claude-3-5-haiku-20241022,0.00025,0.00125,USD,Updated via API crawl on 2025-12-08
 2025-12-08,Anthropic,claude-3-opus-20240229,0.015,0.075,USD,Updated via API crawl on 2025-12-08
 2025-12-08,Anthropic,claude-3-sonnet-20240229,0.003,0.015,USD,Updated via API crawl on 2025-12-08
@@ -61,8 +61,8 @@ date_updated,provider,model,input_cost_per_1k_tokens,output_cost_per_1k_tokens,c
 2025-12-08,Groq,llama-3.1-70b-versatile,0.0,0.0,USD,Free tier for evaluation and development
 2025-12-08,Groq,mixtral-8x7b-32768,0.0,0.0,USD,Free tier for evaluation and development
 2025-12-08,Groq,gemma-7b-it,0.0,0.0,USD,Free tier for evaluation and development
-2026-11-14,Groq,openai/gpt-oss-120b,0.00015,0.0006,USD,"Groq 公式モデルページで確認（2026-11-14）。入力 $0.15 / キャッシュ入力 $0.075 / 出力 $0.60（100万トークンあたり）。ctx 131,072"
-2026-11-14,Groq,openai/gpt-oss-20b,0.000075,0.0003,USD,"Groq 公式モデルページで確認（2026-11-14）。入力 $0.075 / キャッシュ入力 $0.037 / 出力 $0.30（100万トークンあたり）。ctx 131,072"
+2026-11-14,Groq,openai/gpt-oss-120b,0.00015,0.0006,USD,"入力 $0.15 / キャッシュ入力 $0.075 / 出力 $0.60（100万トークンあたり）。ctx 131,072"
+2026-11-14,Groq,openai/gpt-oss-20b,0.000075,0.0003,USD,"入力 $0.075 / キャッシュ入力 $0.037 / 出力 $0.30（100万トークンあたり）。ctx 131,072"
 2025-12-08,Anthropic,claude-3-5-sonnet-20241022,0.003,0.015,USD,Updated via API crawl on 2025-12-08 or evaluation and development
 2026-05-03,Opper,anthropic/claude-haiku-4-5,0.001,0.005,USD,Opper (Anthropic) - Claude Haiku 4.5 - 200K ctx
 2026-05-03,Opper,anthropic/claude-opus-4,0.015,0.075,USD,Opper (Anthropic) - Claude Opus 4 - 200K ctx
