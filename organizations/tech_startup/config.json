@@ -8,7 +8,7 @@
     "データドリブン: データに基づいた判断と改善",
     "グローバル思考: 世界市場を視野に入れた戦略立案"
   ],
-  "talent_ids": ["kazuma", "aoi", "ryota", "shun", "takumi", "nozomi", "naoki", "subaru", "hayato", "misaki", "chihiro", "kensa_tashika"],
+  "talent_ids": ["kazuma", "aoi", "ryota", "shun", "takumi", "kanna", "naoki", "subaru", "misaki", "chihiro", "kensa_tashika"],
   "default_workflow": "tech_mvp_development",
   "workflow_bindings": {
     "tech_mvp_development": {
@@ -27,7 +27,7 @@
       "cto": ["takumi"],
       "lead_engineer": ["shun"],
       "fullstack": ["ryota"],
-      "product_manager": ["nozomi"]
+      "product_manager": ["kanna"]
     },
     "tech_ai_auto_programming": {
       "ai_architect": ["naoki"],
@@ -35,11 +35,11 @@
     },
     "tech_simple_coding": {
       "planner": ["chihiro"],
-      "implementer": ["hayato"],
+      "implementer": ["subaru"],
       "reviewer": ["misaki"]
     },
     "tech_code_and_run": {
-      "implementer": ["hayato"],
+      "implementer": ["subaru"],
       "tester": ["kensa_tashika"]
     }
   },

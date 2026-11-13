@@ -8,11 +8,11 @@
     "品質重視: 高品質な成果物の提供を通じて信頼を築く",
     "継続学習: 常に学び続け、専門性を向上させる"
   ],
-  "talent_ids": ["rina", "kazuma", "shou", "kanna", "taiga", "mizuki"],
+  "talent_ids": ["kazuma", "shou", "kanna", "taiga", "mizuki"],
   "default_workflow": "consulting_client_analysis",
   "workflow_bindings": {
     "consulting_client_analysis": {
-      "researcher": ["rina"],
+      "researcher": ["mizuki"],
       "strategic_planner": ["kazuma"],
       "industry_expert": ["shou"],
       "project_manager": ["kanna"]
