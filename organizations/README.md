@@ -1,380 +1,81 @@
-# 組織別管理システム
+# 組織（organizations）
 
-## 概要
+組織は、**人材（`talents/`）をどう編成し、どのワークフローで動かすか**を決める座組です。人材とワークフローは共有のため、同じ人材・同じワークフローを、組織を変えて使い回せます（例: 同じ「会議」の型でも、組織が違えば営業会議にも企画会議にもなります）。
 
-MultiRoleChatの組織別管理システムは、**異なる企業文化や業界特性に応じたAIチーム**を簡単に切り替えて利用できる革新的な機能です。
+仕様の正本は [設計書](../docs/MultiRoleStudio/design.md)（§3.3 組織）と [schemas/organization.schema.json](../schemas/organization.schema.json) です。
 
-## 現在利用可能な組織
-
-| 項目 | 🏭 **default_company** | 🎨 **creative_org** | 🏢 **consulting_firm** | 🚀 **tech_startup** | 🎯 **quiz_evaluation** |
-|------|------------------------|---------------------|------------------------|---------------------|------------------------|
-| **組織名** | 総合企業 | クリエイティブ・ラボ | 戦略コンサルティング | テックスタートアップ | **AI性能評価センター** |
-| **特徴** | 包括的なビジネス機能を<br>カバーする汎用性の高い組織 | 創造性と革新性を<br>最優先にした特別な体制 | 戦略コンサルティング業務に<br>特化した専門チーム | スピード重視の迅速な意思決定と<br>高速な実行力 | **複数AIプロバイダーの<br>性能比較・ベンチマーク** |
-| **ロール数** | **7つ** | **5つ** | **6つ** | **8つ** | **8つ** |
-| **ロール** | • プログラマー<br>• デザイナー<br>• マーケター<br>• 企画<br>• 分析官<br>• 実行担当<br>• 秘書 | • ワイルドアイデア<br>• 悪魔の代弁者<br>• 創造性重視<br>• ビジョナリー<br>• モデレーター | • 戦略コンサルタント<br>• データアナリスト<br>• 業界専門家<br>• プロジェクトマネージャー<br>• リサーチャー<br>• 戦略企画 | • フルスタックエンジニア<br>• UI/UXデザイナー<br>• プロダクトオーナー<br>• CTO<br>• リードエンジニア<br>• プロダクトマネージャー<br>• AIアーキテクト<br>• AI実装エンジニア | **• OpenAI自称クイズ王**<br>**• Google自称クイズ王**<br>**• Anthropic自称クイズ王**<br>**• Groq自称クイズ王**<br>**• Groq軽量自称クイズ王**<br>**• Mistral自称クイズ王**<br>**• Together自称クイズ王**<br>**• Grok自称クイズ王** |
-| **ワークフロー数** | **5つ** | **4つ** | **2つ** | **7つ** | **2つ** |
-| **ワークフロー** | • プロジェクト企画<br>• スタートアップ立ち上げ<br>• 製品開発<br>• 市場調査<br>• 新商品開発会議 | • 創造的ブレインストーミング<br>• イノベーション・チャレンジ<br>• ワイルドアイデア会議<br>• 未来シナリオ創造 | • クライアント分析<br>• 戦略策定 | • MVP開発<br>• 高速反復開発<br>• 技術スプリント<br>• AI自動プログラミング開発<br>• Hello World プログラム作成<br>• シンプルコーディング<br>• コード生成・実行 | **• 自称クイズ王バトル**<br>**• AIモデル性能比較** |
-| **シナリオ数** | **3つ** | **0つ** | **1つ** | **2つ** | **1つ** |
-| **シナリオ** | • 討論（賛成派・反対派）<br>• ブレインストーミング（創造性・実現性）<br>• 面接（面接官・候補者） | なし | • クライアント・ミーティング<br>（コンサルタント・クライアント） | • ブレインストーミング<br>（未来志向派・エンジニア視点）<br>• AI自動プログラミング<br>（AIアーキテクト・AI実装エンジニア） | **• 究極クイズ王バトル**<br>**（最強クイズ王たちの対決）** |
-| **特殊機能** | 豊富なシナリオ機能 | **組織専用AI設定**<br>(厳選5つのAI) | 専門的クライアント対応 | 未来志向と技術革新文化 | **応答時間測定**<br>**性能統計レポート**<br>**G検定ベース評価** |
-| **適用場面** | 汎用的なビジネス全般 | 創造的プロジェクト<br>イノベーション | 戦略立案<br>コンサルティング | スタートアップ<br>新規事業 | **AIモデル選択**<br>**性能ベンチマーク**<br>**技術評価** |
-
-### 📋 組織別ロール詳細
-
-<details>
-<summary><strong>🏭 default_company (総合企業) - 7つのロール</strong></summary>
-
-- **プログラマー** - コード開発・実装担当
-- **デザイナー** - UI/UX・グラフィックデザイン担当  
-- **マーケター** - マーケティング戦略・販促担当
-- **企画** - プロジェクト企画・戦略立案担当
-- **分析官** - データ分析・市場調査担当
-- **実行担当** - 実務実行・オペレーション担当
-- **秘書** - スケジュール管理・**会議総括**担当 👨‍💼
-
-</details>
-
-<details>
-<summary><strong>🎨 creative_org (クリエイティブ・ラボ) - 5つのロール</strong></summary>
-
-- **ワイルドアイデア** - 突拍子もないアイデア創出担当
-- **悪魔の代弁者** - 批判的思考・問題点指摘担当
-- **創造性重視** - クリエイティブ思考・発想担当
-- **ビジョナリー** - 未来志向・ビジョン策定担当
-- **モデレーター** - 議論調整・**会議総括**担当 👨‍💼
-
-</details>
-
-<details>
-<summary><strong>🏢 consulting_firm (戦略コンサルティング) - 6つのロール</strong></summary>
-
-- **戦略コンサルタント** - 戦略策定・コンサルティング担当
-- **データアナリスト** - データ分析・統計解析担当
-- **業界専門家** - 業界知識・専門性提供担当
-- **プロジェクトマネージャー** - プロジェクト管理・**会議総括**担当 👨‍💼
-- **リサーチャー** - 市場調査・情報収集担当
-- **戦略企画** - 戦略立案・企画策定担当
-
-</details>
-
-<details>
-<summary><strong>🚀 tech_startup (テックスタートアップ) - 8つのロール</strong></summary>
-
-- **フルスタックエンジニア** - 全領域開発・技術実装担当
-- **UI/UXデザイナー** - ユーザー体験・インターフェース設計担当
-- **プロダクトオーナー** - 製品戦略・要件定義担当
-- **CTO** - 技術戦略・技術方針決定担当
-- **リードエンジニア** - 技術リード・アーキテクチャ担当
-- **プロダクトマネージャー** - 製品管理・**会議総括**担当 👨‍💼
-- **AIアーキテクト** - AI駆動システム設計・技術選定担当
-- **AI実装エンジニア** - AI/ML実装・コード生成担当
-
-</details>
-
-<details>
-<summary><strong>🎯 quiz_evaluation (AI性能評価センター) - 8つのロール</strong></summary>
-
-- **OpenAI自称クイズ王** - GPT-5による「私の独壇場です！」スタイル
-- **Google自称クイズ王** - Gemini-2.5-Proによる「楽勝ですね！」スタイル
-- **Anthropic自称クイズ王** - Claude-Opus-4による「簡単な問題ですね」スタイル
-- **Groq自称クイズ王** - Llama-4-Maverickによる「瞬殺します！」スタイル
-- **Groq軽量自称クイズ王** - Llama-4-Scoutによる「軽量でも一流！」スタイル
-- **Mistral自称クイズ王** - Mistral-Large-Latestによる「技術力を見せつけます！」スタイル
-- **Together自称クイズ王** - Llama-Guard-4-12Bによる「オープンソースの力！」スタイル
-- **Grok自称クイズ王** - Grok-4-0709による「革新的技術で驚かせます！」スタイル
-
-**📊 性能評価結果 (G検定ベース20問)**:
-- **正解率**: 6/7プロバイダーが100%達成（Groq軽量のみ95%）
-- **応答速度**: Groq軽量（0.78秒）が最速、OpenAI（10.30秒）が最遅
-- **早押し王**: Groq軽量が20問中18問で最速回答を記録
-
-</details>
-
-## 🆕 新機能：組織専用AI設定
-
-各組織で**独自のAI構成**を設定可能になりました！
-
-### 組織別AI最適化の例
-
-- **creative_org**: 創造性に優れた5つのAI（ChatGPT, Gemini, Groq, Anthropic, Mistral）
-- **tech_startup**: 高速処理重視のAI構成（予定）
-- **consulting_firm**: 分析力重視のAI構成（予定）
-
-### 設定方法
-
-各組織フォルダに `ai_assistants_config.csv` を配置し、`config.json` で指定：
-
-```json
-{
-  "ai_assistants_config": "ai_assistants_config.csv",
-  ...
-}
-```
-
-## 🆕 新機能：role_type属性（モデレーター機能）
-
-各ロールに**`role_type`属性**を指定できるようになりました！
-
-### role_typeの種類
-
-| 値 | 説明 | 用途 |
-|----|------|------|
-| `"member"` | 通常メンバー（デフォルト） | 一般的な参加者 |
-| `"moderator"` | モデレーター・進行役 | **会議の最後にまとめを作成** |
-
-### 設定例
-
-```json
-{
-  "name": "creative_org",
-  "roles": [
-    {
-      "name": "ワイルドアイデア",
-      "assistant": "ChatGPT",
-      "model": "gpt-4o",
-      "system_prompt_file": "roles/wild_innovator.txt",
-      "role_type": "member"
-    },
-    {
-      "name": "モデレーター",
-      "assistant": "ChatGPT",
-      "model": "gpt-4o-mini",
-      "system_prompt_file": "roles/moderator.txt",
-      "role_type": "moderator"  // ← 会議の最後にまとめを作成
-    }
-  ]
-}
-```
-
-### モデレーターの機能
-
-- ✅ **会議終了後に自動的に総括を作成**
-- ✅ **500文字以内で簡潔にまとめ**
-- ✅ **各参加者の意見を反映**
-- ✅ **次のアクションを明確化**
-- ✅ **高速処理**（GPT-4o-mini推奨）
-
-### 各組織のモデレーター役
-
-| 組織 | モデレーター役 | モデル |
-|------|------------|--------|
-| `creative_org` | **モデレーター** | gpt-4o-mini |
-| `tech_startup` | **プロダクトマネージャー** | gpt-4o-mini |
-| `default_company` | **秘書** | gpt-4o-mini |
-| `consulting_firm` | **プロジェクトマネージャー** | gpt-4o-mini |
-
-## フォルダ構造
+## 組織フォルダの構成
 
 ```text
-📁 organizations/
-├── 📁 consulting_firm/                        # 🏢 戦略コンサル
-│   ├── 📄 config.json
-│   ├── 📄 README.md
-│   └── 📁 roles/
-│       ├── 📄 analyst.txt
-│       ├── 📄 candidate.txt
-│       ├── 📄 marketer.txt
-│       ├── 📄 planner.txt
-│       └── 📄 secretary.txt
-├── 📁 creative_org/                           # 🎨 創造性特化組織
-│   ├── 📄 config.json                         # 組織設定
-│   ├── 📄 README.md                           # 組織説明書
-│   ├── 📄 ai_assistants_config.csv           # 🆕 組織専用AI設定
-│   └── 📁 roles/                              # 組織専用ロール
-│       ├── 📄 creative.txt
-│       ├── 📄 devil_advocate.txt
-│       ├── 📄 moderator.txt
-│       ├── 📄 visionary.txt
-│       └── 📄 wild_innovator.txt
-├── 📁 default_company/                        # 🏭 総合企業
-│   ├── 📄 config.json
-│   ├── 📄 README.md
-│   └── 📁 roles/
-│       ├── 📄 analyst.txt
-│       ├── 📄 candidate.txt
-│       ├── 📄 creative.txt
-│       ├── 📄 debate_con.txt
-│       ├── 📄 debate_pro.txt
-│       ├── 📄 designer.txt
-│       ├── 📄 interviewer.txt
-│       ├── 📄 marketer.txt
-│       ├── 📄 planner.txt
-│       ├── 📄 programmer.txt
-│       ├── 📄 realistic.txt
-│       └── 📄 secretary.txt
-├── 📁 quiz_evaluation/                        # 🎯 AI性能評価センター
-│   ├── 📄 config.json                         # 8つのAIプロバイダー設定
-│   ├── 📄 README.md                           # 性能評価結果・使用方法
-│   └── 📁 roles/
-│       └── 📄 quiz_king.txt                   # 自称クイズ王キャラクター
-└── 📁 tech_startup/                           # 🚀 テックスタートアップ
-    ├── 📄 config.json
-    ├── 📄 README.md
-    └── 📁 roles/
-        ├── 📄 creative.txt
-        ├── 📄 designer.txt
-        ├── 📄 planner.txt
-        ├── 📄 programmer.txt
-        └── 📄 realistic.txt
+organizations/<org_id>/
+├── config.json                  # 組織の定義（Git 管理）
+├── model_mapping.example.json   # 人材ごとの assistant + model の雛形（mock）
+├── model_mapping.json           # 実行時に読む正本（.gitignore）
+├── voice_mapping.example.json   # 読み上げの声の雛形（任意）
+├── voice_mapping.json           # 読み上げの声（任意、.gitignore）
+└── README.md                    # 組織の説明（任意）
 ```
 
-## 使用方法
+`model_mapping.json` は、初回に `.example` をコピーして編集します。
 
-### 基本的な使い方
+### config.json の主な項目
+
+| キー | 内容 |
+|---|---|
+| `name` / `mission` / `culture` | 組織名・目的・社風。人材のプロンプトに組織の文脈として加わる |
+| `talent_ids` | この組織に所属する人材の ID（`talents/<id>.json`） |
+| `default_workflow` | 起動時に使うワークフロー |
+| `workflow_bindings` | ワークフローごとに、スロット（役割枠）へ人材を割り当てる |
+| `common_directives` | 全員に共通の指示 |
+| `role_directives` | スロット名ごとの役割の指示 |
+
+人材 ID は人物名で、役割名・組織名を含めません。役割は `workflow_bindings` と `role_directives` で与えます。
+
+## 組織一覧
+
+| 組織 ID | 名前 | メンバー | 既定のワークフロー |
+|---|---|---|---|
+| `broadcast_studio` | 放送・配信スタジオ | みどり、あかり、そうた、ごう、はるか、けんと、ゆうま | `broadcast_news_show` |
+| `codecraft_collective` | コードクラフト・コレクティブ | 全能 統、検証 確 | `rapid_mvp` |
+| `consulting_firm` | 戦略コンサルティング・ファーム | かずま、しょう、かんな、たいが、みずき | `consulting_client_analysis` |
+| `creative_org` | クリエイティブ・イノベーション・ラボ | るい、そら、くろ、ななみ、みお | `creative_brainstorm` |
+| `decision_balance_org` | 意思決定バランス | ひかり、しずく、ともえ | `balanced_decision_support` |
+| `default_company` | 総合企業 | かずま、みずき、あおい、しょう、りょうた、しゅん、かんな | `company_project_planning` |
+| `groq_fast_discussion` | Groq高速意思決定チーム | ともえ、みずき、しずく、だいち | `groq_quick_discussion` |
+| `nokuru` | のくる | ひなた、さつき、かえで、ゆき | `meeting` |
+| `quiz_evaluation` | AI性能評価センター | はじめ、げん、いつき、じん、りつ、まい、とら、かい | `quiz_battle_parallel` |
+| `solo` | ソロ | ソロBot | （直接送信） |
+| `studio_dev` | Studio 開発チーム | アーキテクト、インプリメンター、レビュアー | `dev` |
+| `tech_editorial` | Tech編集部 | ふみ、しおり、ことは、くろ、そうた、みさき、だいち | `tech_article_edit` |
+| `tech_startup` | テックスタートアップ | かずま、あおい、りょうた、しゅん、たくみ、かんな、なおき、すばる、みさき、ちひろ、検証 確 | `tech_mvp_development` |
+| `trio` | トリオ | Alpha、Beta、Gamma | `discussion` |
+
+各組織で使えるワークフローは、`config.json` の `workflow_bindings` のキーです。
+
+組織ごとの説明は、README のある組織（`codecraft_collective` / `consulting_firm` / `creative_org` / `default_company` / `quiz_evaluation` / `tech_startup`）のフォルダを参照してください。
+
+## 使い方
 
 ```bash
-# 組織指定で実行
-python MultiRoleChat.py --org default_company
-python MultiRoleChat.py --org creative_org
-python MultiRoleChat.py --org tech_startup
-python MultiRoleChat.py --org consulting_firm
-python MultiRoleChat.py --org quiz_evaluation
+# 組織を指定して、対話で使う
+python MultiRoleStudio.py --org creative_org
 
-# ワークフロー直接実行
-python MultiRoleChat.py --org creative_org --workflow creative_brainstorm --topic "革新的なAIサービス"
-python MultiRoleChat.py --org tech_startup --workflow hello_world_development --topic "PythonでHello Worldプログラム"
-python MultiRoleChat.py --org tech_startup --workflow ai_auto_programming --topic "AIAutoProgramming.py開発"
-python MultiRoleChat.py --org tech_startup --workflow mvp_development --topic "新しいSNSアプリ"
-python MultiRoleChat.py --org tech_startup --workflow simple_coding --topic "フィボナッチ関数"
-python MultiRoleChat.py --org tech_startup --workflow code_and_run --topic "Hello World実行"
-python MultiRoleChat.py --org consulting_firm --workflow client_analysis --topic "製造業DX戦略"
+# ワークフローとお題を指定して、1 回で完走する
+python MultiRoleStudio.py --org creative_org --workflow creative_brainstorm --topic "革新的なAIサービス"
+python MultiRoleStudio.py --org consulting_firm --workflow consulting_client_analysis --topic "製造業DX戦略"
+python MultiRoleStudio.py --org tech_startup --workflow tech_simple_coding --topic "フィボナッチ関数"
 
-# 🆕 NEW: クイズ評価・AIモデル性能比較
-python MultiRoleChat.py --org quiz_evaluation --demo
-🎭 MultiRoleChat> quiz multiline continuous
-
-# 🚀 NEW: 軽量ワークフロー（tech_startup限定）
-python MultiRoleChat.py --org tech_startup --workflow simple_coding --topic "Hello Worldプログラム"
-python MultiRoleChat.py --org tech_startup --workflow quick_prototype --topic "概念実証"
+# Web UI
+python MultiRoleStudioWeb.py --org tech_startup
 ```
 
-### **🎯 ワークフロー軽量化機能**
+オプションの一覧は [README](../README.md) の MultiRoleStudio の節を参照してください。クイズ・ベンチマークは `--benchmark` で、`quiz_evaluation` の人材全員に同じ問題を流します。
 
-**tech_startup** 組織では、プロジェクトの複雑度に応じて最適なワークフローを自動選択できます：
+## 組織を追加する
 
-| ワークフロー | ロール数 | 適用場面 | 実行時間 |
-|-------------|---------|----------|----------|
-| `code_and_run` | **2ロール** | コード生成＋即座実行 | **最速** |
-| `simple_coding` | **3ロール** | Hello World、基本プログラム | **高速** |
-| `mvp_development` | 4ロール | 製品開発 | バランス |
-| `rapid_iteration` | 4ロール | 反復開発 | バランス |
-| `tech_sprint` | 4ロール | 技術課題解決 | バランス |
-| `hello_world_development` | 6ロール | 学習用途、詳細プロセス | 教育的 |
-| `ai_auto_programming` | 6ロール | 複雑なAIシステム | 高品質 |
+1. `organizations/<org_id>/config.json` を作り、`talent_ids` に既存の人材 ID を入れる。
+2. `workflow_bindings` で、使うワークフローのスロットに人材を割り当てる。
+3. `role_directives` に、スロット名ごとの役割の指示を書く。
+4. `model_mapping.example.json` を作り、`model_mapping.json` にコピーして assistant と model を指定する。
 
-**💡 使い分けのコツ**:
-
-- **コード生成してすぐ実行** → `code_and_run`
-- **Hello World**等の単純なプログラム → `simple_coding`
-- **反復開発**や**スプリント開発** → `rapid_iteration` / `tech_sprint`
-- **本格的な製品開発** → `mvp_development` 以上
-
-```bash
-
-### シナリオ実行
-
-```bash
-# デフォルト企業での討論
-python MultiRoleChat.py --org default_company --scenario debate
-
-# クライアント・ミーティング
-python MultiRoleChat.py --org consulting_firm --scenario client_meeting
-
-# テックスタートアップでのブレインストーミング
-python MultiRoleChat.py --org tech_startup --scenario brainstorm
-
-# AI自動プログラミング（新機能！）
-python MultiRoleChat.py --org tech_startup --scenario auto_programming
-```
-
-## 🔄 ワークフローとシナリオの違い
-
-### **ワークフロー (Workflow)**
-**目的**: **順序立てた業務プロセスの自動実行**
-- 複数のロール（3-6個）が**順番に**作業を行う
-- ビジネスプロセスの標準化と効率化
-- 段階的な成果物の生成
-
-**実行例**:
-```bash
-python MultiRoleChat.py --org default_company --workflow startup_launch --topic "AI企業設立"
-```
-
-**プロセス例 (startup_launch)**:
-1. **企画** → 事業コンセプトとビジョンの明確化
-2. **分析官** → 市場調査と競合分析
-3. **秘書** → 法人設立手続きの整理
-4. **実行担当** → 技術基盤の検討
-5. **企画** → 資金調達計画の作成
-
-### **シナリオ (Scenario)**
-**目的**: **特定の状況での対話・討論の実現**
-- **2つのロール**が**対話形式**で議論
-- 異なる視点での検討・意思決定支援
-- リアルタイムでの双方向議論
-
-**実行例**:
-```bash
-python MultiRoleChat.py --org default_company --scenario debate
-```
-
-**対話例 (debate)**:
-- **賛成派** ↔ **反対派** による討論
-- **面接官** ↔ **候補者** による面接
-- **創造性重視** ↔ **実現性重視** によるブレインストーミング
-- **AIアーキテクト** ↔ **AI実装エンジニア** によるAI自動プログラミング
-
-### **使い分けのガイド**
-
-| 用途 | 推奨 | 理由 |
-|------|------|------|
-| プロジェクト計画立案 | **ワークフロー** | 段階的な検討が必要 |
-| 意思決定の検討 | **シナリオ** | 多角的な視点が必要 |
-| 製品開発プロセス | **ワークフロー** | 順序立てた作業が必要 |
-| アイデアの評価 | **シナリオ** | 対立する観点での議論が有効 |
-
-## 利点
-
-### **1. 文化適合性**
-
-- 各組織の企業文化に適したAIチーム構成
-- 業界特性を反映したワークフロー
-- 自然な役割分担と専門性
-
-### **2. 柔軟性**
-
-- 組織ごとの独立した設定管理
-- 組織専用AI設定による最適化
-- カスタマイズの独立性
-
-### **3. スケーラビリティ**
-
-- 無制限に組織追加可能
-- 各組織独立の設定
-- 組織フォルダ単位での管理
-
-### **4. ポータビリティ**
-
-- 組織フォルダ単位で移動・共有可能
-- バックアップが簡単
-- チーム間での設定共有
-
-## 技術的改善
-
-- ✅ **EOFエラー修正**: 非対話モードでの正常終了をサポート
-- ✅ **組織専用AI設定**: 各組織で最適なAI構成を選択可能
-- ✅ **パス標準化**: 相対パス形式で統一
-- ✅ **文字エンコーディング**: UTF-8対応
-
-## 互換性
-
-従来の設定ファイルも引き続きサポート：
-
-```bash
-# 従来の方法（引き続き動作）
-python MultiRoleChat.py --config multi_role_config.json
-```
-
----
-
-各組織の詳細な説明は、対応するREADME.mdファイルをご覧ください。
+**新しい人材は、既存の人材で役割を賄えないときだけ追加します。** 組織側の `role_directives` で役割を切り替えれば、同じ人材を別の組織・別の役割で使い回せます。

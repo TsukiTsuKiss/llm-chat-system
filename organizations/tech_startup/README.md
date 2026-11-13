@@ -1,137 +1,41 @@
-# テックスタートアップ組織設定
+# テックスタートアップ（tech_startup）
 
-## 組織概要
-技術革新を重視するスタートアップ企業向けの組織設定です。
+スピード重視で MVP を作り、技術的な判断を素早く下す、スタートアップ向けの組織です。
 
-## 企業理念
-技術革新で世界を変え、ユーザーの生活をより豊かで便利にする
+**理念**: 技術革新で世界を変え、ユーザーの生活をより豊かで便利にする
 
-## 行動指針
-- **スピード重視**: 迅速な意思決定と高速な実行力
-- **技術革新**: 最先端技術の積極的な採用と開発
-- **ユーザー中心**: ユーザー体験を最優先に考える
-- **データドリブン**: データに基づいた判断と改善
-- **グローバル思考**: 世界市場を視野に入れた戦略立案
+**行動指針**: スピード重視 / 技術革新 / ユーザー中心 / データドリブン / グローバル思考
 
-## 特徴
-- アジャイル開発手法重視
-- MVP（最小実用製品）志向
-- 高速プロトタイピング
-- ユーザーフィードバック重視
-- **複雑度に応じた適応的ワークフロー**
-- **🆕 コード生成＋実行の一体化** - `code_and_run`で生成と検証を同時実行
-- **プロバイダー最適化** - 用途に応じた効率的なAI選択
+## ワークフローと担当
 
-## 利用可能なワークフロー
+| ワークフロー | 担当（スロット） | 内容 |
+|---|---|---|
+| `tech_mvp_development`（既定） | かずま（`product_owner`）、あおい（`designer`）、りょうた（`fullstack`）、たくみ（`cto`） | 最小機能要件の定義から、プロトタイプ、実装、技術判断までを順に進める |
+| `tech_rapid_iteration` | りょうた（`fullstack`）、かずま（`product_owner`）、あおい（`designer`）、しゅん（`lead_engineer`） | 実装、優先度決定、デザイン調整、品質チェックを短いサイクルで回す |
+| `tech_sprint` | たくみ（`cto`）、しゅん（`lead_engineer`）、りょうた（`fullstack`）、かんな（`product_manager`） | 技術課題の特定から、実装計画、集中実装、進捗管理とリリース計画までを順に進める |
+| `tech_ai_auto_programming` | なおき（`ai_architect`）、すばる（`ai_implementer`） | アーキテクトの設計と、AI 実装エンジニアの実装を交互に進める |
+| `tech_simple_coding` | ちひろ（`planner`）、すばる（`implementer`）、みさき（`reviewer`） | 軽量で単純なプログラムを、計画・実装・レビューの 3 ステップで作る |
+| `tech_code_and_run` | すばる（`implementer`）、検証 確（`tester`） | 実装とテスターの検証を、合格が出るまで繰り返す（最大 5 回） |
 
-### 🚀 高速開発ワークフロー
+## 選び方
 
-#### `code_and_run` (2ロール) - 最速
-- **軽量実装エンジニア**: 実行可能なコード生成
-- **コードテスター**: サンドボックスでの安全な実行・検証
-- **適用**: Hello World、関数作成、即座の動作確認
+| やりたいこと | ワークフロー |
+|---|---|
+| コードを作ってすぐ検証する（最短） | `tech_code_and_run` |
+| Hello World など単純なプログラム | `tech_simple_coding` |
+| 製品の最小構成を作る | `tech_mvp_development` |
+| 短いサイクルで改善を回す | `tech_rapid_iteration` |
+| 技術課題を解決する | `tech_sprint` |
+| 複雑な AI システムを設計・実装する | `tech_ai_auto_programming` |
 
-#### `code_and_run_iterative` (2ロール) - 品質保証
-- **軽量実装エンジニア**: 実行可能なコード生成・エラー修正
-- **コードテスター**: 厳格な検証・合格判定（不合格時は自動修正ループ）
-- **特徴**: テスト合格まで最大5回自動修正、品質保証
-- **適用**: 信頼性が重要な関数、学習用の正確なコード
-
-#### `simple_coding` (3ロール) - 高速
-- **軽量プランナー**: 複雑度評価と要件整理
-- **軽量実装エンジニア**: シンプル実装とコメント付きコード作成
-- **軽量レビューア**: コードレビューと実行確認
-- **適用**: 基本プログラム、学習用コード
-
-### ⚖️ バランス型ワークフロー
-
-#### `mvp_development` (4ロール)
-- **プロダクトオーナー**: 最小機能要件の定義
-- **UI/UXデザイナー**: プロトタイプ作成
-- **フルスタックエンジニア**: 迅速な実装
-- **CTO**: 技術選定とアーキテクチャ判断
-
-#### `rapid_iteration` (4ロール)
-- **フルスタックエンジニア**: 機能実装とデプロイ
-- **プロダクトオーナー**: フィードバック収集と優先度決定
-- **UI/UXデザイナー**: ユーザビリティ改善
-- **リードエンジニア**: 品質チェックとリファクタリング
-
-#### `tech_sprint` (4ロール)
-- **CTO**: 技術課題の特定と解決方針策定
-- **リードエンジニア**: 実装計画と技術選定
-- **フルスタックエンジニア**: 集中的な実装作業
-- **プロダクトマネージャー**: 進捗管理とリリース計画
-
-### 🎯 高品質ワークフロー
-
-#### `hello_world_development` (6ロール) - 教育的
-- 詳細なプロセスによる学習用途
-- 全工程を網羅した実装プロセス
-
-#### `ai_auto_programming` (6ロール) - 高品質
-- **AIアーキテクト**: システム設計・品質確認・デプロイ戦略
-- **AI実装エンジニア**: 実装・テスト・ドキュメント作成
-- **適用**: 複雑なAIシステム、本格的な開発
-
-## ワークフロー選択ガイド
-
-- **`code_and_run`**: コード生成＋即座実行（2ロール、最速）
-- **`code_and_run_iterative`**: **🆕 テスト合格まで自動修正**（2ロール、品質保証）
-- **`simple_coding`**: Hello World、基本プログラム（3ロール、高速）
-- **`mvp_development`**: 製品開発（4ロール、バランス型）
-- **`rapid_iteration`**: 高速反復開発（4ロール、アジャイル）
-- **`tech_sprint`**: 技術スプリント（4ロール、技術課題解決）
-- **`hello_world_development`**: 学習用途、詳細プロセス（6ロール、教育的）
-- **`ai_auto_programming`**: 複雑なAIシステム（6ロール、高品質）
-
-## 使用方法
+## 使い方
 
 ```bash
-# この組織で実行
-python MultiRoleChat.py --org tech_startup
-
-# コード生成＋即座実行（推奨：最速）
-python MultiRoleChat.py --org tech_startup --workflow code_and_run --topic "フィボナッチ関数"
-
-# 🆕 品質保証版：テスト合格まで自動修正（推奨：学習・信頼性重視）
-python MultiRoleChat.py --org tech_startup --workflow code_and_run_iterative --topic "フィボナッチ関数"
-
-# 軽量実装（推奨：シンプルなプログラム）
-python MultiRoleChat.py --org tech_startup --workflow simple_coding --topic "Hello Worldプログラム"
-
-# 製品開発
-python MultiRoleChat.py --org tech_startup --workflow mvp_development --topic "新しいSNSアプリ"
-
-# 反復開発
-python MultiRoleChat.py --org tech_startup --workflow rapid_iteration --topic "機能改善"
-
-# 技術スプリント
-python MultiRoleChat.py --org tech_startup --workflow tech_sprint --topic "パフォーマンス改善"
-
-# または従来の方法
-python MultiRoleChat.py --config organizations/tech_startup/config.json
+python MultiRoleStudio.py --org tech_startup --workflow tech_code_and_run --topic "フィボナッチ関数"
+python MultiRoleStudio.py --org tech_startup --workflow tech_simple_coding --topic "Hello Worldプログラム"
+python MultiRoleStudio.py --org tech_startup --workflow tech_mvp_development --topic "新しいSNSアプリ"
+python MultiRoleStudio.py --org tech_startup --workflow tech_rapid_iteration --topic "機能改善"
+python MultiRoleStudio.py --org tech_startup --workflow tech_sprint --topic "パフォーマンス改善"
 ```
 
-## 軽量ワークフローの技術仕様
-
-### Groqの利用について
-
-- **制限**: 30 RPM、14,000 RPD（1日あたり）
-- **対象**: 評価・開発・プロトタイピング用途
-- **コスト**: 制限内では課金なし
-- **適用**: 軽量ワークフローでの技術検証
-
-### API制限内での実用性
-
-- **30 RPM制限**: 1分間に30リクエストまで
-- **code_and_run**: 2リクエスト → 15回/分実行可能
-- **simple_coding**: 3リクエスト → 10回/分実行可能
-- **mvp_development**: 4リクエスト → 7回/分実行可能
-- **プロトタイピング**: 十分な頻度で利用可能
-
-### 軽量実装の利点
-
-1. **高速応答**: 推論処理の最適化による応答速度向上
-2. **開発効率**: プロトタイピング段階でのコスト削減
-3. **技術統一**: Groqでの一貫した動作
+コードを生成するワークフローは、終了時に `sandbox/session_<session_id>/` へ保存します（[sandbox 保存](../../docs/sandbox-saving.md)）。
