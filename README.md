@@ -392,7 +392,7 @@ python MultiRoleStudioWeb.py --org broadcast_studio --workflow broadcast_topic_s
 
 ### コスト・コード保存
 - 💰 **[コスト管理](docs/cost-management.md)** - 統合コスト管理とプロバイダーマッピング
-- 💾 **[コード保存機能](docs/code-saving-feature.md)** - AI生成コードの自動保存と安全実行
+- 💾 **[sandbox 保存](docs/sandbox-saving.md)** - AI 生成コードの抽出・保存、run_all.sh、成果物の採用
 
 ### MyPedia
 - 🌐 **[MyPedia ガイド](docs/mypedia/README.md)** - Web Q&A の起動方法・引数・API仕様
