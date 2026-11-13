@@ -1,6 +1,6 @@
 # MyPedia ガイド
 
-MyPedia は、`Chat.py` のアシスタント設定を利用して動く FastAPI ベースの Web Q&A アプリです。
+MyPedia は、`ai_assistants_config.json` のアシスタント設定を利用して動く FastAPI ベースの Web Q&A アプリです。
 
 - フロント: シンプルな 1 ページ UI（質問入力、回答表示、戻る/進む）
 - バック: `/ask` API で LLM に問い合わせ
@@ -8,8 +8,8 @@ MyPedia は、`Chat.py` のアシスタント設定を利用して動く FastAPI
 
 ## 主な機能
 
-- 外部 LLM 接続（`Chat.py` の `load_ai_assistants_config`, `load_assistant` を利用）
-- プロバイダー/モード切替（Web UI から `ai_assistants_config.csv` の設定を利用）
+- 外部 LLM 接続（Studio の `studio.loader.load_ai_assistants` / `studio.assistants.build_llm` を利用）
+- プロバイダー/モード切替（Web UI から `ai_assistants_config.json` の設定を利用）
 - 回答時間の表示（クライアント表示時間 + サーバ処理時間）
 - 回答中の語句リンク化
 - `[[語句]]` 形式のヒントを優先リンク化
@@ -67,7 +67,7 @@ python3 MyPedia.py --port 8080
 
 ## CLI オプション
 
-- `-a`, `--assistant`: アシスタント名（`ai_assistants_config.csv` の `assistant_name`）
+- `-a`, `--assistant`: アシスタント名（`ai_assistants_config.json` のキー）
 - `-m`, `--model`: モデル名を直接指定
 - `--fast`: `fast_model` を使用
 - `--host`: バインドホスト（既定: `127.0.0.1`）

@@ -8,14 +8,36 @@ import argparse
 import os
 import re
 import time
+from pathlib import Path
 import uvicorn
 
 # Version information
-VERSION = "1.0.0"
-VERSION_DATE = "2026-04-27"
+VERSION = "1.0.1"
+VERSION_DATE = "2026-11-13"
 
-# Chat.py の LLM 接続ロジックをそのまま流用
-from legacy.Chat import load_ai_assistants_config, load_assistant
+from studio.assistants import build_llm
+from studio.loader import load_ai_assistants
+from studio.validation import ValidationReport
+
+
+def load_ai_assistants_config() -> dict:
+    """ai_assistants_config.json を読み、先頭2モデルを model / fast_model として添える。"""
+    report = ValidationReport()
+    raw = load_ai_assistants(Path(__file__).resolve().parent, report)
+    report.raise_if_failed()
+    assistants = {}
+    for name, cfg in raw.items():
+        models = cfg.get("models") or []
+        assistants[name] = {
+            **cfg,
+            "model": models[0] if models else "",
+            "fast_model": models[1] if len(models) > 1 else "",
+        }
+    return assistants
+
+
+def load_assistant(assistants: dict, assistant_name: str, model: str):
+    return build_llm(assistants[assistant_name], model, None, assistant_name=assistant_name)
 
 app = FastAPI()
 
