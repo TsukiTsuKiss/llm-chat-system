@@ -54,6 +54,8 @@ date_updated,provider,model,input_cost_per_1k_tokens,output_cost_per_1k_tokens,c
 2025-12-08,Groq,llama-3.1-70b-versatile,0.0,0.0,USD,Free tier for evaluation and development
 2025-12-08,Groq,mixtral-8x7b-32768,0.0,0.0,USD,Free tier for evaluation and development
 2025-12-08,Groq,gemma-7b-it,0.0,0.0,USD,Free tier for evaluation and development
+2026-11-14,Groq,openai/gpt-oss-120b,0.00015,0.0006,USD,"Groq 公式モデルページで確認（2026-11-14）。入力 $0.15 / キャッシュ入力 $0.075 / 出力 $0.60（100万トークンあたり）。ctx 131,072"
+2026-11-14,Groq,openai/gpt-oss-20b,0.000075,0.0003,USD,"Groq 公式モデルページで確認（2026-11-14）。入力 $0.075 / キャッシュ入力 $0.037 / 出力 $0.30（100万トークンあたり）。ctx 131,072"
 2025-12-08,Anthropic,claude-3-5-sonnet-20241022,0.003,0.015,USD,Updated via API crawl on 2025-12-08 or evaluation and development
 2026-05-03,Opper,anthropic/claude-haiku-4-5,0.001,0.005,USD,Opper (Anthropic) - Claude Haiku 4.5 - 200K ctx
 2026-05-03,Opper,anthropic/claude-opus-4,0.015,0.075,USD,Opper (Anthropic) - Claude Opus 4 - 200K ctx
