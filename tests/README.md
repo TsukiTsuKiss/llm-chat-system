@@ -1,45 +1,22 @@
-# テストスクリプト集
+# テスト
 
-このディレクトリには、LLM Chat Systemの各機能をテストするためのスクリプトが含まれています。
+pytest で実行します。API キーは不要です（LLM は mock を使います）。
 
-## テストファイル一覧
-
-### Windows用バッチファイル
-- **quick_test.bat** - 組織設定の簡易テスト（Windows用）
-- **test_organizations.bat** - 組織設定の包括的テスト（Windows用）
-
-### 設定関連
-- **test_config.py** - 設定ファイルの診断とテストツール
-- **test_organizations.py** - 組織別設定の検証スクリプト
-
-### 機能関連  
-- **test_workflow_logging.py** - ワークフローログ機能のテスト
-- **test_auto_programming.py** - 自動プログラミング機能のテスト
-- **test_scenario.py** - シナリオ機能のテスト
-- **test_final_code_saving.py** - コード保存機能のテスト
-
-## 実行方法
-
-### Windows環境
-```cmd
-REM 簡易テスト実行
-tests\quick_test.bat
-
-REM 包括的テスト実行  
-tests\test_organizations.bat
-```
-
-### Linux/Unix環境
 ```bash
-cd llm-chat-system
-python tests/test_config.py          # 設定ファイル検証
-python tests/test_organizations.py   # 組織設定検証
-python tests/test_workflow_logging.py # ワークフローテスト
+python -m pytest tests -q                      # 全件
+python -m pytest tests/parity -v               # MultiRoleStudio（エンジン・Web UI・音声・成果物など）
+python -m pytest tests/parity/test_repo_organizations.py -v   # 組織・人材・ワークフローの参照整合性
 ```
 
-## 注意事項
+## 構成
 
-- テスト実行時は適切なAI設定が必要です
-- 一部のテストはAPIキーとネットワーク接続が必要です
-- テスト実行により実際のAPIコールが発生する場合があります
-- BATファイルはプロジェクトルートから実行される想定で作成されています
+| パス | 内容 |
+|---|---|
+| `tests/parity/` | MultiRoleStudio 本体のテスト |
+| `tests/parity/test_repo_organizations.py` | 同梱の組織・人材が schema に通ること、`talent_ids` / `workflow_bindings` / `default_workflow` の参照先が存在すること、`model_mapping.example.json` がメンバーを過不足なく含むこと |
+| `tests/test_api_error_retry.py` | API エラーの検出とリトライ |
+| `tests/test_quota.py` | 無料枠の集計と案内 |
+| `tests/test_currency.py` / `test_model_costs.py` | 費用の通貨・単価 |
+| `tests/test_ai_model_sync.py` | `ai_model_sync.py`（モデル一覧の同期） |
+
+組織や人材を追加・統合したときは、`test_repo_organizations.py` で参照の抜けを確認できます。
