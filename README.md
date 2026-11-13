@@ -3,7 +3,7 @@
 このシステムは、複数のAIが協力して問題解決を行う革新的なチャットシステムです。
 
 > **MultiRoleStudio**（`studio/` + `MultiRoleStudio.py`）が現行のメイン UI です。  
-> 旧 `Chat.py` / `MultiRoleChat.py` 系は **Phase 5g** で [`legacy/`](legacy/README.md) に移行しました（タグ: `legacy-ui-pre-migration`）。
+> 旧 `Chat.py` / `MultiRoleChat.py` 系は廃止しました。必要な場合はタグ `legacy-ui-pre-migration` から取り出せます。
 
 ## 🎙️ MultiRoleStudio とは
 
@@ -253,7 +253,7 @@ python MultiRoleStudioWeb.py --org broadcast_studio --no-browser --host 0.0.0.0 
 
 **model_mapping:** 実行時に読む正本は `organizations/<org>/model_mapping.json`（`.gitignore`）。
 `assistant` は `ai_assistants_config.json` のキー、`model` はその JSON 内の文字列。
-`ai_assistants_config.json` の各プロバイダーには、任意で `model_param`（モデル名を渡す引数名。既定 `model`）、`system_param`（システムプロンプトを渡す引数名。無ければメッセージ）、`base_url`（https の接続先）、`api_key_env`（API キーを読む環境変数名）を書ける（例: Opper は `model_name` / `instructions`、さくらの AI Engine は `ChatOpenAI` + `base_url` + `SAKURA_AI_API_KEY`）。これらはサーバー側の設定だけから読み、アップロードファイルからは受け付けない（API キーを別のサーバーへ送られないようにするため）。旧版（`legacy/`）はこれらを読まない。さくらの AI Engine のアカウントトークンは `<UUID>:<シークレット>` の形式で、この文字列全体を環境変数に入れる。
+`ai_assistants_config.json` の各プロバイダーには、任意で `model_param`（モデル名を渡す引数名。既定 `model`）、`system_param`（システムプロンプトを渡す引数名。無ければメッセージ）、`base_url`（https の接続先）、`api_key_env`（API キーを読む環境変数名）を書ける（例: Opper は `model_name` / `instructions`、さくらの AI Engine は `ChatOpenAI` + `base_url` + `SAKURA_AI_API_KEY`）。これらはサーバー側の設定だけから読み、アップロードファイルからは受け付けない（API キーを別のサーバーへ送られないようにするため）。さくらの AI Engine のアカウントトークンは `<UUID>:<シークレット>` の形式で、この文字列全体を環境変数に入れる。
 
 **ウェブ検索の三段:** セッションのチェック（または `--web-search`）と、人材の `model_mapping.web_search: true` と、プロバイダの対応が揃ったときだけツールを付ける。さくらの AI Engine（`SakuraAI`）はホスト型ウェブ検索がなく、`ai_assistants_config.json` で `"web_search": false` にしてある。チャットでチェックを入れても検索は走らず、渡した文脈（RAG / 添付）だけで答える。今日のニュースが必要なら ChatGPT / Gemini / Anthropic / Groq など対応プロバイダへ切り替える。将来さくら側に検索が付いたら、同じエントリの `web_search` を `true` にし、必要なら `web_search_tool` にツール定義を足す。
 
@@ -475,20 +475,9 @@ python MultiRoleStudioWeb.py --org broadcast_studio --workflow broadcast_topic_s
 ### MultiRoleStudio
 - 📐 **[設計書](docs/MultiRoleStudio/design.md)** — 仕様・Phase ロードマップ・データ構造（正本）
 
-### MultiRoleChat
-- 📖 **[メインガイド](docs/multi-role-chat/README.md)** - 基本機能と使用方法（Web UI 含む）
-- ⚙️ **[設定ガイド](docs/multi-role-chat/configuration-guide.md)** - 組織設定・プロバイダー分散・エラー診断
-- 🔧 **[設定管理ガイド](docs/multi-role-chat/configuration-management.md)** - 設定ファイル管理・バージョン管理  
-- 🚨 **[トラブルシューティング](docs/multi-role-chat/troubleshooting.md)** - エラー解決・診断ツール
-- 🚀 **[クイックスタート](docs/multi-role-chat/quickstart.md)** - 迅速な導入手順
-- 💡 **[実例集](docs/multi-role-chat/examples.md)** - 実際の使用例とベストプラクティス
+### コスト・コード保存
 - 💰 **[コスト管理](docs/cost-management.md)** - 統合コスト管理とプロバイダーマッピング
 - 💾 **[コード保存機能](docs/code-saving-feature.md)** - AI生成コードの自動保存と安全実行
-
-### Single Chat
-- 🚀 **[クイックスタート](docs/single-chat/quickstart.md)** - 高度なチャット機能の使用方法
-- 📖 **[メインガイド](docs/single-chat/README.md)** - 基本機能と設定（Web UI 含む）
-- 🚨 **[エラーハンドリング](docs/single-chat/error-handling.md)** - API制限エラー対応機能
 
 ### MyPedia
 - 🌐 **[MyPedia ガイド](docs/mypedia/README.md)** - Web Q&A の起動方法・引数・API仕様
@@ -607,81 +596,31 @@ set OPPER_API_KEY=your_opper_key
 - APIキーが設定されていない場合、認証エラーが発生します
 - 少なくとも1つのAPIキー（推奨：GROQ_API_KEY）を設定してください
 
-### MultiRoleChat（legacy）
+### 旧版（Chat / MultiRoleChat）
 
-旧版は `legacy/` に移行済みです。詳細は [legacy/README.md](legacy/README.md)。
-
-```bash
-# 1. インタラクティブ会議（NEW v1.1.0）- あなたも参加！
-python -m legacy.MultiRoleChat --org creative_org --demo
-🎭 MultiRoleChat> meeting -i "革新的なAIサービスアイデア"
-
-# 2. 組織指定とワークフロー直接実行（推奨）
-python -m legacy.MultiRoleChat --org creative_org --workflow creative_brainstorm --topic "革新的なAIサービス"
-
-# 3. クイズ評価システム（並列処理対応）- AIモデル性能比較
-python -m legacy.MultiRoleChat --org quiz_evaluation --demo
-🎭 MultiRoleChat> quiz multiline continuous
-
-# 4. 利用可能な組織とワークフローの確認
-python -m legacy.MultiRoleChat --org creative_org
-
-# 5. 組織を指定して対話モードで起動
-python -m legacy.MultiRoleChat --org tech_startup
-
-# 6. デモモードでの起動
-python -m legacy.MultiRoleChat --demo
-
-# 7. ワークフロー実行（対話モード内）
-🎭 MultiRoleChat> workflow product_development "LLM仮想会社会議チャットボット"
-
-# 8. 高速並列クイズ（対話モード内）
-🎭 MultiRoleChat> quiz "日本で2番目に面積の大きい都道府県は？"
-```
-
-### Single Chat（legacy）
-
-```bash
-python -m legacy.Chat
-python -m legacy.ChatWeb
-```
+廃止しました。必要な場合は `git checkout legacy-ui-pre-migration` で取り出せます。日常利用は MultiRoleStudio です。
 
 ## 🔧 設定ファイル構造
 
 ```
 llm-chat-system/
 ├── MultiRoleStudio.py                 # MultiRoleStudio CLI（現行）
-├── legacy/                            # 旧 Chat / MultiRoleChat（Phase 5g）
-│   ├── Chat.py
-│   ├── ChatWeb.py
-│   ├── MultiRoleChat.py
-│   └── MultiRoleChatWeb.py
-├── studio/                            # 新エンジン（旧コードから import しない）
+├── studio/                            # エンジン本体
 ├── schemas/                           # JSON Schema（定義の正本）
 ├── talents/                           # 人材プール（MultiRoleStudio）
 ├── organizations/
 │   ├── solo/                          # Phase 1 最小組織（config + model_mapping.example）
-│   ├── creative_org/                  # 創造性特化組織（旧 MultiRoleChat）
-│   │   ├── config.json               # 組織設定とワークフロー
-│   │   └── roles/                    # 組織専用ロール
-│   │       ├── wild_innovator.txt    # ワイルドアイデア・ジェネレーター
-│   │       ├── devil_advocate.txt    # 悪魔の代弁者
-│   │       ├── visionary.txt         # ビジョナリー
-│   │       ├── creative.txt          # 創造性重視
-│   │       └── moderator.txt         # モデレーター
-│   ├── quiz_evaluation/              # クイズ評価組織（NEW）
+│   ├── creative_org/                  # 創造性特化組織
+│   │   └── config.json               # 組織設定とワークフロー
+│   ├── quiz_evaluation/              # クイズ評価組織
 │   │   ├── config.json               # 8つのAIプロバイダー設定
-│   │   ├── README.md                 # 性能評価結果・使用方法
-│   │   └── roles/
-│   │       └── quiz_king.txt         # 自称クイズ王キャラクター
+│   │   └── README.md                 # 性能評価結果・使用方法
 │   ├── groq_fast_discussion/          # Groq専用高速議論・ディベート組織
-│   │   ├── config.json               # 3ワークフロー: quick_discussion/debate/issue_discussion
-│   │   └── roles/                    # リーダー・アナリスト・リスク評価・ファシリテーター
+│   │   └── config.json               # 3ワークフロー: quick_discussion/debate/issue_discussion
 │   ├── nokuru/                        # Phase 3 サンプル（meeting / dev、hinata・さつき・かえで）
 │   ├── studio_dev/                    # Phase 5h メタサンプル（自己改善開発チーム）
 │   │   ├── config.json               # workflow_bindings、role_directives
-│   │   ├── model_mapping.example.json
-│   │   └── roles/                    # 旧 MultiRoleChat 用（Studio は talents/*.json を使用）
+│   │   └── model_mapping.example.json
 │   ├── tech_startup/config.json      # テックスタートアップ組織
 │   ├── consulting_firm/config.json   # コンサルティング組織
 │   └── default_company/config.json   # デフォルト組織
@@ -689,8 +628,6 @@ llm-chat-system/
 ├── tests/parity/                      # MultiRoleStudio パリティ試験
 └── docs/                             # ドキュメント
     ├── MultiRoleStudio/              # MultiRoleStudio 設計書
-    ├── multi-role-chat/              # MultiRoleChatドキュメント
-    ├── single-chat/                  # SingleChatドキュメント
     └── cost-management.md            # コスト管理システムガイド
 ```
 

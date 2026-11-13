@@ -20,8 +20,6 @@
 
 | コンポーネント | コード | ドキュメント |
 |---|---|---|
-| `Chat.py` | `Chat.py` の `VERSION` / `VERSION_DATE` | `docs/single-chat/README.md`（コンポーネント表記・最新版表記・開発履歴） |
-| `MultiRoleChat.py` | `MultiRoleChat.py` の `VERSION` / `VERSION_DATE` | `README.md`（バージョン履歴セクション） |
 | `MyPedia.py` | `MyPedia.py` の `VERSION` / `VERSION_DATE`（未定義の場合は追加） | `docs/mypedia/README.md`（該当ドキュメントがあれば同様に更新） |
 
 ### バージョン番号の付け方
@@ -36,8 +34,6 @@
 - 「現在の最新バージョン」として参照している箇所（コンポーネント名の後ろの括弧、最新版の特徴など）は新バージョンに更新する。
 - 開発履歴・バージョン履歴には新エントリを **先頭に追加** する。
 
-### 現在のバージョン（2026-04-27 時点）
+### 現在のバージョン（2026-11-13 時点）
 
-- `Chat.py`: **v8.2.0** (2026-04-27) — Opper.ai API対応
-- `MultiRoleChat.py`: **v1.6.0** (2026-04-23) — phases スキーマ対応
-- `MyPedia.py`: **v1.0.0** (2026-04-27)
+- `MyPedia.py`: **v1.0.1** (2026-11-13)
