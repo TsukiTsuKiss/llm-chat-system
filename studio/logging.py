@@ -12,6 +12,8 @@ from typing import Any
 MODEL_COSTS_FILE = "model_costs.csv"
 DEFAULT_CURRENCY = "USD"
 CURRENCY_SYMBOLS = {"USD": "$", "JPY": "¥"}
+# 単価表の provider 列ごとの上乗せ率（Opper の従量課金プランのプラットフォーム手数料）
+PROVIDER_FEE_RATES = {"opper": 0.03}
 
 
 def load_model_costs(root: Path) -> dict[str, dict[str, Any]]:
@@ -31,6 +33,7 @@ def load_model_costs(root: Path) -> dict[str, dict[str, Any]]:
                     "input": float(row["input_cost_per_1k_tokens"]) / 1000,
                     "output": float(row["output_cost_per_1k_tokens"]) / 1000,
                     "currency": (row.get("currency") or "").strip().upper() or DEFAULT_CURRENCY,
+                    "fee_rate": PROVIDER_FEE_RATES.get((row.get("provider") or "").strip().lower(), 0.0),
                 }
     except (OSError, KeyError, ValueError):
         pass
@@ -63,7 +66,8 @@ def compute_cost(model: str | None, tokens_in: int, tokens_out: int, costs: dict
     if not model:
         return 0.0
     model_cost = costs.get(model, costs["default"])
-    return tokens_in * model_cost["input"] + tokens_out * model_cost["output"]
+    base = tokens_in * model_cost["input"] + tokens_out * model_cost["output"]
+    return base * (1 + model_cost.get("fee_rate", 0.0))
 
 
 @dataclass

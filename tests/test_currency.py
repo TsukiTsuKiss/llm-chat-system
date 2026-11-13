@@ -4,10 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from studio import display
 from studio.logging import (
     SessionLogger,
     StepMetrics,
+    compute_cost,
     currency_of,
     format_money,
     load_model_costs,
@@ -35,6 +38,19 @@ def test_currency_comes_from_cost_table_and_defaults_to_usd(tmp_path: Path):
     assert currency_of("blank-currency", costs) == "USD"
     assert currency_of("not-listed", costs) == "USD" and currency_of(None, costs) == "USD"
     assert costs["jpy-model"]["input"] == 0.015 / 1000
+
+
+def test_opper_rows_include_platform_fee(tmp_path: Path):
+    (tmp_path / "model_costs.csv").write_text(
+        HEADER
+        + "2026-11-14,Opper,gemini/m,1,2,USD,x\n"
+        + "2026-11-14,Google,m,1,2,USD,x\n",
+        encoding="utf-8",
+    )
+    costs = load_model_costs(tmp_path)
+    assert compute_cost("gemini/m", 1000, 1000, costs) == pytest.approx(3.0 * 1.03)
+    assert compute_cost("m", 1000, 1000, costs) == pytest.approx(3.0)
+    assert compute_cost("unlisted", 1000, 1000, costs) == pytest.approx(1000 * 0.001 / 1000 + 1000 * 0.003 / 1000)
 
 
 def test_format_money_uses_symbols():
