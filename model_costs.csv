@@ -41,6 +41,10 @@ date_updated,provider,model,input_cost_per_1k_tokens,output_cost_per_1k_tokens,c
 2025-12-08,OpenAI,text-embedding-3-large,0.00013,0.00013,USD,Updated via API crawl on 2025-12-08
 2025-12-08,OpenAI,text-embedding-3-small,2e-05,2e-05,USD,Updated via API crawl on 2025-12-08
 2025-12-08,OpenAI,text-embedding-ada-002,0.0001,0.0001,USD,Updated via API crawl on 2025-12-08
+2026-11-14,OpenAI,gpt-6-astra,0.01,0.05,USD,"OpenAI 公式モデルページで確認（2026-11-14）。入力 $10 / 出力 $50（100万トークンあたり）。最上位"
+2026-11-14,OpenAI,gpt-6.1-sol,0.002,0.01,USD,"OpenAI 公式モデルページで確認（2026-11-14）。入力 $2 / 出力 $10（100万トークンあたり）。Astra に近い性能を低コストで"
+2026-11-14,OpenAI,gpt-6.1-terra,0.001,0.005,USD,"OpenAI 公式モデルページで確認（2026-11-14）。入力 $1 / 出力 $5（100万トークンあたり）。高速・効率型"
+2026-11-14,OpenAI,gpt-6-luna,0.0001,0.0005,USD,"OpenAI 公式モデルページで確認（2026-11-14）。入力 $0.1 / 出力 $0.5（100万トークンあたり）。最も効率的な軽量モデル"
 2025-12-08,Anthropic,claude-3-5-haiku-20241022,0.00025,0.00125,USD,Updated via API crawl on 2025-12-08
 2025-12-08,Anthropic,claude-3-opus-20240229,0.015,0.075,USD,Updated via API crawl on 2025-12-08
 2025-12-08,Anthropic,claude-3-sonnet-20240229,0.003,0.015,USD,Updated via API crawl on 2025-12-08
