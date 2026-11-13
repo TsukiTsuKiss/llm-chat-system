@@ -473,11 +473,8 @@ python update_ai_config.py costs list
 # AI設定とコスト情報の整合性確認
 python update_ai_config.py costs verify
 
-# モデルコスト情報の追加
-python update_ai_config.py costs add gpt-5 OpenAI 0.005 0.015 "Latest GPT-5 pricing"
-
-# 最新価格情報の自動取得
-python update_ai_config.py costs crawl all
+# モデルコスト情報の追加（単価は 1K トークンあたり。公式の 100 万トークンあたりの価格は 1000 で割る）
+python update_ai_config.py costs add gpt-5 OpenAI 0.00125 0.01 "Latest GPT-5 pricing"
 ```
 
 詳細は [コスト管理ドキュメント](docs/cost-management.md) を参照してください。
