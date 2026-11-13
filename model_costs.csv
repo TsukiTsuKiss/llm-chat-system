@@ -66,6 +66,11 @@ date_updated,provider,model,input_cost_per_1k_tokens,output_cost_per_1k_tokens,c
 2026-11-14,Groq,openai/gpt-oss-120b,0.00015,0.0006,USD,"入力 $0.15 / キャッシュ入力 $0.075 / 出力 $0.60（100万トークンあたり）。ctx 131,072"
 2026-11-14,Groq,openai/gpt-oss-20b,0.000075,0.0003,USD,"入力 $0.075 / キャッシュ入力 $0.037 / 出力 $0.30（100万トークンあたり）。ctx 131,072"
 2025-12-08,Anthropic,claude-3-5-sonnet-20241022,0.003,0.015,USD,Updated via API crawl on 2025-12-08 or evaluation and development
+2026-11-14,Anthropic,claude-opus-5-5,0.004,0.02,USD,"入力 $4 / 出力 $20（100万トークンあたり）。キャッシュ書き込み 5分 $5 / 1時間 $8、ヒット $0.20"
+2026-11-14,Anthropic,claude-sonnet-5-5,0.002,0.01,USD,"入力 $2 / 出力 $10（100万トークンあたり）。キャッシュ書き込み 5分 $2.50 / 1時間 $4、ヒット $0.10"
+2026-11-14,Anthropic,claude-haiku-5-5,0.0001,0.0005,USD,"100,000 トークン以下のプロンプト: 入力 $0.10 / 出力 $0.50（100万トークンあたり）、キャッシュ書き込み 5分 $0.125 / 1時間 $0.20、ヒット $0.01。100,000 超: 入力 $0.50 / 出力 $2.50、キャッシュ書き込み 5分 $0.625 / 1時間 $1、ヒット $0.05（この行は 100,000 以下の単価）"
+2026-11-14,Anthropic,claude-fable-5,0.01,0.05,USD,"入力 $10 / 出力 $50（100万トークンあたり）。キャッシュ書き込み 5分 $12.50 / 1時間 $20、ヒット $1"
+2026-11-14,Anthropic,claude-fable-5-1,0.01,0.05,USD,"入力 $10 / 出力 $50（100万トークンあたり）。キャッシュ書き込み 5分 $12.50 / 1時間 $20、ヒット $0.25"
 2026-05-03,Opper,anthropic/claude-haiku-4-5,0.001,0.005,USD,Opper (Anthropic) - Claude Haiku 4.5 - 200K ctx
 2026-05-03,Opper,anthropic/claude-opus-4,0.015,0.075,USD,Opper (Anthropic) - Claude Opus 4 - 200K ctx
 2026-05-03,Opper,anthropic/claude-opus-4-1,0.015,0.075,USD,Opper (Anthropic) - Claude Opus 4.1 - 200K ctx
