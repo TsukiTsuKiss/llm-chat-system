@@ -35,6 +35,9 @@ def detect_api_error(error_str: str) -> str | None:
         return "web_search_unsupported"
     if "tool choice is none" in error_str_lower or "model called a tool" in error_str_lower:
         return "tool_call"
+    # Groq が、モデルの壊れたツール呼び出し出力を解析できずに返す。毎回は起きないので再試行する
+    if "failed_generation" in error_str_lower or "parsing failed" in error_str_lower:
+        return "tool_call"
     # 本文が空の応答（thinking で上限を使い切るなど）。再試行すると通ることがある
     if "空の応答" in error_str:
         return "empty"

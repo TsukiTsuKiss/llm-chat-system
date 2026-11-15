@@ -9,6 +9,16 @@ def test_tool_call_error_is_detected_and_retried():
     assert handle_api_error(code, attempt=2, max_retries=3, retry_delay=0) is False
 
 
+def test_failed_generation_is_retried_like_a_tool_call_error():
+    message = (
+        "APIError: Parsing failed. The model generated output that could not be parsed. "
+        "See 'failed_generation' for more details."
+    )
+    code = detect_api_error(message)
+    assert code == "tool_call"
+    assert handle_api_error(code, attempt=0, max_retries=3, retry_delay=0) is True
+
+
 def test_existing_error_codes_are_unchanged():
     assert detect_api_error("Error code: 429 - rate limit") == "429"
     assert detect_api_error("Connection timeout") == "504"
