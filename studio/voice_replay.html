@@ -183,12 +183,26 @@ function buildModel(events) {
   for (const e of events) {
     if (e.kind !== "play_start") continue;
     const known = utterances[e.file];
-    plays.push({ start: e.t, end: e.t + (known ? known.duration : 0), file: e.file, label: nameOf(talentOf(e.file)) });
+    plays.push({ start: e.t, end: e.t + (known ? known.duration : 0), file: e.file, label: nameOf(talentOf(e.file)), chunks: known ? known.chunks : null });
   }
   for (const e of events) {
     if (e.kind !== "play_stop") continue;
     for (let i = plays.length - 1; i >= 0; i--) {
       if (plays[i].file === e.file) { plays[i].end = e.t; break; }
+    }
+  }
+  // ライブでブラウザの再生が始まらなかった発言（play_start が無い）は、できた順に続けて再生する。ライブ表示中は補わない
+  if (!LIVE) {
+    const played = {};
+    for (const p of plays) played[p.file] = p;
+    let cursor = 0;
+    for (const u of Object.values(utterances).sort((a, b) => a.t - b.t)) {
+      const done = played[u.file];
+      if (done) { cursor = Math.max(cursor, done.end); continue; }
+      if (!(u.duration > 0)) continue;
+      const start = Math.max(cursor, u.t);
+      plays.push({ start, end: start + u.duration, file: u.file, label: nameOf(talentOf(u.file)), chunks: u.chunks || null });
+      cursor = start + u.duration + 0.3;
     }
   }
 
@@ -336,16 +350,38 @@ function setup(cv, w, h) {
 }
 
 // 発言テキスト: 生成済みの発言を並べ、再生中のものを強調して追従スクロールする
-let scriptShown = -1, scriptCurrent = "", postedFile = "";
+let scriptShown = -1, scriptCurrent = "", postedFile = "", postedProgress = -1;
 
-// チャット画面に埋め込まれた再生では、再生中の発言を親ページへ知らせて吹き出しを強調させる
-function notifyParent(playingFile) {
+// 再生中の発言を何割まで読んだか（0〜1）。区切りごとの [文字数, 秒数] があれば、その単位で文字位置を求める
+function readingProgress(play) {
+  if (!play) return 0;
+  const offset = Math.max(0, now - play.start);
+  const length = play.end - play.start;
+  if (!(length > 0)) return 0;
+  const parts = play.chunks;
+  if (!parts || parts.length < 2) return Math.min(1, offset / length);
+  const scale = length / (parts.reduce((a, p) => a + p[1], 0) || length);
+  const allChars = parts.reduce((a, p) => a + p[0], 0) || 1;
+  let chars = 0, time = 0;
+  for (const [n, d] of parts) {
+    const span = d * scale;
+    if (offset < time + span) return Math.min(1, (chars + n * ((offset - time) / (span || 1))) / allChars);
+    chars += n;
+    time += span;
+  }
+  return 1;
+}
+
+// チャット画面に埋め込まれた再生では、再生中の発言と読み進んだ位置を親ページへ知らせて吹き出しを強調させる
+function notifyParent(playingFile, progress) {
   // ライブ表示から「このセッションを再生」へ切り替えた場合は DATA.live だけが立っている
-  if (!(DATA.embedded || DATA.live) || LIVE || window.parent === window || playingFile === postedFile) return;
+  if (!(DATA.embedded || DATA.live) || LIVE || window.parent === window) return;
+  if (playingFile === postedFile && Math.abs(progress - postedProgress) < 0.03) return;
   postedFile = playingFile;
+  postedProgress = progress;
   const entry = model.scripts.find((s) => s.file === playingFile);
   const firstLine = entry ? entry.text.split("\n").find((l) => l.trim()) || "" : "";
-  window.parent.postMessage({ type: "studio-playing", snippet: firstLine.trim().slice(0, 30) }, "*");
+  window.parent.postMessage({ type: "studio-playing", snippet: firstLine.trim().slice(0, 30), progress }, "*");
 }
 function updateScript() {
   const box = $("script");
@@ -359,8 +395,9 @@ function updateScript() {
     scriptShown = visible.length;
     scriptCurrent = "";
   }
-  const playingFile = (model.plays.find((p) => p.start <= now && now < p.end) || {}).file || "";
-  notifyParent(playingFile);
+  const playingPlay = model.plays.find((p) => p.start <= now && now < p.end);
+  const playingFile = (playingPlay || {}).file || "";
+  notifyParent(playingFile, readingProgress(playingPlay));
   let target = null;
   for (const el of box.children) {
     const on = el.dataset.file === playingFile;

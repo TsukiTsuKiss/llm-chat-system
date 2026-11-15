@@ -103,6 +103,13 @@ STUDIO_WEB_CSS = """
   max-height: calc(100dvh - 15rem) !important;
 }
 /* 読み上げ中の発言（JS がクラスを付ける） */
+/* 参加人材の VOICEVOX クレジットは、読み上げチェックが ON のときだけ見せる */
+.studio-voice-credit {
+  display: none;
+}
+body:has(#studio-voice-cb input:checked) .studio-voice-credit {
+  display: inline;
+}
 #studio-chatbot .message-row.studio-playing {
   position: relative;
 }
@@ -239,6 +246,54 @@ STUDIO_HEAD = (
     f"window.__studioScrollToPlaying = {SCROLL_TO_PLAYING_JS};\n"
     """
 window.__studioLastMatch = 0;
+// 読み上げ中の発言のうち、読んでいる位置（progress: 0〜1）が見えるようにスクロールする。箇所は本文の文字数の割合で推定する
+window.__studioFollowReading = (idx, progress) => {
+  const root = document.querySelector('#studio-chatbot');
+  const row = root && [...root.querySelectorAll('.message-row')][idx];
+  if (!row || !(progress >= 0)) return;
+  let box = row.parentElement;
+  while (box && !(box.scrollHeight > box.clientHeight && /(auto|scroll)/.test(getComputedStyle(box).overflowY))) {
+    box = box.parentElement;
+  }
+  if (!box || Date.now() - (box.__studioUserAt || 0) < 8000) return;
+  const walker = document.createTreeWalker(row.querySelector('.message') || row, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  let total = 0;
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    const len = n.textContent.length;
+    if (!n.textContent.trim()) continue;
+    nodes.push([n, len, total]);
+    total += len;
+  }
+  if (!total) return;
+  const target = Math.min(total - 1, Math.floor(total * Math.min(1, progress)));
+  const hit = nodes.find(([, len, before]) => target < before + len) || nodes[nodes.length - 1];
+  const at = Math.min(hit[1] - 1, Math.max(0, target - hit[2]));
+  const range = document.createRange();
+  range.setStart(hit[0], at);
+  range.setEnd(hit[0], at + 1);
+  const rect = range.getBoundingClientRect();
+  if (!rect.height) return;
+  const boxRect = box.getBoundingClientRect();
+  if (rect.bottom > boxRect.bottom - 80 || rect.top < boxRect.top + 20) {
+    box.scrollTo({ top: box.scrollTop + rect.top - boxRect.top - boxRect.height * 0.3, behavior: 'smooth' });
+  }
+};
+// このページのプレーヤーで再生中の音声の進み具合を、半秒ごとに見て追従する（音声要素は DOM に無いことがあるので play を包んで控える）
+if (!HTMLMediaElement.prototype.__studioWrapped) {
+  const play = HTMLMediaElement.prototype.play;
+  HTMLMediaElement.prototype.play = function (...args) {
+    window.__studioAudio = this;
+    return play.apply(this, args);
+  };
+  HTMLMediaElement.prototype.__studioWrapped = true;
+}
+window.setInterval(() => {
+  const a = window.__studioAudio;
+  const idx = window.__studioPlayingIdx;
+  if (!a || !(idx >= 0) || a.paused || a.ended || !(a.duration > 0)) return;
+  window.__studioFollowReading(idx, a.currentTime / a.duration);
+}, 500);
 window.addEventListener('message', (e) => {
   if (e.origin !== window.location.origin || !e.data || e.data.type !== 'studio-playing') return;
   const rows = [...document.querySelectorAll('#studio-chatbot .message-row')];
@@ -251,6 +306,7 @@ window.addEventListener('message', (e) => {
     if (idx >= 0) window.__studioLastMatch = idx;
   }
   window.__studioScrollToPlaying('0:' + (idx >= 0 ? idx : ''));
+  if (idx >= 0 && typeof e.data.progress === 'number') window.__studioFollowReading(idx, e.data.progress);
 });
 """
     "</script>"
@@ -347,7 +403,7 @@ def build_ui(
                             interactive=rag_config_available,
                         )
                         web_search_cb = gr.Checkbox(label="ウェブ検索", value=False)
-                        voice_cb = gr.Checkbox(label="読み上げ（VOICEVOX）", value=False)
+                        voice_cb = gr.Checkbox(label="読み上げ（VOICEVOX）", value=False, elem_id="studio-voice-cb")
                         timing_cb = gr.Checkbox(label="タイミング表示", value=True)
                         merge_cb = gr.Checkbox(
                             label="連続メッセージを1つにまとめる",

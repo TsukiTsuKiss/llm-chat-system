@@ -282,8 +282,18 @@ def _append_attachment_context(session: "WebSession", attachment_context: str) -
     )
 
 
+def _voice_labels(ctx: SessionContext) -> dict[str, str]:
+    """人材 ID → VOICEVOX のキャラ名（voice_mapping.json の label）。読めない・無いときは空。"""
+    try:
+        mapping = load_voice_mapping(ctx.root, ctx.org_id)
+    except (OSError, ValueError):
+        return {}
+    return {tid: str(entry["label"]) for tid, entry in mapping.items() if entry.get("label")}
+
+
 def talents_markdown(ctx: SessionContext) -> str:
     lines = ["**参加人材**", ""]
+    voices = _voice_labels(ctx)
     for talent_id in ctx.org.get("talent_ids") or []:
         talent = ctx.talents.get(talent_id, {})
         name = talent.get("name", talent_id)
@@ -291,7 +301,11 @@ def talents_markdown(ctx: SessionContext) -> str:
         assistant = mapping.get("assistant", "?")
         model = mapping.get("model")
         model_part = f" / {model}" if model else ""
-        lines.append(f"- {name} (`{talent_id}`) — {assistant}{model_part}")
+        line = f"- {name} (`{talent_id}`) — {assistant}{model_part}"
+        if talent_id in voices:
+            # 読み上げチェックが ON のときだけ CSS（studio-voice-credit）で見せる。改行も span の中に入れて、非表示時に空行を残さない
+            line += f'<span class="studio-voice-credit"><br>　　VOICEVOX: {escape(voices[talent_id])}</span>'
+        lines.append(line)
     if len(lines) == 2:
         lines.append("（なし）")
     return "\n".join(lines)

@@ -479,6 +479,14 @@ def _safe_duration(path: Path) -> float:
         return 0.0
 
 
+def _bytes_duration(data: bytes) -> float:
+    try:
+        with wave.open(io.BytesIO(data)) as reader:
+            return round(reader.getnframes() / reader.getframerate(), 3)
+    except (wave.Error, EOFError, ZeroDivisionError):
+        return 0.0
+
+
 def load_wav_array(path: Path):
     """gr.Audio(type="numpy") へ渡す (sample_rate, ndarray)。ファイル配信の許可パスを避ける。"""
     import numpy as np
@@ -537,7 +545,7 @@ class VoiceReader:
         self.tags: dict[Path, Any] = {}
         self._actions: dict[str, str] = {}
         self._queue: queue.Queue[tuple[Path, str, dict[str, Any]] | None] = queue.Queue()
-        self._pending: queue.Queue[tuple[Path, list[Future[bytes | None]]] | None] = queue.Queue()
+        self._pending: queue.Queue[tuple[Path, list[Future[bytes | None]], list[int]] | None] = queue.Queue()
         self._tasks: queue.Queue[tuple[str, dict[str, Any], Future[bytes | None], str] | None] = queue.Queue()
         self._playback: queue.Queue[bytes | None] = queue.Queue()
         self._engine_workers = [
@@ -606,30 +614,36 @@ class VoiceReader:
                 continue
             path, text, entry = job
             futures: list[Future[bytes | None]] = []
+            lengths: list[int] = []
             for chunk in split_for_speech(text):
                 future: Future[bytes | None] = Future()
                 self._tasks.put((chunk, entry, future, path.name))
                 futures.append(future)
-            self._pending.put((path, futures))
+                lengths.append(len(chunk))
+            self._pending.put((path, futures, lengths))
         self._pending.put(None)
 
     def _collect_loop(self) -> None:
         while (job := self._pending.get()) is not None:
-            path, futures = job
+            path, futures, lengths = job
             wavs: list[bytes] = []
-            for future in futures:
+            # 区切りごとの [文字数, 秒数]。再生側が、読んでいる位置を推定するのに使う
+            parts: list[list[float]] = []
+            for future, length in zip(futures, lengths):
                 wav = future.result()
                 if self._failed:
                     break
                 if wav is None:
                     continue
                 wavs.append(wav)
+                parts.append([length, _bytes_duration(wav)])
                 if self._play:
                     self._playback.put(wav)
             if wavs:
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(join_wavs(wavs))
-                self.timeline.add("utterance", file=path.name, duration=_safe_duration(path))
+                extra = {"chunks": parts} if len(parts) > 1 else {}
+                self.timeline.add("utterance", file=path.name, duration=_safe_duration(path), **extra)
                 if self._on_utterance:
                     self._on_utterance(path)
         for _ in self._engine_workers:

@@ -421,6 +421,76 @@ def test_voice_reader_records_timeline_and_builds_replay(tmp_path: Path, monkeyp
     assert '"session_id": "tl"' in html and "__DATA__" not in html
 
 
+def test_timeline_utterance_records_chunk_lengths_only_when_split(tmp_path: Path, monkeypatch):
+    from studio.session_report import read_jsonl
+
+    monkeypatch.setattr(voice, "synthesize", lambda text, entry, base_url=voice.DEFAULT_BASE_URL: _wav(b"\x01\x00"))
+    monkeypatch.setattr(voice, "split_for_speech", lambda text: text.split("|"))
+    reader = VoiceReader(tmp_path, {"a": {"speaker": 1}}, play=False, base_url=["http://e1"])
+    reader.handle(EngineEvent("session_start", {"session_id": "ch"}))
+    reader.handle(EngineEvent("step_done", {"talent_id": "a", "text": "ab|cde"}))
+    reader.handle(EngineEvent("step_done", {"talent_id": "a", "text": "single"}))
+    reader.close()
+
+    records = [r for r in read_jsonl(tmp_path / "sessions" / "audio" / "ch" / "timeline.jsonl") if r["kind"] == "utterance"]
+    first, second = sorted(records, key=lambda r: r["file"])
+    assert [length for length, _ in first["chunks"]] == [2, 3]
+    assert all(seconds >= 0 for _, seconds in first["chunks"])
+    assert "chunks" not in second
+
+
+def test_replay_page_estimates_reading_progress_from_chunks():
+    html = (Path(voice.__file__).with_name("voice_replay.html")).read_text(encoding="utf-8")
+
+    assert "function readingProgress" in html and "progress }, \"*\")" in html
+    assert "play_start が無い" in html
+
+
+def test_talents_markdown_shows_voicevox_character_when_labeled(tmp_path: Path):
+    from types import SimpleNamespace
+
+    from studio.web_ui import talents_markdown
+
+    org_dir = tmp_path / "organizations" / "demo"
+    org_dir.mkdir(parents=True)
+    (org_dir / "voice_mapping.json").write_text(
+        json.dumps({"a": {"label": "四国めたん", "speaker": 2}, "b": {"speaker": 3}}), encoding="utf-8"
+    )
+    ctx = SimpleNamespace(
+        root=tmp_path,
+        org_id="demo",
+        org={"talent_ids": ["a", "b"]},
+        talents={"a": {"name": "みどり"}, "b": {"name": "けんと"}},
+        model_mapping={"a": {"assistant": "Gemini", "model": "m1"}, "b": {"assistant": "Groq"}},
+    )
+
+    text = talents_markdown(ctx)
+    assert '- みどり (`a`) — Gemini / m1<span class="studio-voice-credit"><br>　　VOICEVOX: 四国めたん</span>' in text
+    assert "VOICEVOX" not in text.split("けんと")[1]
+
+    ctx.org_id = "none"
+    assert "VOICEVOX" not in talents_markdown(ctx)
+
+
+def test_voice_credit_is_hidden_by_css_unless_reading_is_checked(tmp_path: Path):
+    from types import SimpleNamespace
+
+    import MultiRoleStudioWeb as web
+    from studio.web_ui import talents_markdown
+
+    assert ".studio-voice-credit" in web.STUDIO_WEB_CSS and "#studio-voice-cb input:checked" in web.STUDIO_WEB_CSS
+
+    org_dir = tmp_path / "organizations" / "demo"
+    org_dir.mkdir(parents=True)
+    (org_dir / "voice_mapping.json").write_text(
+        json.dumps({"a": {"label": "<b>x</b>", "speaker": 2}}), encoding="utf-8"
+    )
+    ctx = SimpleNamespace(
+        root=tmp_path, org_id="demo", org={"talent_ids": ["a"]}, talents={}, model_mapping={"a": {"assistant": "G"}}
+    )
+    assert "<b>x</b>" not in talents_markdown(ctx) and "&lt;b&gt;x&lt;/b&gt;" in talents_markdown(ctx)
+
+
 def test_timeline_is_not_written_before_session_activity(tmp_path: Path):
     from studio.voice_timeline import TimelineRecorder
 
@@ -608,6 +678,7 @@ def test_studio_head_listens_for_playing_message_from_replay():
 
     assert "studio-playing" in web.STUDIO_HEAD
     assert "__studioScrollToPlaying" in web.STUDIO_HEAD
+    assert "__studioFollowReading" in web.STUDIO_HEAD
     assert web.STUDIO_HEAD.startswith("<script>") and web.STUDIO_HEAD.endswith("</script>")
 
 
