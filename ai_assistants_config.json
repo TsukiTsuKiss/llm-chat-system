@@ -75,10 +75,18 @@
     ]
   },
   "Opper": {
-    "module": "langchain_opperai",
-    "class": "ChatOpperAI",
-    "model_param": "model_name",
-    "system_param": "instructions",
+    "module": "langchain_openai",
+    "class": "ChatOpenAI",
+    "base_url": "https://api.opper.ai/v3/compat",
+    "api_key_env": "OPPER_API_KEY",
+    "web_search": true,
+    "web_search_tool": {
+      "type": "opper:web_search",
+      "max_uses": 3,
+      "freshness": "d",
+      "country": "jp",
+      "search_context_size": "high"
+    },
     "models": [
       "groq/gpt-oss-120b",
       "groq/gpt-oss-20b",

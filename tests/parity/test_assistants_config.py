@@ -103,9 +103,12 @@ def test_api_key_env_in_config_drives_availability(monkeypatch):
     assert assistant_availability.is_assistant_available("X", cfg) is True
 
 
-def test_shipped_config_declares_opper_params_and_sakura_endpoint():
+def test_shipped_config_declares_opper_and_sakura_endpoints():
     config = json.loads((REPO_ROOT / "ai_assistants_config.json").read_text(encoding="utf-8"))
-    assert config["Opper"]["model_param"] == "model_name" and config["Opper"]["system_param"] == "instructions"
+    opper = config["Opper"]
+    assert opper["class"] == "ChatOpenAI" and opper["api_key_env"] == "OPPER_API_KEY"
+    assert opper["base_url"] == "https://api.opper.ai/v3/compat"
+    assert opper["web_search_tool"]["type"] == "opper:web_search"
     sakura = config["SakuraAI"]
     assert sakura["class"] == "ChatOpenAI" and sakura["api_key_env"] == "SAKURA_AI_API_KEY"
     assert sakura.get("web_search") is False
@@ -114,6 +117,8 @@ def test_shipped_config_declares_opper_params_and_sakura_endpoint():
     assert sakura.get("quota", {}).get("max_session") == 2
     assert "gpt-oss-120b" in sakura["models"]
     assert assistants.web_search_tool_for("SakuraAI", sakura) is None
+    assert assistants.web_search_tool_for("Opper", opper) == opper["web_search_tool"]
+    assert assistants.web_search_tool_for("SakuraAI", {**sakura, "web_search": True}) == {"type": "web_search"}
     assert assistants.web_search_tool_for("ChatGPT", {"class": "ChatOpenAI"}) == {"type": "web_search"}
     enabled = {**sakura, "web_search": True, "web_search_tool": {"type": "browser_search"}}
     assert assistants.web_search_tool_for("SakuraAI", enabled) == {"type": "browser_search"}
