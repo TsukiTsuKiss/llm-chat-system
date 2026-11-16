@@ -114,7 +114,7 @@ def test_shipped_config_declares_opper_and_sakura_endpoints():
     assert sakura.get("web_search") is False
     assert sakura.get("quota", {}).get("limit") == 3000
     assert sakura.get("quota", {}).get("reserve") == 80
-    assert sakura.get("quota", {}).get("max_session") == 2
+    assert sakura.get("quota", {}).get("max_session") == 6
     assert "gpt-oss-120b" in sakura["models"]
     assert assistants.web_search_tool_for("SakuraAI", sakura) is None
     assert assistants.web_search_tool_for("Opper", opper) == opper["web_search_tool"]

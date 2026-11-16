@@ -147,7 +147,7 @@
       "period": "calendar_month",
       "limit": 3000,
       "reserve": 80,
-      "max_session": 2
+      "max_session": 6
     },
     "models": [
       "gpt-oss-120b",
