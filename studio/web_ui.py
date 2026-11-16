@@ -510,6 +510,7 @@ class WebSession:
     epoch: int = 0
     # 読み上げ関連の部品（LED・プレーヤー・止めるボタン）の、最後に送った表示状態
     reading_ui_shown: bool | None = None
+    published_led: str = ""
 
     def replay_chart_shown(self) -> bool:
         return self.published_timing.startswith("replay")
@@ -1118,27 +1119,40 @@ def silent_wav():
     return 16000, np.zeros(1, dtype=np.int16)
 
 
-def _reading_ui_chrome_updates(visible: bool):
-    """LED と停止ボタンだけ。プレーヤーは触らない（表示更新で autoplay が最後の音声を鳴らす）。"""
-    return gr.update(visible=visible), gr.update(visible=visible)
+def _reading_ui_updates(visible: bool):
+    """(LED, プレーヤー, 止めるボタン) の表示。プレーヤーは空の音声に置き換え、表示更新で autoplay が最後の音声を鳴らさないようにする。"""
+    return gr.update(visible=visible), gr.update(visible=visible, value=silent_wav()), gr.update(visible=visible)
 
 
 def reading_ui_toggle_update(session: WebSession, voice_on: bool):
     visible = reading_ui_visible(session, voice_on)
     session.reading_ui_shown = visible
-    led, stop = _reading_ui_chrome_updates(visible)
-    return led, gr.update(visible=visible, value=silent_wav()), stop
+    return _reading_ui_updates(visible)
 
 
-def live_tick_update(session: WebSession, show: bool, voice_on: bool):
-    """(ライブのチャート, LED, 止めるボタン) の更新。読み上げプレーヤーは更新しない。"""
+def voice_tick_update(session: WebSession, show: bool, voice_on: bool, led_states):
+    """1 秒ごとの更新 (ライブのチャート, LED, プレーヤー, 止めるボタン, 再生中の発言)。変わらない部品は gr.skip()。
+
+    表示状態の送信はここだけが负う（新規チャット・再開で reading_ui_shown が戻っても、次の周期で合わせ直す）。
+    """
     timing = live_timing_update(session, show)
     visible = reading_ui_visible(session, voice_on)
-    if visible == session.reading_ui_shown:
-        return timing, gr.skip(), gr.skip()
-    session.reading_ui_shown = visible
-    led, stop = _reading_ui_chrome_updates(visible)
-    return timing, led, stop
+    # ライブのチャートが出ている間は、チャート側の ENGINE の灯と重なるので隠す
+    led_html = "" if session.live_chart_shown() else engine_led_html(led_states())
+    if visible != session.reading_ui_shown:
+        # 表示の作り直しと音声の受け渡しが重なると再生が始まらないので、この周期は音声を渡さない
+        session.reading_ui_shown = visible
+        led, player, stop = _reading_ui_updates(visible)
+        if visible:
+            led = gr.update(visible=True, value=led_html)
+            session.published_led = led_html
+        return timing, led, player, stop, _playing_update(session)
+    audio, playing = next_audio_update(session)
+    led = gr.skip()
+    if visible and led_html != session.published_led:
+        led = led_html
+        session.published_led = led_html
+    return timing, led, audio, gr.skip(), playing
 
 
 def live_timing_update(session: WebSession, show: bool = True):
@@ -1211,9 +1225,12 @@ def audio_finished_update(session: WebSession):
 
 
 def stop_reading_update(session: WebSession):
-    """読み上げを止める。待ち行列と合成待ちを捨て、ブラウザ側の再生も止める。次の送信で読み上げは再開する。"""
+    """読み上げを止める。待ち行列と合成待ちを捨て、ブラウザ側の再生も止める。次の送信で読み上げは再開する。
+
+    プレーヤーの表示は変えない（隠すと、再開しても voice_tick_update が再表示しない）。
+    """
     session.close_voice()
-    return gr.update(value=silent_wav(), visible=False), _playing_update(session)
+    return gr.update(value=silent_wav()), _playing_update(session)
 
 
 def handle_choice(

@@ -39,13 +39,12 @@ from studio.web_ui import (
     initial_workflow_for_org,
     last_rag_injection_preview,
     list_organizations,
-    live_tick_update,
     load_org_panel,
-    next_audio_update,
     reading_ui_toggle_update,
     silent_wav,
     stop_reading_update,
     upload_limits_from_config,
+    voice_tick_update,
     workflow_available_for_org,
     workflow_dropdown_for_org,
     workflow_unavailable_note,
@@ -57,7 +56,7 @@ from web_input_utils import (
     user_context_default_from_config,
 )
 
-VERSION = "0.12.3"
+VERSION = "0.12.4"
 
 DEFAULT_ORG = os.getenv("MULTIROLESTUDIOWEB_ORG", "")
 DEFAULT_PORT = int(os.getenv("MULTIROLESTUDIOWEB_PORT", "7862"))
@@ -558,7 +557,7 @@ def build_ui(
                 _msg_input_update(),
                 _upload_input_update(True),
                 last_rag_injection_preview(session),
-                gr.update(value=silent_wav(), visible=False),
+                gr.update(value=silent_wav()),
                 "",
                 gr.update(value="", visible=False),
             )
@@ -838,7 +837,6 @@ def build_ui(
             queue=False,
             show_progress="hidden",
         )
-        audio_timer = gr.Timer(1.0)
         voice_cb.change(
             reading_ui_toggle_update,
             inputs=[session_state, voice_cb],
@@ -853,27 +851,12 @@ def build_ui(
             queue=False,
             show_progress="hidden",
         )
-        audio_timer.tick(
-            next_audio_update,
-            inputs=[session_state],
-            outputs=[audio_player, playing_box],
-            queue=False,
-            show_progress="hidden",
-        )
-        led_timer = gr.Timer(0.5)
-        led_timer.tick(
-            # ライブのチャートが出ている間は、チャート側の ENGINE の灯と重なるので隠す
-            lambda session: "" if session.live_chart_shown() else engine_led_html(led_monitor.states()),
-            inputs=[session_state],
-            outputs=[engine_led],
-            queue=False,
-            show_progress="hidden",
-        )
-        live_timer = gr.Timer(1.0)
-        live_timer.tick(
-            live_tick_update,
+        # 音声の受け渡し・LED・ライブのチャート・表示状態を 1 本のタイマーでまとめて更新する
+        voice_timer = gr.Timer(1.0)
+        voice_timer.tick(
+            lambda session, show, voice_on: voice_tick_update(session, show, voice_on, led_monitor.states),
             inputs=[session_state, timing_cb, voice_cb],
-            outputs=[live_timing, engine_led, stop_reading_btn],
+            outputs=[live_timing, engine_led, audio_player, stop_reading_btn, playing_box],
             queue=False,
             show_progress="hidden",
         )

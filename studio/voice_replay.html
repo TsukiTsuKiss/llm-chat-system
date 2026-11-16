@@ -286,6 +286,7 @@ let now = 0, playing = false, lastTs = 0;
 let total = model.total;
 let anchor = { t: 0, at: performance.now() };
 let wasReady = false;
+let drawnModel = null, drawnSig = "", drawnAt = -1e9, lastNowHtml = "";
 
 const fmt = (s) => `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, "0")}`;
 const speed = () => parseFloat($("speed").value);
@@ -340,12 +341,17 @@ function syncAudio() {
 
 function setup(cv, w, h) {
   const dpr = window.devicePixelRatio || 1;
-  cv.width = Math.ceil(w * dpr);
-  cv.height = Math.ceil(h * dpr);
-  cv.style.width = w + "px";
-  cv.style.height = h + "px";
+  const pw = Math.ceil(w * dpr), ph = Math.ceil(h * dpr);
   const ctx = cv.getContext("2d");
+  // 大きさが同じなら、キャンバスを作り直さず消すだけにする（毎回の再確保が重い）
+  if (cv.width !== pw || cv.height !== ph) {
+    cv.width = pw;
+    cv.height = ph;
+    cv.style.width = w + "px";
+    cv.style.height = h + "px";
+  }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
   return ctx;
 }
 
@@ -521,8 +527,12 @@ function render() {
   const active = (bars) => bars.filter((b) => b.start <= now && now < b.end).map((b) => short(b.label));
   const generating = active(lanes[0].bars).join("・");
   const playingNow = active(model.plays).join("・");
-  $("nowline").innerHTML =
+  const nowHtml =
     `<span class="dot" style="background:#4f6bed"></span>生成 <b>${esc(generating || "-")}</b><span class="dot" style="background:#e5484d"></span>再生 <b>${esc(playingNow || "-")}</b>`;
+  if (nowHtml !== lastNowHtml) {
+    $("nowline").innerHTML = nowHtml;
+    lastNowHtml = nowHtml;
+  }
   updateScript();
   if (LIVE) {
     $("time").innerHTML = model.ended
@@ -560,7 +570,14 @@ function frame(ts) {
     syncAudio();
   }
   lastTs = ts;
-  render();
+  // 画面が変わらない間は描かず、動いている間も ライブ 10fps / 再生 30fps までにする
+  const sig = `${now}|${total}|${$("scale").value}|${view.clientWidth}|${window.devicePixelRatio}`;
+  if ((model !== drawnModel || sig !== drawnSig) && ts - drawnAt >= (LIVE ? 100 : 33)) {
+    drawnModel = model;
+    drawnSig = sig;
+    drawnAt = ts;
+    render();
+  }
   requestAnimationFrame(frame);
 }
 

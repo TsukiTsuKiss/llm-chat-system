@@ -1036,7 +1036,7 @@ def test_stop_reading_update_drops_queue_and_voice(tmp_path: Path):
 
     audio, _playing = stop_reading_update(session)
 
-    assert audio["visible"] is False and audio["value"][1].size == 1
+    assert "visible" not in audio and audio["value"][1].size == 1
     assert session.voice is None and not session.voice_enabled
     assert session.relay.next_if_idle() is None
 
@@ -1085,7 +1085,7 @@ def test_chat_replay_waits_for_user_audio_then_includes_it(tmp_path: Path):
 def test_reading_ui_is_hidden_while_timing_replay_is_shown(tmp_path: Path):
     import gradio as gr
 
-    from studio.web_ui import WebSession, live_tick_update, reading_ui_toggle_update
+    from studio.web_ui import WebSession, reading_ui_toggle_update, voice_tick_update
 
     audio_dir = tmp_path / "sessions" / "audio" / "old"
     audio_dir.mkdir(parents=True)
@@ -1093,20 +1093,37 @@ def test_reading_ui_is_hidden_while_timing_replay_is_shown(tmp_path: Path):
         json.dumps({"kind": "utterance", "t": 1.0, "file": "01_a.wav", "duration": 2.0}) + "\n", encoding="utf-8"
     )
     session = WebSession(root=tmp_path)
+    states = lambda: [("http://x", "idle")]  # noqa: E731
 
     assert [u["visible"] for u in reading_ui_toggle_update(session, True)] == [True] * 3
 
     session.replay_session_id = "old"
-    _timing, led, stop = live_tick_update(session, True, True)
-    assert led["visible"] is stop["visible"] is False
+    _timing, led, player, stop, _playing = voice_tick_update(session, True, True, states)
+    assert led["visible"] is player["visible"] is stop["visible"] is False
 
     # 表示が変わらなければ、部品は更新しない
-    _timing, led, stop = live_tick_update(session, True, True)
-    assert led == stop == gr.skip()
+    _timing, led, player, stop, _playing = voice_tick_update(session, True, True, states)
+    assert led == player == stop == gr.skip()
 
+    # 新規チャット後も、次の周期でプレーヤーの表示を合わせ直す（隠れたままにしない）
     session.reset_chat()
-    _timing, led, _stop = live_tick_update(session, True, True)
-    assert led["visible"] is True
+    _timing, led, player, stop, _playing = voice_tick_update(session, True, True, states)
+    assert led["visible"] is player["visible"] is stop["visible"] is True
+
+
+def test_voice_tick_sends_led_only_when_changed(tmp_path: Path):
+    import gradio as gr
+
+    from studio.web_ui import WebSession, voice_tick_update
+
+    session = WebSession(root=tmp_path)
+    states = [("http://x", "idle")]
+    voice_tick_update(session, True, True, lambda: states)
+    _t, led, _p, _s, _pl = voice_tick_update(session, True, True, lambda: states)
+    assert led == gr.skip()
+    states = [("http://x", "busy")]
+    _t, led, _p, _s, _pl = voice_tick_update(session, True, True, lambda: states)
+    assert "合成中" in led
 
 
 def test_reading_toggle_clears_player_so_autoplay_cannot_replay(tmp_path: Path):
