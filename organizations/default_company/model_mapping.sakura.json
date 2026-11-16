@@ -1,0 +1,9 @@
+{
+  "kazuma": { "assistant": "SakuraAI", "model": "gpt-oss-120b" },
+  "mizuki": { "assistant": "SakuraAI", "model": "gpt-oss-120b" },
+  "aoi": { "assistant": "SakuraAI", "model": "llm-jp-3.1-8x13b-instruct4" },
+  "shou": { "assistant": "SakuraAI", "model": "gpt-oss-120b" },
+  "ryota": { "assistant": "SakuraAI", "model": "gpt-oss-120b" },
+  "shun": { "assistant": "SakuraAI", "model": "llm-jp-3.1-8x13b-instruct4" },
+  "kanna": { "assistant": "SakuraAI", "model": "gpt-oss-120b" }
+}
