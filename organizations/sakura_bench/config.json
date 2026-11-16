@@ -1,0 +1,20 @@
+{
+  "name": "さくらAI Engine ベンチマーク",
+  "mission": "さくらの AI Engine と他プロバイダを、同じ問題・同じ条件で比べる（--talents で比較ごとに対象を選ぶ）",
+  "culture": [
+    "同じ問題を同じ条件で出し、各モデルの回答を公平に比べる"
+  ],
+  "talent_ids": ["hajime", "gen", "itsuki", "jin", "ritsu", "mai", "tora", "kai"],
+  "default_workflow": "quiz_battle_parallel",
+  "workflow_bindings": {
+    "quiz_battle_parallel": {
+      "answerer": ["hajime", "gen", "itsuki", "jin", "ritsu", "mai", "tora", "kai"]
+    }
+  },
+  "common_directives": [
+    "回答は選択肢記号（A、B、C、D）と簡潔な理由にする"
+  ],
+  "role_directives": {
+    "answerer": []
+  }
+}
