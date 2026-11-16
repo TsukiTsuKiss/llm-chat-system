@@ -1,0 +1,7 @@
+{
+  "kanata": { "assistant": "SakuraAI", "model": "gpt-oss-120b" },
+  "tomoya": { "assistant": "SakuraAI", "model": "gpt-oss-120b" },
+  "tsukine": { "assistant": "SakuraAI", "model": "llm-jp-3.1-8x13b-instruct4" },
+  "akane": { "assistant": "SakuraAI", "model": "gpt-oss-120b" },
+  "nozomi": { "assistant": "SakuraAI", "model": "gpt-oss-120b" }
+}

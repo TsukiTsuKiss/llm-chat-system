@@ -35,6 +35,7 @@ organizations/<org_id>/
 
 | 組織 ID | 名前 | メンバー | 既定のワークフロー |
 |---|---|---|---|
+| `astronomy_club` | 天文部 | かなた、ともや、つきね、あかね、のぞみ | `stargazing_plan` |
 | `broadcast_studio` | 放送・配信スタジオ | みどり、あかり、そうた、ごう、はるか、けんと、ゆうま | `broadcast_news_show` |
 | `codecraft_collective` | コードクラフト・コレクティブ | 全能 統、検証 確 | `rapid_mvp` |
 | `consulting_firm` | 戦略コンサルティング・ファーム | かずま、しょう、かんな、たいが、みずき | `consulting_client_analysis` |
