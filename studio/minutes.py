@@ -240,7 +240,12 @@ def generate_minutes_document(
     existing: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     meta = next((r for r in records if r.get("type") == "session_meta"), {}) or {}
-    ctx = load_session_context(org_id, root, workflow_id=meta.get("workflow") or None)
+    ctx = load_session_context(
+        org_id,
+        root,
+        workflow_id=meta.get("workflow") or None,
+        mapping_profile=(meta.get("generation") or {}).get("mapping_profile"),
+    )
 
     talent_ids = list(ctx.org.get("talent_ids") or [])
     summarizer_id = talent_ids[0] if talent_ids else None

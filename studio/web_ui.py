@@ -493,6 +493,7 @@ class WebSession:
     pending: PendingInteraction | None = None
     renderer: ChatEventRenderer = field(default_factory=ChatEventRenderer)
     voicevox_url: str = DEFAULT_BASE_URL
+    mapping_profile: str | None = None
     # スレッドを持つため gr.State の deepcopy 後に遅延生成する
     voice: VoiceReader | None = None
     relay: AudioRelay | None = None
@@ -639,7 +640,9 @@ class WebSession:
 
     def load_context(self, org_id: str, workflow_value: str) -> SessionContext:
         workflow_id = workflow_value or None
-        return load_session_context(org_id, self.root, workflow_id=workflow_id)
+        return load_session_context(
+            org_id, self.root, workflow_id=workflow_id, mapping_profile=self.mapping_profile
+        )
 
     def ensure_engine(self, org_id: str, workflow_value: str, stream: bool, temperature: float) -> None:
         workflow_id = workflow_value or None
@@ -763,7 +766,9 @@ def apply_session_resume(
 
     resumed = load_resumed_session(web.root, session_id)
     workflow_value = resumed.workflow_id or ""
-    ctx = load_session_context(resumed.org_id, web.root, workflow_id=resumed.workflow_id)
+    ctx = load_session_context(
+        resumed.org_id, web.root, workflow_id=resumed.workflow_id, mapping_profile=web.mapping_profile
+    )
     MockAssistant.reset()
     web.resume_branch(
         resumed,
@@ -783,7 +788,7 @@ def apply_session_resume(
             daemon=True,
         ).start()
     choices, wf_value = workflow_dropdown_for_org(web.root, resumed.org_id, workflow_value)
-    talents = load_org_panel(web.root, resumed.org_id, wf_value)[0]
+    talents = load_org_panel(web.root, resumed.org_id, wf_value, web.mapping_profile)[0]
     status = (
         f"再開 `{resumed.parent_session_id}` — "
         "メッセージを送ると分岐セッションを開始します"
@@ -1255,9 +1260,13 @@ def last_rag_injection_preview(session: WebSession) -> str:
     return last_injection_markdown(session.engine.state.last_context_chunks)
 
 
-def load_org_panel(root: Path, org_id: str, workflow_value: str) -> tuple[str, str]:
+def load_org_panel(
+    root: Path, org_id: str, workflow_value: str, mapping_profile: str | None = None
+) -> tuple[str, str]:
     try:
-        ctx = load_session_context(org_id, root, workflow_id=workflow_value or None)
+        ctx = load_session_context(
+            org_id, root, workflow_id=workflow_value or None, mapping_profile=mapping_profile
+        )
         return talents_markdown(ctx), ""
     except StudioValidationError as exc:
         detail = exc.format_all()

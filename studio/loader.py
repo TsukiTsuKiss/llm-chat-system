@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import json
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -33,6 +34,7 @@ class SessionContext:
     workflow_id: str | None = None
     workflow: dict[str, Any] | None = None
     slot_bindings: dict[str, list[str]] | None = None
+    mapping_profile: str | None = None
 
 
 @dataclass
@@ -135,23 +137,55 @@ def load_organization_config(org_id: str, root: Path, report: ValidationReport) 
     return data
 
 
-def load_model_mapping(org_id: str, root: Path, report: ValidationReport) -> dict[str, dict[str, str]]:
-    path = root / "organizations" / org_id / "model_mapping.json"
-    example = root / "organizations" / org_id / "model_mapping.example.json"
-    if not path.exists():
+_MAPPING_PROFILE_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
+def model_mapping_filename(profile: str | None = None) -> str:
+    return f"model_mapping.{profile}.json" if profile else "model_mapping.json"
+
+
+def list_mapping_profiles(org_id: str, root: Path) -> list[str]:
+    org_dir = root / "organizations" / org_id
+    names = (p.name for p in org_dir.glob("model_mapping.*.json"))
+    profiles = (n[len("model_mapping.") : -len(".json")] for n in names)
+    return sorted(p for p in profiles if _MAPPING_PROFILE_RE.match(p) and p != "example")
+
+
+def load_model_mapping(
+    org_id: str, root: Path, report: ValidationReport, profile: str | None = None
+) -> dict[str, dict[str, str]]:
+    if profile and not _MAPPING_PROFILE_RE.match(profile):
         report.add(
             StudioError(
                 code="E202",
-                target=f"organizations/{org_id}/model_mapping.json",
+                target=f"organizations/{org_id}",
+                message=f"マッピング名 '{profile}' が不正です",
+                hint="英数字・ハイフン・アンダースコアだけ使えます",
+            )
+        )
+        return {}
+    filename = model_mapping_filename(profile)
+    path = root / "organizations" / org_id / filename
+    example = root / "organizations" / org_id / "model_mapping.example.json"
+    if not path.exists():
+        if profile:
+            available = list_mapping_profiles(org_id, root)
+            hint = f"使えるマッピング: {', '.join(available)}" if available else "この組織に model_mapping.<名前>.json がありません"
+        else:
+            hint = f"{example.name} をコピーして作成してください" if example.exists() else ""
+        report.add(
+            StudioError(
+                code="E202",
+                target=f"organizations/{org_id}/{filename}",
                 message="モデル割当ファイルがありません",
-                hint=f"{example.name} をコピーして作成してください" if example.exists() else "",
+                hint=hint,
             )
         )
         return {}
     data = load_json_file(path, report)
     if data is None:
         return {}
-    validate_schema_document(data, "model_mapping", f"organizations/{org_id}/model_mapping.json", report)
+    validate_schema_document(data, "model_mapping", f"organizations/{org_id}/{filename}", report)
     if isinstance(data, dict):
         return data
     return {}
@@ -273,18 +307,20 @@ def load_session_context(
     root: Path | str = ".",
     *,
     workflow_id: str | None = None,
+    mapping_profile: str | None = None,
 ) -> SessionContext:
     root_path = Path(root)
     report = ValidationReport()
 
     talents = scan_talents(root_path, report)
     org = load_organization_config(org_id, root_path, report)
-    mapping = load_model_mapping(org_id, root_path, report)
+    mapping = load_model_mapping(org_id, root_path, report, mapping_profile)
     assistants = load_ai_assistants(root_path, report)
 
     if org:
         validate_talent_refs(org_id, org, talents, report)
-        validate_model_mapping(org_id, org, mapping, assistants, report)
+        if mapping or not mapping_profile:  # 指定マッピングが読めないときは、人材ごとの不足エラーを重ねない
+            validate_model_mapping(org_id, org, mapping, assistants, report)
         validate_role_directives(org_id, org, report)
         validate_workflow_binding_talent_refs(org_id, org, report)
 
@@ -316,6 +352,7 @@ def load_session_context(
         workflow_id=workflow_id,
         workflow=workflow if workflow_id else None,
         slot_bindings=slot_bindings,
+        mapping_profile=mapping_profile or None,
     )
 
 

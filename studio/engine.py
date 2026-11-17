@@ -135,6 +135,8 @@ class SessionEngine:
                 no_user_context=no_user_context,
                 no_user_context_rag=no_user_context_rag,
             )
+            if self.ctx.mapping_profile:
+                generation["mapping_profile"] = self.ctx.mapping_profile
             talent_ids = list(self.ctx.org.get("talent_ids") or [])
             logger = SessionLogger.create(
                 self.ctx.root,
@@ -187,6 +189,7 @@ class SessionEngine:
                         "temperature": use_temperature,
                         "user_context": state.user_context_enabled,
                         "user_context_rag": state.user_context_rag_enabled,
+                        **({"mapping_profile": self.ctx.mapping_profile} if self.ctx.mapping_profile else {}),
                     },
                 )
             state.logger.start()

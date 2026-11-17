@@ -345,6 +345,7 @@ def build_ui(
     cli_org: str | None = None,
     cli_workflow: str | None = None,
     voicevox_url: str = DEFAULT_BASE_URL,
+    mapping_profile: str | None = None,
 ) -> gr.Blocks:
     orgs = list_organizations(root)
     try:
@@ -369,7 +370,7 @@ def build_ui(
     led_monitor.start()
 
     with gr.Blocks(title=f"MultiRoleStudio Web {VERSION}", fill_height=True, analytics_enabled=False) as demo:
-        session_state = gr.State(WebSession(root=root, voicevox_url=voicevox_url))
+        session_state = gr.State(WebSession(root=root, voicevox_url=voicevox_url, mapping_profile=mapping_profile))
         valid_wf_state = gr.State(default_wf)
         pending_wf_hint_state = gr.State("")
 
@@ -525,7 +526,7 @@ def build_ui(
 
         def on_org_change(org_id: str, workflow_value: str) -> tuple[dict, str, str, str, str]:
             choices, value = workflow_dropdown_for_org(root, org_id or "", workflow_value)
-            talents = load_org_panel(root, org_id, value)[0]
+            talents = load_org_panel(root, org_id, value, mapping_profile)[0]
             return gr.update(choices=choices, value=value), talents, value, "", ""
 
         def on_wf_change(
@@ -541,7 +542,7 @@ def build_ui(
                 note = workflow_unavailable_note(root, org_id or "", workflow_value)
                 return gr.update(value=revert), gr.update(), revert, note, note
 
-            talents = load_org_panel(root, org_id, workflow_value)[0]
+            talents = load_org_panel(root, org_id, workflow_value, mapping_profile)[0]
             return gr.update(), talents, workflow_value, "", ""
 
         def on_new_chat(session: WebSession):
@@ -897,6 +898,11 @@ def main() -> None:
         help="起動時に選択するワークフロー ID（省略時は組織の default_workflow、なければ直接送信）",
     )
     parser.add_argument("--root", default=".", help="プロジェクトルート")
+    parser.add_argument(
+        "--mapping",
+        default=None,
+        help="モデル割当の名前。organizations/<組織>/model_mapping.<名前>.json を使う（未指定は model_mapping.json）",
+    )
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="ポート番号")
     parser.add_argument("--share", action="store_true", help="Gradio 公開トンネルを有効化")
     parser.add_argument("--no-browser", action="store_true", help="起動時にブラウザを開かない")
@@ -919,7 +925,11 @@ def main() -> None:
     use_japanese_html_template()
     suppress_connection_reset_log()
     demo = build_ui(
-        root, cli_org=args.org, cli_workflow=args.workflow, voicevox_url=args.voicevox_url
+        root,
+        cli_org=args.org,
+        cli_workflow=args.workflow,
+        voicevox_url=args.voicevox_url,
+        mapping_profile=args.mapping,
     )
     if args.host and args.host not in {"127.0.0.1", "localhost"}:
         print("[WARN] --host で外部から接続できます。認証はありません。信頼できるネットワーク内でのみ使ってください。")

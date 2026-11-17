@@ -179,7 +179,7 @@ def create_voice_reader(args: argparse.Namespace, ctx) -> VoiceReader | None:
 def run_batch(args: argparse.Namespace) -> int:
     root = Path(args.root)
     try:
-        ctx = load_session_context(args.org, root, workflow_id=args.workflow)
+        ctx = load_session_context(args.org, root, workflow_id=args.workflow, mapping_profile=args.mapping)
         validate_batch_mode(ctx, args.topic)
     except StudioValidationError as exc:
         print(exc.format_all(), file=sys.stderr)
@@ -219,7 +219,7 @@ def run_batch(args: argparse.Namespace) -> int:
 def run_interactive(args: argparse.Namespace) -> int:
     root = Path(args.root)
     try:
-        ctx = load_session_context(args.org, root, workflow_id=args.workflow)
+        ctx = load_session_context(args.org, root, workflow_id=args.workflow, mapping_profile=args.mapping)
     except StudioValidationError as exc:
         print(exc.format_all(), file=sys.stderr)
         return 1
@@ -274,7 +274,7 @@ def run_interactive(args: argparse.Namespace) -> int:
 def run_benchmark_cli(args: argparse.Namespace) -> int:
     root = Path(args.root)
     try:
-        ctx = load_session_context(args.org, root)
+        ctx = load_session_context(args.org, root, mapping_profile=args.mapping)
         questions = load_questions(Path(args.benchmark))
         talent_ids = [t.strip() for t in args.talents.split(",") if t.strip()] if args.talents else None
         max_parallel = args.max_parallel or int(ctx.studio_config.get("max_parallel_calls", 8))
@@ -368,6 +368,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="MultiRoleStudio CLI")
     parser.add_argument("--org", default="solo", help="組織 ID")
     parser.add_argument("--workflow", default=None, help="ワークフロー ID（discussion / quiz 等）")
+    parser.add_argument(
+        "--mapping",
+        default=None,
+        help="モデル割当の名前。organizations/<組織>/model_mapping.<名前>.json を使う（未指定は model_mapping.json）",
+    )
     parser.add_argument("--topic", default=None, help="バッチ実行の議題（指定時は無人完走）")
     parser.add_argument("--files", nargs="*", default=None, help="添付ファイル")
     parser.add_argument("--root", default=".", help="プロジェクトルート")
