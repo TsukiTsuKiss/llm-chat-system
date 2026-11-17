@@ -104,6 +104,10 @@ def normalize_reading(kana: str) -> str:
     return _O_LONG.sub(r"\1オ", _E_LONG.sub(r"\1エ", "".join(out)))
 
 
+def is_katakana_reading(reading: str) -> bool:
+    return bool(_KATAKANA.match(reading))
+
+
 def needs_review(surface: str) -> bool:
     """英字を含まない表記（漢字・記号）は境界を判定できず他の語を壊しうるので、承認するまで読み上げに適用しない。"""
     return not _LATIN.search(surface)
@@ -214,12 +218,16 @@ def pending_path(root: Path, org: str) -> Path:
     return root / "organizations" / org / PENDING_DICTIONARY_FILE
 
 
-def save_pending(root: Path, org: str, entries: list[tuple[str, str]], session_id: str) -> Path:
+def save_pending(
+    root: Path, org: str, entries: list[tuple[str, str]], session_id: str, heard: dict[str, str] | None = None
+) -> Path:
     path = pending_path(root, org)
     data = read_pending_dictionary(path)
     stamp = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
     for surface, reading in entries:
         record: dict[str, Any] = {"reading": reading, "session": session_id, "added": stamp}
+        if (heard or {}).get(surface):
+            record["heard"] = heard[surface]
         if needs_review(surface):
             record["needs_review"] = True
         data["pending"][surface] = record
@@ -227,26 +235,29 @@ def save_pending(root: Path, org: str, entries: list[tuple[str, str]], session_i
     return path
 
 
-def list_pending(root: Path, org: str) -> list[tuple[str, str, bool]]:
-    """未承認辞書の (表記, 読み, 要確認)。要確認は承認するまで読み上げに適用されない。"""
+def list_pending(root: Path, org: str) -> list[tuple[str, str, bool, str]]:
+    """未承認辞書の (表記, 提案の読み, 要確認, ENGINE が出した元の読み)。要確認は承認するまで読み上げに適用されない。"""
     items = []
     for surface, entry in read_pending_dictionary(pending_path(root, org))["pending"].items():
         reading = entry.get("reading") if isinstance(entry, dict) else entry
         if isinstance(reading, str) and reading:
-            items.append((surface, reading, isinstance(entry, dict) and bool(entry.get("needs_review"))))
+            is_dict = isinstance(entry, dict)
+            heard = entry.get("heard") if is_dict else ""
+            items.append((surface, reading, is_dict and bool(entry.get("needs_review")), heard if isinstance(heard, str) else ""))
     return items
 
 
-def adopt_pending(root: Path, org: str, surfaces: list[str]) -> list[str]:
-    """選んだ候補を組織辞書へ本登録し、未承認辞書から外す。本登録した表記を返す。"""
-    readings = {surface: reading for surface, reading, _ in list_pending(root, org)}
+def adopt_pending(root: Path, org: str, surfaces: list[str], readings_override: dict[str, str] | None = None) -> list[str]:
+    """選んだ候補を組織辞書へ本登録し、未承認辞書から外す。readings_override があればその読みで登録する。本登録した表記を返す。"""
+    readings = {surface: reading for surface, reading, _review, _heard in list_pending(root, org)}
     chosen = [s for s in surfaces if s in readings]
     if not chosen:
         return []
     dict_path = root / "organizations" / org / VOICE_DICTIONARY_FILE
     registered: dict[str, Any] = json.loads(dict_path.read_text(encoding="utf-8")) if dict_path.is_file() else {}
+    overrides = readings_override or {}
     for surface in chosen:
-        registered[surface] = readings[surface]
+        registered[surface] = overrides.get(surface) or readings[surface]
     _write_json(dict_path, registered)
     path = pending_path(root, org)
     data = read_pending_dictionary(path)
@@ -303,7 +314,16 @@ def suggest_for_session(
     known = set(load_voice_dictionary(root, org)) | set(read_pending_dictionary(pending_path(root, org))["rejected"])
     entries = filter_suggestions(found, [c for _, _, c in chunks], known, readings)
     if entries:
-        save_pending(root, org, entries, session_id)
+        heard: dict[str, str] = {}
+        for surface, _reading in entries:
+            speaker = next((s for _t, s, c in chunks if surface in c), None)
+            if speaker is None:
+                continue
+            try:
+                heard[surface] = reading_of(surface, speaker, base_url)
+            except (urllib.error.URLError, OSError):
+                continue  # 元の読みは表示用なので、取れなくても候補は残す
+        save_pending(root, org, entries, session_id, heard)
     return org, f"{assistant}/{model}", entries
 
 

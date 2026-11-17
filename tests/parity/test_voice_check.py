@@ -95,7 +95,7 @@ def test_adopt_and_reject_pending(tmp_path: Path):
 
     org_dict = json.loads((tmp_path / "organizations" / "demo" / "voice_dictionary.json").read_text(encoding="utf-8"))
     assert org_dict == {"Pi": "ピー", "Nvidia": "エヌビディア"}
-    assert voice_check.list_pending(tmp_path, "demo") == [("Bar", "バー", False)]
+    assert voice_check.list_pending(tmp_path, "demo") == [("Bar", "バー", False, "")]
     pending = json.loads((tmp_path / "organizations" / "demo" / "voice_dictionary.pending.json").read_text(encoding="utf-8"))
     assert pending["rejected"] == ["Foo"]
 
@@ -114,7 +114,7 @@ def test_suggest_for_session_saves_filtered_entries(tmp_path: Path, monkeypatch)
     )
     org, label, entries = voice_check.suggest_for_session(tmp_path, "s2", urls=["http://x"], model_override="A/m")
     assert (org, label, entries) == ("demo", "A/m", [("Nvidia", "エヌビディア")])
-    assert voice_check.list_pending(tmp_path, "demo") == [("Nvidia", "エヌビディア", False)]
+    assert voice_check.list_pending(tmp_path, "demo") == [("Nvidia", "エヌビディア", False, "ヌビディア")]
 
 
 def test_filter_suggestions_accepts_kanji_and_symbols_but_not_noise():
@@ -133,7 +133,10 @@ def test_filter_suggestions_accepts_kanji_and_symbols_but_not_noise():
 def test_needs_review_entries_are_not_applied_until_adopted(tmp_path: Path):
     _setup(tmp_path)
     voice_check.save_pending(tmp_path, "demo", [("未達", "ミタツ"), ("Nvidia", "エヌビディア")], "s1")
-    assert voice_check.list_pending(tmp_path, "demo") == [("未達", "ミタツ", True), ("Nvidia", "エヌビディア", False)]
+    assert voice_check.list_pending(tmp_path, "demo") == [
+        ("未達", "ミタツ", True, ""),
+        ("Nvidia", "エヌビディア", False, ""),
+    ]
     applied = voice.load_voice_dictionary(tmp_path, "demo")
     assert "未達" not in applied and applied["Nvidia"] == "エヌビディア"
 
@@ -152,3 +155,17 @@ def test_filter_drops_candidates_already_read_correctly():
     found = [("政府形成", "セイフケイセイ"), ("未達", "ミタツ")]
     engine = ["セエフケエセエデヒツジタチデス"]
     assert voice_check.filter_suggestions(found, texts, set(), engine) == [("未達", "ミタツ")]
+
+
+def test_adopt_pending_uses_edited_reading(tmp_path: Path):
+    _setup(tmp_path)
+    voice_check.save_pending(tmp_path, "demo", [("比例定数", "ヒレテイースウ")], "s1", {"比例定数": "ヒレエテエスウ"})
+    assert voice_check.list_pending(tmp_path, "demo") == [("比例定数", "ヒレテイースウ", True, "ヒレエテエスウ")]
+    assert voice_check.adopt_pending(tmp_path, "demo", ["比例定数"], {"比例定数": "ヒレイテイスウ"}) == ["比例定数"]
+    org_dict = json.loads((tmp_path / "organizations" / "demo" / "voice_dictionary.json").read_text(encoding="utf-8"))
+    assert org_dict["比例定数"] == "ヒレイテイスウ"
+
+
+def test_is_katakana_reading():
+    assert voice_check.is_katakana_reading("ヒレイテイスウ") and voice_check.is_katakana_reading("ミタ ツー")
+    assert not voice_check.is_katakana_reading("ひれい") and not voice_check.is_katakana_reading("")

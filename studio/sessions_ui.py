@@ -23,7 +23,14 @@ from studio.user_context_update import (
 )
 from studio.validation import StudioValidationError
 from studio.voice import parse_voicevox_urls
-from studio.voice_check import adopt_pending, list_pending, reject_pending, session_org, suggest_for_session
+from studio.voice_check import (
+    adopt_pending,
+    is_katakana_reading,
+    list_pending,
+    reject_pending,
+    session_org,
+    suggest_for_session,
+)
 from studio.voice_regen import missing_audio_files, regenerate_audio
 from studio.voice_timeline import replay_iframe_html
 from studio.web_ui import apply_session_resume
@@ -80,10 +87,15 @@ def _flow_theme_key(label: str) -> FlowTheme:
     return "dark" if label == "ダーク" else "light"
 
 
+def _pending_label(surface: str, reading: str, review: bool, heard: str) -> str:
+    before = f"{heard} → " if heard else "→ "
+    return f"{surface}：{before}{reading}" + ("（要確認・承認まで未適用）" if review else "")
+
+
 def _pending_choices(root: Path, session_id: str | None) -> list[tuple[str, str]]:
     org = session_org(root, session_id) if session_id else None
     return (
-        [(f"{surface} → {reading}" + ("（要確認・承認まで未適用）" if review else ""), surface) for surface, reading, review in list_pending(root, org)]
+        [(_pending_label(*item), item[0]) for item in list_pending(root, org)]
         if org
         else []
     )
@@ -142,9 +154,14 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
                 pending_adopt_btn = gr.Button("選択を辞書へ本登録", **_SAVE_BTN)
                 pending_reject_btn = gr.Button("選択を却下", **_SAVE_BTN)
             pending_cbg = gr.CheckboxGroup(
-                label="未承認辞書の候補（表記 → 読み）。本登録すると組織の voice_dictionary.json へ入る。聴き直しは「音声を作り直して再生」",
+                label="未承認辞書の候補（表記：元の読み → 提案の読み）。本登録すると組織の voice_dictionary.json へ入る。聴き直しは「音声を作り直して再生」",
                 choices=_pending_choices(root, initial_session_id),
                 value=[],
+            )
+            pending_reading_tb = gr.Textbox(
+                label="読みの修正（候補を1件だけ選ぶと入力できる。カタカナ。本登録でこの読みを使う）",
+                value="",
+                interactive=False,
             )
             session_msg = gr.Markdown("")
             timing_html = gr.HTML("", visible=False, elem_id="studio-session-timing")
@@ -353,17 +370,30 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
         note = f"{len(entries)} 件の誤読候補を未承認辞書へ追記しました" if entries else "新しい誤読候補はありません"
         yield on_pending_refresh(session_id), f"**読み点検** — {note}（{model_label}）"
 
-    def _pending_action(action, label: str, session_id: str | None, surfaces: list[str]):
+    def _pending_action(action, label: str, session_id: str | None, surfaces: list[str], **kwargs):
         org = session_org(root, session_id) if session_id else None
         if not org:
             return gr.update(), "セッションを選択してください"
         if not surfaces:
             return gr.update(), "候補を選択してください"
-        done = action(root, org, surfaces)
+        done = action(root, org, surfaces, **kwargs)
         return on_pending_refresh(session_id), f"**{label}** — {len(done)} 件（{', '.join(done)}）"
 
-    def on_pending_adopt(session_id: str | None, surfaces: list[str]):
-        return _pending_action(adopt_pending, "辞書へ本登録", session_id, surfaces)
+    def on_pending_select(session_id: str | None, surfaces: list[str]):
+        org = session_org(root, session_id) if session_id else None
+        if not org or len(surfaces or []) != 1:
+            return gr.update(value="", interactive=False)
+        reading = next((r for s, r, _review, _heard in list_pending(root, org) if s == surfaces[0]), "")
+        return gr.update(value=reading, interactive=True)
+
+    def on_pending_adopt(session_id: str | None, surfaces: list[str], edited: str):
+        override: dict[str, str] = {}
+        edited = (edited or "").strip()
+        if len(surfaces or []) == 1 and edited:
+            if not is_katakana_reading(edited):
+                return gr.update(), "読みはカタカナで入力してください（長音「ー」可）"
+            override[surfaces[0]] = edited
+        return _pending_action(adopt_pending, "辞書へ本登録", session_id, surfaces, readings_override=override)
 
     def on_pending_reject(session_id: str | None, surfaces: list[str]):
         return _pending_action(reject_pending, "候補を却下", session_id, surfaces)
@@ -460,9 +490,10 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
     )
     pending_adopt_btn.click(
         on_pending_adopt,
-        inputs=[session_dd, pending_cbg],
+        inputs=[session_dd, pending_cbg, pending_reading_tb],
         outputs=[pending_cbg, session_msg],
     )
+    pending_cbg.change(on_pending_select, inputs=[session_dd, pending_cbg], outputs=[pending_reading_tb], queue=False)
     pending_reject_btn.click(
         on_pending_reject,
         inputs=[session_dd, pending_cbg],
