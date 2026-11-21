@@ -11,7 +11,7 @@ pip install playwright
 python -m playwright install chromium
 ```
 
-- 読み上げのシーンには VOICEVOX が必要（`--voicevox-url` で接続先を指定する。カンマ区切りで複数指定できる）。
+- 読み上げのシーンには VOICEVOX が必要（`--voicevox-url` で接続先を指定する。カンマ区切りで複数指定できる）。複数台を指定すると、文単位で並列に合成し、ライブのタイムラインに ENGINE ごとの合成が並んで映る。
 - API キーは、通常の起動と同じく環境変数で渡す。
 - `--record` には ffmpeg が必要（PATH に通す）。
 
