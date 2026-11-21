@@ -38,3 +38,6 @@ pytest>=8.0.0                  # パリティ試験（tests/parity/）
 # openai
 # anthropic
 # google-generativeai
+
+# --- オプション (デモ自動操作 demo/make_demo.py) ---
+# playwright>=1.40  # 導入後に `python -m playwright install chromium`
