@@ -774,7 +774,7 @@ def build_settings_tab(
                 org_dd_upd,
                 chat_org_upd,
                 wf_upd,
-                *loaded,
+                *loaded[:9],
                 *_refresh_org_dependent_rows(loaded[3], loaded[7], loaded[4]),
             )
         empty_bindings = normalize_bindings_state({}, binding_specs)
