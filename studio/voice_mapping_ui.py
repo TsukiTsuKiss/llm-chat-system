@@ -298,6 +298,17 @@ def preview_entry(
     return entry
 
 
+def describe_voice(entry: dict[str, Any]) -> str:
+    """試聴したのがどの声かを示す文（キャラ名と、speaker・速さなどの設定値）。"""
+    parts = [f"speaker {entry.get('speaker')}"]
+    for key, name in (("speed", "速さ"), ("pitch", "高さ"), ("intonation", "抑揚")):
+        if entry.get(key) is not None:
+            parts.append(f"{name} {_fmt(entry[key])}")
+    detail = "、".join(parts)
+    label = entry.get("label") or ""
+    return f"{label}（{detail}）" if label else detail
+
+
 def build_voice_mapping_subtab(root: Path, *, voicevox_url: str | None = None) -> None:
     def engine_urls() -> list[str]:
         return parse_voicevox_urls(voicevox_url or DEFAULT_BASE_URL)
@@ -311,7 +322,9 @@ def build_voice_mapping_subtab(root: Path, *, voicevox_url: str | None = None) -
         mapping_state = gr.State({})
         org_dd = gr.Dropdown(label="組織", choices=orgs, value=orgs[0] if orgs else None)
         overview_md = gr.Markdown("_このタブを開くと表示します_")
+        top_note = gr.Markdown("")
         talent_dd = gr.Dropdown(label="編集する人材", choices=[], value=None)
+        preview_text = gr.Textbox(label="試聴する文", value=PREVIEW_TEXT)
 
         with gr.Group():
             gr.Markdown("#### 人材の既定の声（全組織で共通。`talents/<id>.json` の voice）")
@@ -323,6 +336,8 @@ def build_voice_mapping_subtab(root: Path, *, voicevox_url: str | None = None) -
             with gr.Row():
                 base_preview_btn = gr.Button("▶ 人材の既定を試聴", **_SAVE_BTN)
                 base_save_btn = gr.Button("人材の既定を保存", **_SAVE_BTN)
+            base_msg = gr.Markdown("")
+            base_audio = gr.Audio(label="試聴（人材の既定）", type="filepath", interactive=False, autoplay=True)
         base_fields = [base_voice, base_speed, base_pitch, base_intonation]
 
         with gr.Group():
@@ -361,6 +376,8 @@ def build_voice_mapping_subtab(root: Path, *, voicevox_url: str | None = None) -
             with gr.Row():
                 org_preview_btn = gr.Button("▶ この組織の声を試聴", **_SAVE_BTN)
                 org_save_btn = gr.Button("この組織の設定を保存", **_SAVE_BTN)
+            org_msg = gr.Markdown("")
+            org_audio = gr.Audio(label="試聴（この組織）", type="filepath", interactive=False, autoplay=True)
         org_fields = [org_read, org_voice, org_speed, org_pitch, org_intonation, org_when, *variant_fields]
 
         with gr.Group():
@@ -377,19 +394,16 @@ def build_voice_mapping_subtab(root: Path, *, voicevox_url: str | None = None) -
                     r_intonation = _scale_field("intonation", "抑揚")
                 role_fields += [r_name, r_speed, r_pitch, r_intonation]
             roles_save_btn = gr.Button("役割の話し方を保存", **_SAVE_BTN)
+            roles_msg = gr.Markdown("")
 
-        preview_text = gr.Textbox(label="試聴する文", value=PREVIEW_TEXT)
-        audio = gr.Audio(label="試聴", type="filepath", interactive=False)
-        message_md = gr.Markdown("")
-
-        def play(entry: dict[str, Any], text: str):
+        def play(entry: dict[str, Any], text: str, who: str):
             try:
                 wav = preview_wav(entry, text, engine_urls())
             except OSError as exc:
                 return None, f"❌ 試聴できません: {exc}"
             with tempfile.NamedTemporaryFile(prefix="voice_preview_", suffix=".wav", delete=False) as f:
                 f.write(wav)
-            return f.name, ""
+            return f.name, f"🔊 試聴: {who} / {describe_voice(entry)}"
 
         def load_org(org_id: str | None):
             mapping = read_voice_mapping_raw(root, org_id) if org_id else {}
@@ -413,6 +427,10 @@ def build_voice_mapping_subtab(root: Path, *, voicevox_url: str | None = None) -
             return (
                 *base_updates(read_talent_voice(root, talent_id) if talent_id else None, speakers),
                 *org_updates((mapping or {}).get(talent_id) if talent_id else None, speakers),
+                None,  # 前の人の試聴とメッセージは消す
+                None,
+                "",
+                "",
             )
 
         def on_save_base(org_id, talent_id, *base_values):
@@ -464,28 +482,32 @@ def build_voice_mapping_subtab(root: Path, *, voicevox_url: str | None = None) -
                 )
             except ValueError as exc:
                 return None, f"⚠️ {exc}"
-            return play(entry, text)
+            return play(entry, text, talent_name(root, talent_id) if talent_id else "")
 
-        org_outputs = [mapping_state, overview_md, talent_dd, *base_fields, *org_fields, *role_fields, message_md]
+        org_outputs = [mapping_state, overview_md, talent_dd, *base_fields, *org_fields, *role_fields, top_note]
         voice_tab.select(load_org, inputs=[org_dd], outputs=org_outputs)
         org_dd.change(load_org, inputs=[org_dd], outputs=org_outputs)
-        talent_dd.change(on_talent, inputs=[talent_dd, mapping_state], outputs=[*base_fields, *org_fields])
-        base_save_btn.click(on_save_base, inputs=[org_dd, talent_dd, *base_fields], outputs=[overview_md, message_md])
+        talent_dd.change(
+            on_talent,
+            inputs=[talent_dd, mapping_state],
+            outputs=[*base_fields, *org_fields, base_audio, org_audio, base_msg, org_msg],
+        )
+        base_save_btn.click(on_save_base, inputs=[org_dd, talent_dd, *base_fields], outputs=[overview_md, base_msg])
         org_save_btn.click(
             on_save_org,
             inputs=[org_dd, talent_dd, mapping_state, *org_fields],
-            outputs=[mapping_state, overview_md, message_md],
+            outputs=[mapping_state, overview_md, org_msg],
         )
         roles_save_btn.click(
-            on_save_roles, inputs=[org_dd, mapping_state, *role_fields], outputs=[mapping_state, overview_md, message_md]
+            on_save_roles, inputs=[org_dd, mapping_state, *role_fields], outputs=[mapping_state, overview_md, roles_msg]
         )
         base_preview_btn.click(
             lambda talent_id, mapping, text, *values: on_preview(talent_id, mapping, "人材の既定", text, True, *values, *[None] * 20),
             inputs=[talent_dd, mapping_state, preview_text, *base_fields],
-            outputs=[audio, message_md],
+            outputs=[base_audio, base_msg],
         )
         org_preview_btn.click(
             on_preview,
             inputs=[talent_dd, mapping_state, preview_target, preview_text, org_read, *base_fields, *org_fields[1:]],
-            outputs=[audio, message_md],
+            outputs=[org_audio, org_msg],
         )

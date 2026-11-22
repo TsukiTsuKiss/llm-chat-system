@@ -355,3 +355,8 @@ def test_scale_fields_step_within_the_valid_range():
         low, high = voice_mapping.SCALE_RANGES[key]
         assert (field.minimum, field.maximum, field.step) == (low, high, step)
         assert 0 < step <= (high - low) / 10  # 既定の 1 だと、高さは 1 回で範囲外になっていた
+
+
+def test_describe_voice_shows_character_and_settings():
+    assert voice_mapping_ui.describe_voice({"speaker": 2, "label": "四国めたん", "speed": 1.1, "pitch": 0}) == "四国めたん（speaker 2、速さ 1.1、高さ 0）"
+    assert voice_mapping_ui.describe_voice({"speaker": 99}) == "speaker 99"
