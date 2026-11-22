@@ -969,6 +969,10 @@ def test_web_session_voice_pushes_utterance_to_relay(studio_root: Path, monkeypa
 def test_web_session_voice_without_mapping_adds_note(studio_root: Path):
     from studio.web_ui import WebSession, handle_chat_submit
 
+    talent_path = studio_root / "talents" / "solo_bot.json"
+    talent = json.loads(talent_path.read_text(encoding="utf-8"))
+    talent.pop("voice", None)  # 人材に既定の声があると、組織のマッピングがなくても読み上げる
+    talent_path.write_text(json.dumps(talent, ensure_ascii=False), encoding="utf-8")
     session = WebSession(root=studio_root)
     updates = list(
         handle_chat_submit(

@@ -12,20 +12,30 @@ from studio import voice_mapping, voice_mapping_ui
 from studio.voice_mapping import (
     SpeakerStyle,
     build_entry,
+    build_roles,
+    build_talent_voice,
     build_variant,
     fetch_speakers,
     preview_wav,
+    read_talent_voice,
     read_voice_mapping_raw,
+    save_talent_voice,
     save_voice_mapping,
     shared_speakers,
     validate_entry,
 )
 from studio.voice_mapping_ui import (
     INHERIT,
-    entry_from_fields,
-    field_updates,
+    NO_VOICE_NOTE,
+    base_updates,
+    org_updates,
     overview_markdown,
-    save_entry,
+    override_from_fields,
+    preview_entry,
+    role_updates,
+    save_override,
+    save_roles,
+    talent_voice_from_fields,
 )
 
 SPEAKERS = [SpeakerStyle("四国めたん", "ノーマル", 2), SpeakerStyle("ずんだもん", "ノーマル", 3)]
@@ -55,7 +65,7 @@ def test_read_voice_mapping_raw_prefers_real_file_and_falls_back_to_example(tmp_
 @pytest.mark.parametrize(
     "entry",
     [
-        {"label": "x"},
+        {"speaker": 1, "read": "no"},
         {"speaker": -1},
         {"speaker": 1, "speed": 3.0},
         {"speaker": 1, "pitch": 0.5},
@@ -164,25 +174,88 @@ def test_preview_wav_falls_back_to_next_engine_then_raises(monkeypatch):
         preview_wav({"speaker": 1}, "x", ["http://bad"])
 
 
-def test_overview_markdown_lists_talents_and_warns_about_shared_speakers(tmp_path):
-    make_org(tmp_path, ["a", "b", "c"], {"a": {"label": "四国めたん", "speaker": 2, "speed": 1.2}, "b": {"speaker": 2, "variants": [{"when_action": "x"}]}})
-    text = overview_markdown(tmp_path, "org", voice_mapping_ui.read_voice_mapping_raw(tmp_path, "org"))
-    assert "名前a (`a`) | 四国めたん | 2 | 1.2" in text
-    assert "名前c (`c`) | —（読み上げない）" in text
+def set_talent_voice(root: Path, talent_id: str, voice: dict) -> None:
+    path = root / "talents" / f"{talent_id}.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["voice"] = voice
+    path.write_text(json.dumps(data), encoding="utf-8")
+
+
+def test_build_entry_read_false_and_optional_speaker():
+    assert build_entry(speaker=None, label="", speed=1.1, pitch=None, intonation=None, when_action="", variants=[], read=False) == {
+        "read": False,
+        "speed": 1.1,
+    }
+
+
+def test_build_talent_voice_and_roles():
+    assert build_talent_voice(speaker="2", label="四国めたん", speed=None, pitch=0.1, intonation="") == {
+        "engine": "voicevox",
+        "speaker": 2,
+        "label": "四国めたん",
+        "pitch": 0.1,
+    }
+    assert build_roles([("moderator", 0.9, None, None), ("", 1.0, None, None), ("member", None, None, None)]) == {
+        "moderator": {"speed": 0.9}
+    }
+
+
+def test_validate_roles_rejects_voice_keys_and_out_of_range(tmp_path):
+    make_org(tmp_path, ["a"])
+    with pytest.raises(ValueError, match="speaker"):
+        save_voice_mapping(tmp_path, "org", {"_roles": {"moderator": {"speaker": 3}}})
+    with pytest.raises(ValueError, match="speed"):
+        save_voice_mapping(tmp_path, "org", {"_roles": {"moderator": {"speed": 9}}})
+    save_voice_mapping(tmp_path, "org", {"a": {"speed": 1.1}, "_roles": {"moderator": {"speed": 0.9}}})
+
+
+def test_save_and_read_talent_voice_keeps_other_fields(tmp_path):
+    make_org(tmp_path, ["a"])
+    save_talent_voice(tmp_path, "a", {"engine": "voicevox", "speaker": 2, "label": "四国めたん"})
+    data = json.loads((tmp_path / "talents" / "a.json").read_text(encoding="utf-8"))
+    assert data["name"] == "名前a" and data["voice"]["speaker"] == 2
+    assert read_talent_voice(tmp_path, "a") == data["voice"]
+    with pytest.raises(ValueError):
+        save_talent_voice(tmp_path, "a", {"engine": "voicevox", "speaker": 2, "speed": 9})
+    save_talent_voice(tmp_path, "a", None)
+    assert read_talent_voice(tmp_path, "a") is None
+    with pytest.raises(ValueError, match="見つかりません"):
+        save_talent_voice(tmp_path, "zzz", None)
+
+
+def test_overview_shows_effective_voice_source_state_and_warnings(tmp_path):
+    make_org(
+        tmp_path,
+        ["a", "b", "c", "d"],
+        {"b": {"speaker": 2, "label": "四国めたん"}, "c": {"read": False}, "_roles": {"moderator": {"speed": 0.9}}},
+    )
+    set_talent_voice(tmp_path, "a", {"engine": "voicevox", "speaker": 2, "label": "四国めたん", "speed": 1.2})
+    set_talent_voice(tmp_path, "c", {"engine": "voicevox", "speaker": 3, "label": "ずんだもん"})
+    text = " ".join(overview_markdown(tmp_path, "org").split())
+    assert "名前a (`a`) | 四国めたん | 2 | 1.2 | | | 人材の既定 | 読む" in text
+    assert "名前b (`b`) | 四国めたん | 2 | | | | 組織の上書き | 読む" in text
+    assert "名前c (`c`) | | | | | | | 読まない（この組織で停止）" in text
+    assert "名前d (`d`) | | | | | | | 声なし（読まない）" in text
+    assert "moderator（speed 0.9）" in text
     assert "speaker 2 が重なっています: a, b" in text
-    assert overview_markdown(tmp_path, None, {}) == "組織を選んでください。"
+    assert overview_markdown(tmp_path, None) == "組織を選んでください。"
 
 
-def test_field_updates_fills_base_and_variant_rows():
-    entry = {"speaker": 2, "speed": 1.2, "when_action": "放送後", "variants": [{"when_action": "判定", "speaker": 3, "pitch": 0.1}]}
-    updates = field_updates(entry, SPEAKERS)
+def test_field_updates_fill_base_org_and_role_rows():
+    assert len(base_updates({"speaker": 2, "speed": 1.2}, SPEAKERS)) == 4
+    assert base_updates(None, SPEAKERS)[1:] == [None, None, None]
+    updates = org_updates(
+        {"read": False, "speaker": 3, "when_action": "放送後", "variants": [{"when_action": "判定", "speaker": 2, "pitch": 0.1}]},
+        SPEAKERS,
+    )
     assert len(updates) == 6 + 3 * 5
-    assert updates[0] is True and updates[2] == 1.2 and updates[5] == "放送後"
-    assert updates[6] == "判定" and updates[8] is None and updates[9] == 0.1
-    assert updates[11] == "" and field_updates(None, SPEAKERS)[0] is False
+    assert updates[0] is False and updates[5] == "放送後" and updates[6] == "判定" and updates[9] == 0.1
+    assert org_updates(None, SPEAKERS)[0] is True
+    roles = role_updates({"moderator": {"speed": 0.9}}, ["moderator", "member"])
+    assert len(roles) == 4 * 4 and roles[1] == 0.9 and roles[5] is None
 
 
-def _values(speaker=2, speed=None, pitch=None, intonation=None, when="", rows=None):
+def _org_values(speaker=INHERIT, speed=None, pitch=None, intonation=None, when="", rows=None):
     rows = rows or []
     flat: list = []
     for index in range(3):
@@ -190,37 +263,73 @@ def _values(speaker=2, speed=None, pitch=None, intonation=None, when="", rows=No
     return (speaker, speed, pitch, intonation, when, *flat)
 
 
-def test_entry_from_fields_takes_character_name_and_variant_overrides():
-    values = _values(2, 1.1, when="", rows=[("判定", 3, 1.3, None, None), ("", INHERIT, None, None, None), ("速報", INHERIT, 1.5, None, None)])
-    entry = entry_from_fields(values, SPEAKERS, None)
-    assert entry == {
-        "label": "四国めたん",
+def test_talent_voice_from_fields_uses_character_name_and_keeps_previous_label():
+    assert talent_voice_from_fields((2, 1.1, None, None), SPEAKERS, None) == {
+        "engine": "voicevox",
         "speaker": 2,
+        "label": "四国めたん",
+        "speed": 1.1,
+    }
+    assert talent_voice_from_fields((None, None, None, None), SPEAKERS, None) is None
+    kept = talent_voice_from_fields((99, None, None, None), SPEAKERS, {"speaker": 99, "label": "旧キャラ"})
+    assert kept["label"] == "旧キャラ"
+
+
+def test_override_from_fields_omits_inherited_values_and_builds_variants():
+    assert override_from_fields(True, _org_values(), SPEAKERS, None) == {}
+    values = _org_values(3, 1.1, rows=[("判定", 2, 1.3, None, None), ("", INHERIT, None, None, None), ("速報", INHERIT, 1.5, None, None)])
+    assert override_from_fields(True, values, SPEAKERS, None) == {
+        "label": "ずんだもん",
+        "speaker": 3,
         "speed": 1.1,
         "variants": [
-            {"when_action": "判定", "label": "ずんだもん", "speaker": 3, "speed": 1.3},
+            {"when_action": "判定", "label": "四国めたん", "speaker": 2, "speed": 1.3},
             {"when_action": "速報", "speed": 1.5},
         ],
     }
-    with pytest.raises(ValueError):
-        entry_from_fields(_values(None), SPEAKERS, None)
+    assert override_from_fields(False, _org_values(), SPEAKERS, None) == {"read": False}
 
 
-def test_entry_from_fields_keeps_previous_label_for_unknown_speaker_and_extra_variants():
-    previous = {"label": "旧キャラ", "speaker": 99, "variants": [{"when_action": "a"}, {"when_action": "b"}, {"when_action": "c"}, {"when_action": "d", "speed": 1.1}]}
-    entry = entry_from_fields(_values(99), SPEAKERS, previous)
-    assert entry["label"] == "旧キャラ"
-    assert entry["variants"] == [{"when_action": "d", "speed": 1.1}]  # 画面の 3 行は空に消され、4 件目以降だけ残る
+def test_override_from_fields_keeps_extra_variants_beyond_the_screen_rows():
+    previous = {"variants": [{"when_action": "a"}, {"when_action": "b"}, {"when_action": "c"}, {"when_action": "d", "speed": 1.1}]}
+    assert override_from_fields(True, _org_values(), SPEAKERS, previous)["variants"] == [{"when_action": "d", "speed": 1.1}]
 
 
-def test_save_entry_updates_one_talent_keeps_order_and_user(tmp_path):
-    make_org(tmp_path, ["a", "b"], {"user": {"speaker": 8}, "b": {"speaker": 3}})
+def test_save_override_requires_a_voice_somewhere_and_removes_empty_override(tmp_path):
+    make_org(tmp_path, ["a", "b"], {"user": {"speaker": 8}, "b": {"speed": 1.2}})
     mapping = read_voice_mapping_raw(tmp_path, "org")
-    updated = save_entry(tmp_path, "org", "a", mapping, True, _values(2, 1.2), SPEAKERS)
-    assert list(updated) == ["a", "b", "user"]
+    with pytest.raises(ValueError, match=NO_VOICE_NOTE[:6]):
+        save_override(tmp_path, "org", "a", mapping, True, _org_values(), SPEAKERS)
+    set_talent_voice(tmp_path, "a", {"engine": "voicevox", "speaker": 2, "label": "四国めたん"})
+    updated = save_override(tmp_path, "org", "a", mapping, True, _org_values(None, 1.2), SPEAKERS)
+    assert updated["a"] == {"speed": 1.2} and list(updated) == ["a", "b", "user"]
+    cleared = save_override(tmp_path, "org", "a", updated, True, _org_values(), SPEAKERS)
+    assert "a" not in cleared
+    stopped = save_override(tmp_path, "org", "a", cleared, False, _org_values(), SPEAKERS)
+    assert stopped["a"] == {"read": False}
+
+
+def test_save_roles_writes_underscore_roles_and_removes_when_empty(tmp_path):
+    make_org(tmp_path, ["a"], {"a": {"speaker": 2}})
+    mapping = read_voice_mapping_raw(tmp_path, "org")
+    rows = ("moderator", 0.9, None, 0.5, None, None, None, None, None, None, None, None, None, None, None, None)
+    updated = save_roles(tmp_path, "org", mapping, rows)
+    assert updated["_roles"] == {"moderator": {"speed": 0.9, "intonation": 0.5}} and list(updated) == ["a", "_roles"]
     saved = json.loads((tmp_path / "organizations" / "org" / "voice_mapping.json").read_text(encoding="utf-8"))
-    assert saved["a"] == {"label": "四国めたん", "speaker": 2, "speed": 1.2} and saved["user"] == {"speaker": 8}
-    removed = save_entry(tmp_path, "org", "b", updated, False, _values(3), SPEAKERS)
-    assert "b" not in removed and "b" not in json.loads((tmp_path / "organizations" / "org" / "voice_mapping.json").read_text(encoding="utf-8"))
+    assert saved["_roles"]["moderator"]["speed"] == 0.9
+    assert "_roles" not in save_roles(tmp_path, "org", updated, (None,) * 16)
+    with pytest.raises(ValueError, match="speed"):
+        save_roles(tmp_path, "org", updated, ("moderator", 9, None, None, *[None] * 12))
+
+
+def test_preview_entry_layers_base_org_and_variant():
+    base = (2, 1.0, None, None)
+    org = _org_values(None, 1.2, when="", rows=[("判定", 3, 1.5, None, None)])
+    assert preview_entry(base, True, org, SPEAKERS, "人材の既定", None, None) == {"speaker": 2, "label": "四国めたん", "speed": 1.0}
+    assert preview_entry(base, True, org, SPEAKERS, "この組織", None, None)["speed"] == 1.2
+    variant = preview_entry(base, True, org, SPEAKERS, "特定の発言1", None, None)
+    assert variant["speaker"] == 3 and variant["speed"] == 1.5
+    with pytest.raises(ValueError, match="action"):
+        preview_entry(base, True, org, SPEAKERS, "特定の発言2", None, None)
     with pytest.raises(ValueError):
-        save_entry(tmp_path, "org", "a", removed, True, _values(2, 9.9), SPEAKERS)
+        preview_entry((None, None, None, None), True, _org_values(), SPEAKERS, "この組織", None, None)

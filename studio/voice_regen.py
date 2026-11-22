@@ -54,6 +54,7 @@ def regenerate_audio(root: Path, session_id: str, *, urls: list[str], force: boo
 
     organization = data.get("organization") or ""
     mapping = voice.load_voice_mapping(root, organization) if organization else {}
+    roles = voice.load_voice_roles(root, organization) if organization else {}
     dictionary = voice.load_voice_dictionary(root, organization)
 
     jobs: list[tuple[str, list[Future[bytes]]]] = []
@@ -65,7 +66,7 @@ def regenerate_audio(root: Path, session_id: str, *, urls: list[str], force: boo
             else:
                 entry = mapping.get(event["talent_id"])
                 if entry is not None:
-                    entry = voice.variant_voice_entry(entry, event.get("variant"))
+                    entry = voice.variant_voice_entry(entry, event.get("variant"), event.get("slot") or "", roles)
             if entry is None:
                 result.failed.append(event["file"])
                 continue

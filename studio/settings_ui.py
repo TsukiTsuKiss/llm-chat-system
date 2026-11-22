@@ -493,6 +493,12 @@ def build_settings_tab(
         tag_list = _str_to_tags(tags)
         if tag_list:
             data["tags"] = tag_list
+        try:
+            voice = load_config("talent", talent_id, root).get("voice")
+        except (OSError, ValueError, KeyError):
+            voice = None
+        if voice:  # 人材の既定の声は「🔊 声」タブで編集する。ここで保存しても消さない
+            data["voice"] = voice
         result = save_config("talent", talent_id, data, root)
         dd_upd, new_talent_upd, cb_upd, _ids = _refresh_talent_choices(talent_id if result.ok else None)
         return result.message, dd_upd, new_talent_upd, cb_upd

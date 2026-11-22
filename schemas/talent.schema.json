@@ -16,6 +16,19 @@
     "tags": {
       "type": "array",
       "items": { "type": "string" }
+    },
+    "voice": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["engine", "speaker"],
+      "properties": {
+        "engine": { "enum": ["voicevox"] },
+        "speaker": { "type": "integer", "minimum": 0 },
+        "label": { "type": "string" },
+        "speed": { "type": "number", "minimum": 0.5, "maximum": 2.0 },
+        "pitch": { "type": "number", "minimum": -0.15, "maximum": 0.15 },
+        "intonation": { "type": "number", "minimum": 0, "maximum": 2.0 }
+      }
     }
   }
 }

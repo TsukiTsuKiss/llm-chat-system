@@ -30,6 +30,7 @@ from studio.voice import (
     entry_labels,
     load_voice_dictionary,
     load_voice_mapping,
+    load_voice_roles,
     load_wav_array,
     parse_voicevox_urls,
 )
@@ -546,7 +547,7 @@ class WebSession:
         if self.voice is None:
             mapping = load_voice_mapping(self.root, self.org_id)
             if not mapping:
-                return f"organizations/{self.org_id}/voice_mapping.json がないため読み上げません"
+                return f"組織 {self.org_id} に声のある人材（人材の voice か voice_mapping.json）がいないため読み上げません"
             configured = parse_voicevox_urls(self.voicevox_url)
             urls = [url for url in configured if engine_available(url)]
             if not urls:
@@ -561,6 +562,7 @@ class WebSession:
                 base_url=urls,
                 play=False,
                 dictionary=load_voice_dictionary(self.root, self.org_id),
+                roles=load_voice_roles(self.root, self.org_id),
                 on_utterance=self._push_utterance,
                 monitor=engine_monitor(configured),
                 standby=skipped,

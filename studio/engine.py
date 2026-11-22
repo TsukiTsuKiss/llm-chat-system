@@ -10,7 +10,7 @@ from typing import Any, Callable, Iterator
 from langchain_core.messages import AIMessage, HumanMessage
 
 from studio.assistants import invoke_llm_step, invoke_mock_step
-from studio.bindings import build_direct_bindings, build_direct_workflow, expand_step_to_talents
+from studio.bindings import DIRECT_SLOT, build_direct_bindings, build_direct_workflow, expand_step_to_talents
 from studio.history import ConversationHistory, RoleHistories
 from studio.interrupt import USER_INTERRUPT_DISPLAY, USER_INTERRUPT_TALENT, matched_interrupt_marker, resolve_interrupt_markers
 from studio.loader import SessionContext
@@ -85,6 +85,11 @@ def _currency_field(model: str | None, state: EngineState) -> dict[str, str]:
     """USD 以外のモデルのときだけ、イベントに通貨を付ける（表示の記号を合わせるため）。"""
     currency = currency_of(model, state.logger.costs) if state.logger is not None else DEFAULT_CURRENCY
     return {} if currency == DEFAULT_CURRENCY else {"currency": currency}
+
+
+def _slot_field(slot: str) -> dict[str, str]:
+    """ワークフローの役割（スロット）名を step_start に付ける。直接送信（_direct）は役割ではないので付けない。"""
+    return {"slot": slot} if slot and slot != DIRECT_SLOT else {}
 
 
 class SessionEngine:
@@ -679,6 +684,7 @@ class SessionEngine:
                     prior_responses=prior or None,
                     stream=state.stream,
                     phase_type="serial",
+                    slot=step.get("slot", ""),
                 )
                 outcome = yield from gen
                 if outcome:
@@ -697,9 +703,11 @@ class SessionEngine:
         turn_prior: list[tuple[str, str]],
     ) -> Iterator[EngineEvent]:
         tasks: list[tuple[str, str]] = []
+        slot_of: dict[str, str] = {}
         for step in phase.get("steps") or []:
             for talent_id, action in expand_step_to_talents(step, bindings):
                 tasks.append((talent_id, action))
+                slot_of[talent_id] = step.get("slot", "")
 
         if not tasks:
             return
@@ -766,6 +774,7 @@ class SessionEngine:
                 prior_responses=prior or None,
                 stream=state.stream,
                 phase_type="parallel",
+                slot=slot_of.get(talent_id, ""),
             )
             if outcome:
                 outcomes.append(outcome)
@@ -779,6 +788,7 @@ class SessionEngine:
                     "talent_id": outcome.talent_id,
                     "display_name": display_name,
                     "action": outcome.action,
+                    **_slot_field(slot_of.get(outcome.talent_id, "")),
                 },
             )
             yield EngineEvent(
@@ -890,6 +900,7 @@ class SessionEngine:
         prior_responses: list[tuple[str, str]] | None,
         stream: bool,
         phase_type: str | None = None,
+        slot: str = "",
     ) -> Iterator[EngineEvent, None, StepOutcome | None]:
         talent = self.ctx.talents.get(talent_id, {})
         mapping = self.ctx.model_mapping.get(talent_id, {})
@@ -899,7 +910,7 @@ class SessionEngine:
         state.step_number += 1
         yield EngineEvent(
             "step_start",
-            {"talent_id": talent_id, "display_name": display_name, "action": action},
+            {"talent_id": talent_id, "display_name": display_name, "action": action, **_slot_field(slot)},
         )
 
         system_prompt = self._build_system_prompt(talent, talent_id, state)

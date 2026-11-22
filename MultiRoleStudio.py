@@ -28,12 +28,13 @@ from studio.voice import (
     engine_available,
     load_voice_dictionary,
     load_voice_mapping,
+    load_voice_roles,
     parse_voicevox_urls,
 )
 from studio.voice_engines import EngineConfigError, engine_names_by_url, expand_engine_spec
 from studio.workflow_validate import workflow_has_interrupt_on, workflow_has_user_exit
 
-VERSION = "0.7.9"
+VERSION = "0.8.0"
 
 
 def print_event(event: EngineEvent, *, use_stream: bool) -> None:
@@ -163,7 +164,7 @@ def create_voice_reader(args: argparse.Namespace, ctx) -> VoiceReader | None:
         return None
     mapping = load_voice_mapping(ctx.root, ctx.org_id)
     if not mapping:
-        print(f"[voice] organizations/{ctx.org_id}/voice_mapping.json がないため読み上げません", file=sys.stderr)
+        print(f"[voice] 組織 {ctx.org_id} に声のある人材（人材の voice か voice_mapping.json）がいないため読み上げません", file=sys.stderr)
         return None
     configured = parse_voicevox_urls(voicevox_url)
     urls = [url for url in configured if engine_available(url)]
@@ -180,6 +181,7 @@ def create_voice_reader(args: argparse.Namespace, ctx) -> VoiceReader | None:
         mapping,
         base_url=urls,
         dictionary=load_voice_dictionary(ctx.root, ctx.org_id),
+        roles=load_voice_roles(ctx.root, ctx.org_id),
     )
 
 

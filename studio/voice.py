@@ -133,19 +133,82 @@ def join_wavs(wavs: list[bytes]) -> bytes:
     return out.getvalue()
 
 
-def load_voice_mapping(root: Path, org_id: str) -> dict[str, dict[str, Any]]:
+VOICE_ROLES_KEY = "_roles"  # voice_mapping.json の予約キー（役割名 → 話し方）
+ROLE_STYLE_KEYS = ("speed", "pitch", "intonation")
+
+
+def _read_org_voice_file(root: Path, org_id: str) -> dict[str, Any]:
     org_dir = root / "organizations" / org_id
     for name in VOICE_MAPPING_FILES:
         path = org_dir / name
-        if not path.is_file():
-            continue
-        data = json.loads(path.read_text(encoding="utf-8"))
-        return {
-            talent_id: entry
-            for talent_id, entry in data.items()
-            if isinstance(entry, dict) and isinstance(entry.get("speaker"), int)
-        }
+        if path.is_file():
+            data = json.loads(path.read_text(encoding="utf-8"))
+            return data if isinstance(data, dict) else {}
     return {}
+
+
+def _org_talent_ids(root: Path, org_id: str) -> list[str]:
+    try:
+        data = json.loads((root / "organizations" / org_id / "config.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    ids = data.get("talent_ids") if isinstance(data, dict) else None
+    return [tid for tid in ids if isinstance(tid, str)] if isinstance(ids, list) else []
+
+
+def talent_voice(root: Path, talent_id: str) -> dict[str, Any] | None:
+    """人材の既定の声（talents/<id>.json の voice）。VOICEVOX 以外の engine ・声のない人材は None。"""
+    try:
+        voice = json.loads((root / "talents" / f"{talent_id}.json").read_text(encoding="utf-8")).get("voice")
+    except (OSError, ValueError, AttributeError):
+        return None
+    if not isinstance(voice, dict) or voice.get("engine", "voicevox") != "voicevox":
+        return None
+    if not isinstance(voice.get("speaker"), int):
+        return None
+    return {key: value for key, value in voice.items() if key != "engine"}
+
+
+def load_voice_mapping(root: Path, org_id: str) -> dict[str, dict[str, Any]]:
+    """組織の人材ごとの声。人材の既定の声に、組織の voice_mapping.json を重ねる。
+
+    組織側に `"read": false` がある人材は読み上げない。声がどちらにもない人材も読まない。
+    """
+    raw = _read_org_voice_file(root, org_id)
+    result: dict[str, dict[str, Any]] = {}
+    for talent_id in _org_talent_ids(root, org_id):
+        override = raw.get(talent_id) if isinstance(raw.get(talent_id), dict) else {}
+        if override.get("read") is False:
+            continue
+        base = talent_voice(root, talent_id) or {}
+        merged = {**base, **{key: value for key, value in override.items() if key != "read"}}
+        if "speaker" in override and "label" not in override and override["speaker"] != base.get("speaker"):
+            merged.pop("label", None)  # 声を変えたのに、元のキャラ名をクレジットに残さない
+        if isinstance(merged.get("speaker"), int):
+            result[talent_id] = merged
+    for key, entry in raw.items():  # user など、組織の人材以外
+        if key in result or key == VOICE_ROLES_KEY or not isinstance(entry, dict):
+            continue
+        if entry.get("read") is False or not isinstance(entry.get("speaker"), int):
+            continue
+        result[key] = {k: v for k, v in entry.items() if k != "read"}
+    return result
+
+
+def load_voice_roles(root: Path, org_id: str) -> dict[str, dict[str, float]]:
+    """役割（スロット）名 → 話し方（speed / pitch / intonation）。組織の voice_mapping.json の `_roles`。"""
+    roles = _read_org_voice_file(root, org_id).get(VOICE_ROLES_KEY)
+    if not isinstance(roles, dict):
+        return {}
+    return {
+        slot: {
+            key: value
+            for key, value in style.items()
+            if key in ROLE_STYLE_KEYS and isinstance(value, (int, float)) and not isinstance(value, bool)
+        }
+        for slot, style in roles.items()
+        if isinstance(style, dict)
+    }
 
 
 def user_voice_entry(mapping: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
@@ -159,28 +222,43 @@ def user_voice_entry(mapping: dict[str, dict[str, Any]] | None = None) -> dict[s
 VARIANT_OVERRIDE_KEYS = ("label", "speaker", "speed", "pitch", "intonation")
 
 
-def _with_variant(entry: dict[str, Any], variant: dict[str, Any] | None) -> dict[str, Any]:
+def _layer(entry: dict[str, Any], role: dict[str, Any] | None, variant: dict[str, Any] | None) -> dict[str, Any]:
+    """基本の声 < 役割の話し方 < variant の順に重ねる（variants 自体は合成用の声に入れない）。"""
     merged = {key: value for key, value in entry.items() if key != "variants"}
+    if role:
+        merged.update({key: value for key, value in role.items() if key in ROLE_STYLE_KEYS})
     if variant:
         merged.update({key: value for key, value in variant.items() if key in VARIANT_OVERRIDE_KEYS})
     return merged
 
 
-def resolve_voice_entry(entry: dict[str, Any], action: str) -> tuple[dict[str, Any], str | None]:
-    """基本の声に、action に含まれる文字列で最初に合う variant を重ねる。(合成用の声, 合った variant の when_action)。"""
+def resolve_voice_entry(
+    entry: dict[str, Any], action: str, slot: str = "", roles: dict[str, dict[str, Any]] | None = None
+) -> tuple[dict[str, Any], str | None]:
+    """基本の声に、役割（slot）の話し方と、action に含まれる文字列で最初に合う variant を重ねる。
+
+    戻り値は (合成用の声, 合った variant の when_action)。
+    """
+    role = (roles or {}).get(slot) if slot else None
     for variant in entry.get("variants") or []:
         when = variant.get("when_action") if isinstance(variant, dict) else None
         if isinstance(when, str) and when and when in action:
-            return _with_variant(entry, variant), when
-    return _with_variant(entry, None), None
+            return _layer(entry, role, variant), when
+    return _layer(entry, role, None), None
 
 
-def variant_voice_entry(entry: dict[str, Any], when_action: str | None) -> dict[str, Any]:
-    """記録した variant（when_action の完全一致）で声を作る。None・見つからないときは基本の声。"""
+def variant_voice_entry(
+    entry: dict[str, Any],
+    when_action: str | None,
+    slot: str = "",
+    roles: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """記録した variant（when_action の完全一致）と役割で声を作る。見つからないときは基本の声。"""
+    role = (roles or {}).get(slot) if slot else None
     for variant in entry.get("variants") or []:
         if isinstance(variant, dict) and when_action and variant.get("when_action") == when_action:
-            return _with_variant(entry, variant)
-    return _with_variant(entry, None)
+            return _layer(entry, role, variant)
+    return _layer(entry, role, None)
 
 
 def entry_labels(entry: dict[str, Any]) -> list[str]:
@@ -557,10 +635,12 @@ class VoiceReader:
         on_utterance: Callable[[Path], None] | None = None,
         monitor: EngineMonitor | None = None,
         standby: Sequence[str] = (),
+        roles: dict[str, dict[str, Any]] | None = None,
     ) -> None:
         self._root = root
         self._engine_names = engine_names_by_url(root)
         self._mapping = mapping
+        self._roles = roles or {}
         self._dictionary = dictionary or {}
         urls = [base_url] if isinstance(base_url, str) else list(base_url)
         self._idle_engines: queue.Queue[str] = queue.Queue()
@@ -583,6 +663,7 @@ class VoiceReader:
         # on_utterance へ渡す前に呼び出し側が取り出す、保存先 wav ごとのタグ
         self.tags: dict[Path, Any] = {}
         self._actions: dict[str, str] = {}
+        self._slots: dict[str, str] = {}
         self._queue: queue.Queue[tuple[Path, str, dict[str, Any]] | None] = queue.Queue()
         self._pending: queue.Queue[tuple[Path, list[Future[bytes | None]], list[int]] | None] = queue.Queue()
         self._tasks: queue.Queue[tuple[str, dict[str, Any], Future[bytes | None], str] | None] = queue.Queue()
@@ -610,6 +691,7 @@ class VoiceReader:
             return
         if event.type == "step_start":
             self._actions[event.payload["talent_id"]] = event.payload.get("action") or ""
+            self._slots[event.payload["talent_id"]] = event.payload.get("slot") or ""
             self.timeline.add(
                 "step_start", talent_id=event.payload["talent_id"], name=event.payload.get("display_name")
             )
@@ -631,10 +713,13 @@ class VoiceReader:
         text = apply_dictionary(shown, self._dictionary)
         if not text:
             return
-        entry, variant = resolve_voice_entry(entry, self._actions.get(talent_id, ""))
+        slot = self._slots.get(talent_id, "")
+        entry, variant = resolve_voice_entry(entry, self._actions.get(talent_id, ""), slot, self._roles)
         self._count += 1
         path = self._out_dir / f"{self._count:02d}_{talent_id}.wav"
         extra = {"variant": variant} if variant else {}
+        if slot in self._roles:
+            extra["slot"] = slot  # 再生成で、役割の話し方を再現する
         self.timeline.add("utterance_text", file=path.name, talent_id=talent_id, text=shown, **extra)
         if tag is not None:
             self.tags[path] = tag
