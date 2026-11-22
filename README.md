@@ -233,19 +233,22 @@ python MultiRoleStudio.py --org quiz_evaluation --benchmark samples/benchmark/qu
 
 1. `organizations/broadcast_studio/model_mapping.example.json`（mock）をコピーして `model_mapping.json` を作り、人材ごとに `assistant` / `model` を設定する。検索する人材には `"web_search": true` を付け、**検索対応のプロバイダ**（ChatGPT / Gemini / Anthropic / Groq 等。`SakuraAI` は不可）を割り当てる。
 2. [VOICEVOX](https://voicevox.hiroshiba.jp/) を起動しておく（アプリ版でも ENGINE 単体でもよい。既定は `http://127.0.0.1:50021`）。
-3. `voice_mapping.example.json` をコピーして `organizations/broadcast_studio/voice_mapping.json` を作り、人材 ID ごとに話者 ID を設定する。
+3. 人材の既定の声は `talents/<id>.json` の `voice` に書く（`{"engine": "voicevox", "speaker": 14, "label": "冥鳴ひまり"}`）。組織だけ変えたいときや、`when_action` など組織固有の設定は、`voice_mapping.example.json` をコピーして `organizations/broadcast_studio/voice_mapping.json` を作る。
 
 ```json
 { "akari": { "label": "冥鳴ひまり", "speaker": 14, "speed": 1.0 } }
 ```
+
+- 声は次の順に重ねる（後ろが優先）: **人材の既定の声**（`talents/<id>.json` の `voice`）→ **組織の上書き**（`voice_mapping.json` の人材ごとの項目）→ **役割の話し方**（`_roles`）→ **特定の発言**（`variants`）。人材に既定の声があれば、組織のファイルが無くても読み上げる。組織で読ませたくない人材は `"read": false` にする。
+- `_roles` は任意。`{"_roles": {"moderator": {"speed": 0.95, "pitch": -0.02}}}` のように、ワークフローの役割（スロット）名ごとに `speed` / `pitch` / `intonation` を変える。その役割で話す人材すべてに効く（声は変わらない）。直接送信（ワークフローなし）では効かない。記録には合った `slot` を残す。
 
 - `speaker` は VOICEVOX の話者（スタイル）ID。一覧は `http://127.0.0.1:50021/speakers` で確認できる。
 - `speed` / `pitch` / `intonation` は任意（話速・高さ・抑揚）。`label` は人間用のメモで、読み込みには使わない。
 - マッピングのない人材は読み上げない。
 - `when_action` は任意。指定すると、その文字列を `action` に含む step だけを読み上げる。ディレクターは進行表（放送前）と点検（放送後）の 2 回発言するため、`"when_action": "放送後"` で点検だけを読ませる（`.example` の設定）。この step は「ディレクター点検」以降も含めて全文を読む。
 - `variants` は任意。`[{"when_action": "判定", "speed": 1.3, "speaker": 13}]` のように、`action` に文字列を含む step でだけ、基本の声に重ねて `speaker` / `speed` / `pitch` / `intonation` / `label` を切り替える（上から順に、最初に合うもの）。記録（`timeline.jsonl`）には合った `variant` を残すので、「音声を作り直して再生」でも同じ声になる。クレジットには基本と variants のキャラ名がすべて入る。
-- Web UI の「⚙️ 設定編集」→「🔊 声」で、組織ごとの `voice_mapping.json` を人材 1 人ずつ編集できる。声は ENGINE の `/speakers` から選び（キャラ・スタイル）、速さ・高さ・抑揚、役割（variants）を設定し、試聴してから保存する。組織内で同じ声の人材がいると警告する。
-- 人材名と声のキャラ名は合わせる必要がない。声は組織ごとのファイルで紐づける（`talents/*.json` には書かない）。
+- Web UI の「⚙️ 設定編集」→「🔊 声」で、人材の既定の声・組織ごとの設定・役割の話し方を、人材 1 人ずつ編集できる。声は ENGINE の `/speakers` から選び（キャラ・スタイル）、速さ・高さ・抝揚、特定の発言（variants）を設定し、試聴してから保存する。一覧は実際に使う声と、その出どころ（人材の既定 / 組織の上書き）を示し、組織内で同じ声の人材がいると警告する。
+- 人材名と声のキャラ名は合わせる必要がない。
 - `voice_mapping.json` は環境依存のため `.gitignore` 対象。コミットするのは `.example`。
 - 読みを直したい語は `voice_dictionary.json` に `"表記": "カタカナの読み"` で追加する（例: `"株探": "カブタン"`）。読み上げの直前に置換するだけで、画面とログの本文は変わらない。
   - ルート直下は全組織共通、`organizations/<org>/voice_dictionary.json` は組織専用。同じ表記は組織側が優先される。
@@ -355,7 +358,7 @@ curl http://<VOICEVOX の PC>:50021/version
 人材 ID は人物名で、役割名・組織名を含めない。役割は `workflow_bindings`（スロットへの割当）と組織の `role_directives`（キーはスロット名）で与える。
 
 - 人材を入れ替えるときは、`organizations/broadcast_studio/config.json` の `workflow_bindings` を変える。役割の指示は新しい人材に自動でついていく。
-- `model_mapping.json` と `voice_mapping.json` は人材 ID で紐づいているため、新しい人材の分を足す。
+- `model_mapping.json` は人材 ID で紐づいているため、新しい人材の分を足す。声は、人材の `voice`（既定）に書くか、組織の `voice_mapping.json` に足す。
 - 注意事項（同じキーの適用、複数スロット、直接送信など）は、[設計書 §3.3](docs/MultiRoleStudio/design.md) の「role_directives の使い方と注意事項」を参照。
 
 ```bash
@@ -369,7 +372,7 @@ python MultiRoleStudioWeb.py --org broadcast_studio --workflow broadcast_topic_s
 ```
 
 - `--workflow broadcast_topic_show` が必要（省略すると全員が順に話す直接送信になる）。
-- 読み上げは `voice_mapping.example.json` をコピーして `voice_mapping.json` を作る。ディレクターは `when_action` を使い、放送後の点検だけを読み上げる。
+- 読み上げは、人材の既定の声（`talents/*.json` の `voice`）で読み上げる。組織だけ変えるときは `voice_mapping.example.json` をコピーして `voice_mapping.json` を作る。ディレクターは `when_action` を使い、放送後の点検だけを読み上げる。
 - 予想は「予想では」「と見られます」と言い分け、事実と同じ文に混ぜない（`common_directives`）。点検でも、予想を事実のように言った箇所を指摘する。
 
 #### 主要ファイル
@@ -388,7 +391,7 @@ python MultiRoleStudioWeb.py --org broadcast_studio --workflow broadcast_topic_s
 | `studio/voice_bench.py` | VOICEVOX ENGINE の速さの測定（`util/voicevox_bench.py` から使う） |
 | `studio/voice_stats.py` | 過去セッションの合成記録（`timeline.jsonl`）から、ENGINE ごとの速さを集計 |
 | `studio/voice_ui.py` | VOICEVOX タブ UI（ENGINE 一覧・有効/無効・ベンチマーク・速さの集計） |
-| `studio/voice_mapping.py` | 声のマッピング（`voice_mapping.json`）の読み書き・検証・話者一覧・試聴 |
+| `studio/voice_mapping.py` | 声の設定（人材の既定・`voice_mapping.json`・`_roles`）の読み書き・検証・話者一覧・試聴 |
 | `studio/voice_mapping_ui.py` | 設定編集の「🔊 声」サブタブ UI |
 | `studio/benchmark.py` | クイズ・ベンチマーク（問題セット・並列実行・自動採点・集計） |
 | `studio/benchmark_ui.py` | ベンチマークタブ UI（問題セット選択・実行・結果表示） |
@@ -606,6 +609,11 @@ python MultiRoleStudio.py --org nokuru --workflow camp_planning --topic "春休�
 ## 🔄 更新履歴
 
 ## 📈 バージョン履歴
+
+### MultiRoleStudioWeb v0.15.0 / MultiRoleStudio v0.8.0 (2026-11-23)
+- 🎤 **声を人材に紐づける（`talents/<id>.json` の `voice`）** - 現実のタレントのように声を固定。組織の `voice_mapping.json` は、組織だけ変える上書き（`"read": false` でその組織だけ読まない）。**人材に既定の声があれば、組織のファイルが無くても読み上げる**（従来はマッピングのある人材だけ）。既存の 50 人の声を移行（`talent.schema.json` に `voice` を追加）
+- 🎭 **役割（スロット）ごとの話し方（`_roles`）** - 組織の `voice_mapping.json` で、役割名ごとに `speed` / `pitch` / `intonation` を変える。`step_start` に役割名（`slot`）を載せ、記録と再生成でも再現。声の重ね順は「人材の既定 → 組織の上書き → 役割の話し方 → 特定の発言（variants）」
+- 🔊 **「🔊 声」サブタブを 3 層に対応** - 人材の既定の声、この組織での設定、役割の話し方を編集・試聴。一覧に実際に使う声と出どころを表示。人材の保存で `voice` が消えないように修正
 
 ### MultiRoleStudioWeb v0.14.0 / MultiRoleStudio v0.7.9 (2026-11-23)
 - 🎙️ **「🔊 声」サブタブ（設定編集）を追加** - 組織ごとの `voice_mapping.json` を、人材 1 人ずつ編集・試聴・保存。声は ENGINE の一覧から選び、速さ・高さ・抑揚を設定。同じ声の人材を警告
