@@ -54,7 +54,8 @@ python demo/make_demo.py --wait --size 1920x1300
 | `context` | ユーザーコンテキスト、RAG、ウェブ検索、ファイル添付 |
 | `interrupt` | 【ユーザー確認】での割り込み質問と、続行・終了の選択 |
 | `settings` | 人材・組織・ワークフローの作成、保存、削除 |
-| `benchmark` | 問題セットの選択、実行、結果、過去の結果 |
+| `benchmark` | 問題セットの選択、実行、結果、過去の結果（「LLMベンチマーク」タブ） |
+| `voicevox` | VOICEVOX タブ（ENGINE 一覧、速さのベンチマークとタイムライン、過去セッションの集計）。`--voicevox-url` の ENGINE を使う（ないとスキップ）。実際に合成を流す |
 
 ## 仕組みと注意点
 

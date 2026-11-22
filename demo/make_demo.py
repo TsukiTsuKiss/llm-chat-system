@@ -177,7 +177,7 @@ def copy_tree(src: Path, dst: Path) -> None:
     shutil.copytree(src, dst, dirs_exist_ok=True, ignore=shutil.ignore_patterns("__pycache__"))
 
 
-def build_demo_root(org: str, workflow: str, mock: bool = False) -> Path:
+def build_demo_root(org: str, workflow: str, mock: bool = False, voicevox_url: str | None = None) -> Path:
     """実データから必要分だけをコピーしたデモ用ルートを、リポジトリ外の一時フォルダに作る。"""
     root = Path(tempfile.mkdtemp(prefix="studio_demo_"))
     if REPO in root.resolve().parents:
@@ -254,6 +254,14 @@ def build_demo_root(org: str, workflow: str, mock: bool = False) -> Path:
     (root / "workflows" / "demo_confirm.json").write_text(
         json.dumps(DEMO_CONFIRM_WORKFLOW, ensure_ascii=False, indent=2), encoding="utf-8"
     )
+
+    # 実データの名前やメモ（機材の型番）を映さないよう、voicevox_engines.json は汎用名で作り直す
+    urls = [url.strip().rstrip("/") for url in (voicevox_url or "").split(",") if url.strip()]
+    if urls:
+        engines = [{"name": f"engine-{i}", "url": url} for i, url in enumerate(urls, 1)]
+        (root / "voicevox_engines.json").write_text(
+            json.dumps({"engines": engines}, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
 
     # 議事録・成果物採用の Git コミットが、実リポジトリではなくデモ用ルートに向くようにする
     git = lambda *a: subprocess.run(["git", *a], cwd=root, check=True, capture_output=True, text=True)
@@ -553,8 +561,8 @@ def scene_settings(d: Demo, args) -> None:
 
 def scene_benchmark(d: Demo, args) -> None:
     page = d.page
-    d.caption("ベンチマーク: 同じ問題を、組織の各モデルに同じ条件で流して比べます", 3.0)
-    page.get_by_role("tab", name="🎯 ベンチマーク").click()
+    d.caption("LLMベンチマーク: 同じ問題を、組織の各モデルに同じ条件で流して比べます", 3.0)
+    page.get_by_role("tab", name="🎯 LLMベンチマーク").click()
     d.wait(1.5)
 
     d.caption("問題セット（JSON / JSONL）を選びます", 2.0)
@@ -744,6 +752,36 @@ def scene_voice(d: Demo, args) -> None:
     d.caption("", 0.1)
 
 
+def scene_voicevox(d: Demo, args) -> None:
+    """VOICEVOX タブ。--voicevox-url の ENGINE が、デモ用ルートの voicevox_engines.json に入っている。"""
+    page = d.page
+    if args.no_voice or not args.voicevox_url:
+        print("[demo] voicevox: --no-voice か --voicevox-url なしのためスキップ")
+        return
+    d.caption("VOICEVOX タブ: 読み上げに使う ENGINE を管理し、速さを測ります", 3.0)
+    page.get_by_role("tab", name="🔊 VOICEVOX").click()
+    page.get_by_text(re.compile("待機|未検出")).first.wait_for(timeout=60_000)
+    d.caption("ENGINE の一覧です。状態・version・デバイスを表示し、有効/無効を切り替えられます", 3.5)
+    d.wait(2.0)
+
+    d.caption("ベンチマーク: 短・中・長の文を各 ENGINE に合成させ、速さを測ります。進捗はタイムラインに出ます", 3.5)
+    page.get_by_role("heading", name=re.compile("ベンチマーク（ENGINE")).scroll_into_view_if_needed()
+    vis(page.get_by_label("各文を何回ずつ流すか")).fill("1")
+    vis(page.get_by_label("同時実行数（カンマ区切り）")).fill("1,2")
+    d.wait(1.0)
+    vis(page.get_by_role("button", name="実行", exact=True)).click()
+    page.get_by_text("✅ 完了しました").first.wait_for(timeout=600_000)
+    d.caption("ENGINE ごとの速さが表になります。PC によって数倍違うので、将来の割り振りの最適化に使います", 4.0)
+    page.get_by_text("速さ（2 回目以降の中央値）").first.scroll_into_view_if_needed()
+    d.wait(5.0)
+
+    d.caption("過去に読み上げたセッションの記録からも、ENGINE ごとの速さを集計できます", 3.5)
+    page.get_by_role("heading", name="過去セッションの速さ").scroll_into_view_if_needed()
+    vis(page.get_by_role("button", name="集計を更新", exact=True)).click()
+    d.wait(4.0)
+    d.caption("", 0.1)
+
+
 SCENES: dict[str, Callable[[Demo, argparse.Namespace], None]] = {
     "chat": scene_chat,
     "session": scene_session,
@@ -752,6 +790,7 @@ SCENES: dict[str, Callable[[Demo, argparse.Namespace], None]] = {
     "interrupt": scene_interrupt,
     "settings": scene_settings,
     "benchmark": scene_benchmark,
+    "voicevox": scene_voicevox,
 }
 
 
@@ -861,7 +900,7 @@ def main() -> None:
 
     from playwright.sync_api import sync_playwright
 
-    root = build_demo_root(args.org, args.workflow, mock=args.mock)
+    root = build_demo_root(args.org, args.workflow, mock=args.mock, voicevox_url=args.voicevox_url)
     print(f"[demo] デモ用ルート: {root}")
     proc = None
     failure: Exception | None = None
