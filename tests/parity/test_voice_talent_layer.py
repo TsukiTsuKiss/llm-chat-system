@@ -177,3 +177,72 @@ def test_step_start_carries_slot_in_serial_and_parallel_phases(trio_root: Path) 
     MockAssistant.reset()
     direct = collect_events(SessionEngine(load_session_context("trio", trio_root)), "直接", stream=False)
     assert all("slot" not in e.payload for e in direct if e.type == "step_start")
+
+
+def test_credit_text_uses_engine_display_name_and_falls_back_to_id():
+    assert voice.credit_text(None, "四国めたん") == "VOICEVOX: 四国めたん"
+    assert voice.credit_text("voicevox", "") == "VOICEVOX"
+    assert voice.credit_text("future_tts", "Aさん") == "future_tts: Aさん"
+
+
+def test_voice_statuses_distinguish_voice_silent_stopped_and_unset(tmp_path):
+    make_root(
+        tmp_path,
+        ["a", "b", "c", "d", "e"],
+        {
+            "a": {"engine": "voicevox", "speaker": 2, "label": "四国めたん"},
+            "b": {"engine": "none"},
+            "c": {"engine": "voicevox", "speaker": 3, "label": "ずんだもん"},
+            "e": {"engine": "none"},
+        },
+        {"c": {"read": False}, "e": {"speaker": 8, "label": "春日部つむぎ"}},
+    )
+    statuses = voice.voice_statuses(tmp_path, "org")
+    assert {tid: s.kind for tid, s in statuses.items()} == {"a": "voice", "b": "none", "c": "stopped", "d": "unset", "e": "voice"}
+    assert statuses["a"].text == "VOICEVOX: 四国めたん" and statuses["e"].text == "VOICEVOX: 春日部つむぎ"
+    assert statuses["b"].text == "音なし" and statuses["c"].text == "音なし（この組織で停止）"
+    assert statuses["d"].text == "声なし（読み上げません）"
+    assert list(load_voice_mapping(tmp_path, "org")) == ["a", "e"]
+
+
+def test_silent_talents_note_lists_only_unset_talents(tmp_path):
+    make_root(tmp_path, ["a", "b", "c"], {"a": {"engine": "voicevox", "speaker": 2}, "b": {"engine": "none"}})
+    assert voice.silent_talents_note(tmp_path, "org") == "声のない人材（読み上げません）: c"
+    make_root_all = {"c": {"engine": "voicevox", "speaker": 3}}
+    set_path = tmp_path / "talents" / "c.json"
+    data = json.loads(set_path.read_text(encoding="utf-8"))
+    data["voice"] = make_root_all["c"]
+    set_path.write_text(json.dumps(data), encoding="utf-8")
+    assert voice.silent_talents_note(tmp_path, "org") == ""
+
+
+def test_talent_schema_accepts_silent_voice_and_rejects_extra_fields():
+    from studio.schema_validate import validate_schema_document
+
+    def errors(voice_value):
+        return validate_schema_document({"name": "x", "system_prompt": "y", "voice": voice_value}, "talent", "t").errors
+
+    assert not errors({"engine": "none"})
+    assert not errors({"engine": "voicevox", "speaker": 2})
+    assert errors({"engine": "voicevox"})  # speaker が必要
+    assert errors({"engine": "none", "speaker": 2})  # 音なしに声は付けない
+    assert errors({"engine": "other", "speaker": 2})
+
+
+def test_session_report_shows_engine_name_from_voice_engines():
+    from studio.session_report import generate_session_markdown
+
+    records = [
+        {
+            "type": "session_meta",
+            "organization": "demo",
+            "workflow": "wf",
+            "talents": {"a": "あ", "b": "い"},
+            "models": {},
+            "voices": {"a": "四国めたん", "b": "Aさん"},
+            "voice_engines": {"b": "future_tts"},
+            "generation": {},
+        }
+    ]
+    markdown = generate_session_markdown(records, session_id="20261123_000000")
+    assert "VOICEVOX: 四国めたん" in markdown and "future_tts: Aさん" in markdown

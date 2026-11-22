@@ -20,7 +20,7 @@ from studio.quota import checks_for_session
 from studio.user_context import build_generation_options, resolve_session_rag
 from studio.user_context_rag import RagChunk, chunks_to_log
 from studio.validation import StudioError, StudioValidationError
-from studio.voice import entry_labels, load_voice_mapping
+from studio.voice import DEFAULT_VOICE_ENGINE, entry_labels, load_voice_mapping
 
 
 @dataclass(frozen=True)
@@ -157,6 +157,7 @@ class SessionEngine:
                 generation=generation,
                 roles=self._meta_roles(),
                 voices=self._meta_voices(),
+                voice_engines=self._meta_voice_engines(),
             )
             self.state = EngineState(
                 ctx=self.ctx,
@@ -201,6 +202,7 @@ class SessionEngine:
                     },
                     roles=self._meta_roles(),
                     voices=self._meta_voices(),
+                    voice_engines=self._meta_voice_engines(),
                 )
             state.logger.start()
             yield EngineEvent(
@@ -293,6 +295,18 @@ class SessionEngine:
         talent_ids = list(self.ctx.org.get("talent_ids") or [])
         roles = {tid: self._slots_of(tid) for tid in talent_ids}
         return {tid: slots for tid, slots in roles.items() if slots}
+
+    def _meta_voice_engines(self) -> dict[str, str]:
+        """VOICEVOX 以外のエンジンを使う人材だけ（クレジットのエンジン名用。無ければ記録しない）。"""
+        try:
+            mapping = load_voice_mapping(self.ctx.root, self.ctx.org_id)
+        except (OSError, ValueError):
+            return {}
+        return {
+            tid: entry["engine"]
+            for tid, entry in mapping.items()
+            if entry.get("engine", DEFAULT_VOICE_ENGINE) != DEFAULT_VOICE_ENGINE
+        }
 
     def _meta_voices(self) -> dict[str, str]:
         try:

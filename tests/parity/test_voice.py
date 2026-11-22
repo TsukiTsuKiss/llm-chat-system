@@ -470,8 +470,7 @@ def test_talents_markdown_shows_voicevox_character_when_labeled(tmp_path: Path):
         '- みどり (`a`)<br>　　planner<br>　　Gemini / m1'
         '<span class="studio-voice-credit"><br>　　VOICEVOX: 四国めたん</span>'
     ) in text
-    assert "- けんと (`b`)<br>　　Groq" in text
-    assert "VOICEVOX" not in text.split("けんと")[1]
+    assert '- けんと (`b`)<br>　　Groq<span class="studio-voice-credit"><br>　　VOICEVOX</span>' in text  # label なしは、エンジン名だけ
 
     ctx.org_id = "none"
     assert "VOICEVOX" not in talents_markdown(ctx)

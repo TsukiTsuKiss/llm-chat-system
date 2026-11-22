@@ -27,12 +27,13 @@ from studio.voice import (
     VoiceReader,
     engine_available,
     engine_monitor,
-    entry_labels,
     load_voice_dictionary,
     load_voice_mapping,
     load_voice_roles,
     load_wav_array,
     parse_voicevox_urls,
+    silent_talents_note,
+    voice_statuses,
 )
 from studio.voice_regen import missing_audio_files, regenerate_audio
 from studio.voice_timeline import live_iframe_html, replay_iframe_html
@@ -285,18 +286,17 @@ def _append_attachment_context(session: "WebSession", attachment_context: str) -
     )
 
 
-def _voice_labels(ctx: SessionContext) -> dict[str, str]:
-    """人材 ID → VOICEVOX のキャラ名（voice_mapping.json の label）。読めない・無いときは空。"""
+def _voice_credits(ctx: SessionContext) -> dict[str, str]:
+    """人材 ID → 「エンジン名: キャラ名」や「声なし」などの表記。読めないときは空。"""
     try:
-        mapping = load_voice_mapping(ctx.root, ctx.org_id)
+        return {tid: status.text for tid, status in voice_statuses(ctx.root, ctx.org_id).items()}
     except (OSError, ValueError):
         return {}
-    return {tid: " / ".join(labels) for tid, entry in mapping.items() if (labels := entry_labels(entry))}
 
 
 def talents_markdown(ctx: SessionContext) -> str:
     lines = ["**参加人材**", ""]
-    voices = _voice_labels(ctx)
+    voices = _voice_credits(ctx)
     roles: dict[str, list[str]] = {}
     for slot, ids in (getattr(ctx, "slot_bindings", None) or {}).items():
         if slot == DIRECT_SLOT:
@@ -316,7 +316,7 @@ def talents_markdown(ctx: SessionContext) -> str:
         line += f"<br>　　{escape(assistant)}{escape(model_part)}"
         if talent_id in voices:
             # 読み上げチェックが ON のときだけ CSS（studio-voice-credit）で見せる。改行も span の中に入れて、非表示時に空行を残さない
-            line += f'<span class="studio-voice-credit"><br>　　VOICEVOX: {escape(voices[talent_id])}</span>'
+            line += f'<span class="studio-voice-credit"><br>　　{escape(voices[talent_id])}</span>'
         lines.append(line)
     if len(lines) == 2:
         lines.append("（なし）")
@@ -572,6 +572,9 @@ class WebSession:
             if state is not None and state.logger is not None:
                 self.voice.begin_session(state.logger.session_id)
         self.voice_enabled = self.director_voice_override is not False
+        silent = silent_talents_note(self.root, self.org_id)
+        if silent:
+            note = (note + "\n" if note else "") + silent
         if self.director_voice_override is False:
             return (note + "\n" if note else "") + "ディレクター設定により読み上げ停止中です"
         return note

@@ -234,8 +234,8 @@ def test_overview_shows_effective_voice_source_state_and_warnings(tmp_path):
     text = " ".join(overview_markdown(tmp_path, "org").split())
     assert "名前a (`a`) | 四国めたん | 2 | 1.2 | | | 人材の既定 | 読む" in text
     assert "名前b (`b`) | 四国めたん | 2 | | | | 組織の上書き | 読む" in text
-    assert "名前c (`c`) | | | | | | | 読まない（この組織で停止）" in text
-    assert "名前d (`d`) | | | | | | | 声なし（読まない）" in text
+    assert "名前c (`c`) | | | | | | | 音なし（この組織で停止）" in text
+    assert "名前d (`d`) | | | | | | | 声なし（読み上げません）" in text
     assert "moderator（speed 0.9）" in text
     assert "speaker 2 が重なっています: a, b" in text
     assert overview_markdown(tmp_path, None) == "組織を選んでください。"
@@ -333,3 +333,25 @@ def test_preview_entry_layers_base_org_and_variant():
         preview_entry(base, True, org, SPEAKERS, "特定の発言2", None, None)
     with pytest.raises(ValueError):
         preview_entry((None, None, None, None), True, _org_values(), SPEAKERS, "この組織", None, None)
+
+
+def test_silent_choice_saves_engine_none_and_is_not_previewable():
+    assert talent_voice_from_fields((voice_mapping_ui.SILENT_CHOICE, 1.1, None, None), SPEAKERS, None) == {"engine": "none"}
+    updates = base_updates({"engine": "none"}, SPEAKERS)
+    assert updates[0]["value"] == voice_mapping_ui.SILENT_CHOICE and updates[0]["choices"][0] == ("（音なし）", "none")
+    with pytest.raises(ValueError, match=NO_VOICE_NOTE[:6]):
+        preview_entry((voice_mapping_ui.SILENT_CHOICE, None, None, None), True, _org_values(), SPEAKERS, "人材の既定", None, None)
+
+
+def test_save_talent_voice_accepts_silent_engine(tmp_path):
+    make_org(tmp_path, ["a"])
+    save_talent_voice(tmp_path, "a", {"engine": "none"})
+    assert read_talent_voice(tmp_path, "a") == {"engine": "none"}
+
+
+def test_scale_fields_step_within_the_valid_range():
+    for key, step in (("speed", 0.05), ("pitch", 0.01), ("intonation", 0.05)):
+        field = voice_mapping_ui._scale_field(key, key)
+        low, high = voice_mapping.SCALE_RANGES[key]
+        assert (field.minimum, field.maximum, field.step) == (low, high, step)
+        assert 0 < step <= (high - low) / 10  # 既定の 1 だと、高さは 1 回で範囲外になっていた

@@ -30,11 +30,12 @@ from studio.voice import (
     load_voice_mapping,
     load_voice_roles,
     parse_voicevox_urls,
+    silent_talents_note,
 )
 from studio.voice_engines import EngineConfigError, engine_names_by_url, expand_engine_spec
 from studio.workflow_validate import workflow_has_interrupt_on, workflow_has_user_exit
 
-VERSION = "0.8.0"
+VERSION = "0.8.1"
 
 
 def print_event(event: EngineEvent, *, use_stream: bool) -> None:
@@ -176,6 +177,9 @@ def create_voice_reader(args: argparse.Namespace, ctx) -> VoiceReader | None:
         if url not in urls:
             label = f"{names[url]} ({url})" if url in names else url
             print(f"[voice] 接続できない VOICEVOX を外しました: {label}", file=sys.stderr)
+    silent = silent_talents_note(ctx.root, ctx.org_id)
+    if silent:
+        print(f"[voice] {silent}", file=sys.stderr)
     return VoiceReader(
         ctx.root,
         mapping,

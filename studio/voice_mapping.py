@@ -130,7 +130,7 @@ def validate_roles(roles: Any) -> list[str]:
             continue
         unknown = set(style) - set(SCALE_RANGES)
         if unknown:
-            errors.append(f"{where}: 未知の項目 {', '.join(sorted(unknown))}（役割で変えられるのは速さ・高さ・抝揚だけ）")
+            errors.append(f"{where}: 未知の項目 {', '.join(sorted(unknown))}（役割で変えられるのは速さ・高さ・抑揚だけ）")
         _check_scales(style, where, errors)
     return errors
 
@@ -238,7 +238,7 @@ def save_talent_voice(root: Path, talent_id: str, voice: dict[str, Any] | None) 
 
 
 def build_roles(rows: Sequence[tuple[Any, Any, Any, Any]]) -> dict[str, dict[str, float]]:
-    """画面の行（役割名, 速さ, 高さ, 抝揚）から `_roles` を作る。役割名が空・値がすべて空の行は使わない。"""
+    """画面の行（役割名, 速さ, 高さ, 抑揚）から `_roles` を作る。役割名が空・値がすべて空の行は使わない。"""
     roles: dict[str, dict[str, float]] = {}
     for name, speed, pitch, intonation in rows:
         slot = (name or "").strip()

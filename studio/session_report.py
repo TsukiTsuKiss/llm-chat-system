@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from studio.display import format_by_model_markdown_table, format_step_metrics_line, format_total_cost
+from studio.voice import credit_text
 
 DIRECT_WORKFLOW_LABEL = "直接送信"
 
@@ -309,6 +310,7 @@ def generate_session_markdown(
     if talents:
         roles = meta.get("roles") or {}
         voices = meta.get("voices") or {}
+        voice_engines = meta.get("voice_engines") or {}
         lines.extend(
             [
                 "",
@@ -321,7 +323,7 @@ def generate_session_markdown(
         for talent_id, name in talents.items():
             models = (meta.get("models") or {}).get(talent_id, {})
             role = ", ".join(roles.get(talent_id) or []) or "-"
-            voice = f"VOICEVOX: {voices[talent_id]}" if voices.get(talent_id) else "-"
+            voice = credit_text(voice_engines.get(talent_id), voices[talent_id]) if voices.get(talent_id) else "-"
             cells = [name, f"`{talent_id}`", role, models.get("assistant", "?"), models.get("model") or "-", voice]
             lines.append("| " + " | ".join(str(c).replace("|", "\\|") for c in cells) + " |")
 

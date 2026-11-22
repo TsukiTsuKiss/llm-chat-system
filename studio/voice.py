@@ -20,6 +20,7 @@ import wave
 from collections import deque
 from collections.abc import Sequence
 from concurrent.futures import Future, ThreadPoolExecutor
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Callable
@@ -135,6 +136,20 @@ def join_wavs(wavs: list[bytes]) -> bytes:
 
 VOICE_ROLES_KEY = "_roles"  # voice_mapping.json の予約キー（役割名 → 話し方）
 ROLE_STYLE_KEYS = ("speed", "pitch", "intonation")
+DEFAULT_VOICE_ENGINE = "voicevox"
+SILENT_ENGINE = "none"  # 人材の voice.engine。常に音なし
+# クレジットや画面に出すエンジン名（読み上げエンジンを足すときはここに追加）
+ENGINE_DISPLAY_NAMES = {DEFAULT_VOICE_ENGINE: "VOICEVOX"}
+
+VOICE_UNSET_TEXT = "声なし（読み上げません）"
+VOICE_SILENT_TEXT = "音なし"
+VOICE_STOPPED_TEXT = "音なし（この組織で停止）"
+
+
+def credit_text(engine: str | None, label: str) -> str:
+    """「VOICEVOX: キャラ名」のような、エンジン名付きの表記。未知のエンジンは ID をそのまま出す。"""
+    name = ENGINE_DISPLAY_NAMES.get(engine or DEFAULT_VOICE_ENGINE, engine or DEFAULT_VOICE_ENGINE)
+    return f"{name}: {label}" if label else name
 
 
 def _read_org_voice_file(root: Path, org_id: str) -> dict[str, Any]:
@@ -156,13 +171,18 @@ def _org_talent_ids(root: Path, org_id: str) -> list[str]:
     return [tid for tid in ids if isinstance(tid, str)] if isinstance(ids, list) else []
 
 
-def talent_voice(root: Path, talent_id: str) -> dict[str, Any] | None:
-    """人材の既定の声（talents/<id>.json の voice）。VOICEVOX 以外の engine ・声のない人材は None。"""
+def _talent_voice_raw(root: Path, talent_id: str) -> dict[str, Any] | None:
     try:
         voice = json.loads((root / "talents" / f"{talent_id}.json").read_text(encoding="utf-8")).get("voice")
     except (OSError, ValueError, AttributeError):
         return None
-    if not isinstance(voice, dict) or voice.get("engine", "voicevox") != "voicevox":
+    return voice if isinstance(voice, dict) else None
+
+
+def talent_voice(root: Path, talent_id: str) -> dict[str, Any] | None:
+    """人材の既定の声（talents/<id>.json の voice）。VOICEVOX 以外の engine ・音なし・声のない人材は None。"""
+    voice = _talent_voice_raw(root, talent_id)
+    if voice is None or voice.get("engine", DEFAULT_VOICE_ENGINE) != DEFAULT_VOICE_ENGINE:
         return None
     if not isinstance(voice.get("speaker"), int):
         return None
@@ -209,6 +229,48 @@ def load_voice_roles(root: Path, org_id: str) -> dict[str, dict[str, float]]:
         for slot, style in roles.items()
         if isinstance(style, dict)
     }
+
+
+@dataclass(frozen=True)
+class VoiceStatus:
+    """人材の声の状態。kind: voice（声あり）/ none（人材を音なしにした）/ stopped（組織で停止）/ unset（声なし）。"""
+
+    kind: str
+    engine: str = ""
+    label: str = ""
+
+    @property
+    def text(self) -> str:
+        if self.kind == "voice":
+            return credit_text(self.engine, self.label)
+        return {"none": VOICE_SILENT_TEXT, "stopped": VOICE_STOPPED_TEXT}.get(self.kind, VOICE_UNSET_TEXT)
+
+
+def voice_statuses(root: Path, org_id: str) -> dict[str, VoiceStatus]:
+    """組織の人材ごとの声の状態（読み上げるか・なぜ読まないか）。"""
+    raw = _read_org_voice_file(root, org_id)
+    effective = load_voice_mapping(root, org_id)
+    result: dict[str, VoiceStatus] = {}
+    talent_ids = _org_talent_ids(root, org_id)
+    talent_ids += [tid for tid in effective if tid not in talent_ids and tid != USER_VOICE_ID]
+    for talent_id in talent_ids:
+        override = raw.get(talent_id) if isinstance(raw.get(talent_id), dict) else {}
+        entry = effective.get(talent_id)
+        if override.get("read") is False:
+            result[talent_id] = VoiceStatus("stopped")
+        elif entry is not None:
+            result[talent_id] = VoiceStatus("voice", entry.get("engine", DEFAULT_VOICE_ENGINE), " / ".join(entry_labels(entry)))
+        elif (_talent_voice_raw(root, talent_id) or {}).get("engine") == SILENT_ENGINE:
+            result[talent_id] = VoiceStatus("none")
+        else:
+            result[talent_id] = VoiceStatus("unset")
+    return result
+
+
+def silent_talents_note(root: Path, org_id: str) -> str:
+    """読み上げを有効にしたときの通知。声が未設定の人材（この人たちは読み上げない）を並べる。無いときは空。"""
+    unset = [tid for tid, status in voice_statuses(root, org_id).items() if status.kind == "unset"]
+    return f"声のない人材（読み上げません）: {', '.join(unset)}" if unset else ""
 
 
 def user_voice_entry(mapping: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:

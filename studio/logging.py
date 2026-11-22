@@ -130,6 +130,7 @@ class SessionLogger:
     parent_session_id: str | None = None
     roles: dict[str, list[str]] = field(default_factory=dict)
     voices: dict[str, str] = field(default_factory=dict)
+    voice_engines: dict[str, str] = field(default_factory=dict)
     _started: bool = False
 
     @classmethod
@@ -143,6 +144,7 @@ class SessionLogger:
         generation: dict[str, Any],
         roles: dict[str, list[str]] | None = None,
         voices: dict[str, str] | None = None,
+        voice_engines: dict[str, str] | None = None,
     ) -> SessionLogger:
         base_id = datetime.now().strftime("%Y%m%d_%H%M%S")
         session_id = base_id
@@ -168,6 +170,7 @@ class SessionLogger:
             costs=load_model_costs(root),
             roles=roles or {},
             voices=voices or {},
+            voice_engines=voice_engines or {},
         )
 
     @classmethod
@@ -182,6 +185,7 @@ class SessionLogger:
         generation: dict[str, Any],
         roles: dict[str, list[str]] | None = None,
         voices: dict[str, str] | None = None,
+        voice_engines: dict[str, str] | None = None,
     ) -> SessionLogger:
         logger = cls.create(
             root,
@@ -192,6 +196,7 @@ class SessionLogger:
             generation,
             roles=roles,
             voices=voices,
+            voice_engines=voice_engines,
         )
         logger.parent_session_id = parent_session_id
         return logger
@@ -222,6 +227,8 @@ class SessionLogger:
             record["roles"] = self.roles
         if self.voices:
             record["voices"] = self.voices
+        if self.voice_engines:
+            record["voice_engines"] = self.voice_engines
         self.write_line(record)
         self._started = True
 

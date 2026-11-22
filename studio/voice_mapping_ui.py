@@ -12,13 +12,16 @@ from studio.config_store import load_config
 from studio.voice import (
     DEFAULT_BASE_URL,
     VOICE_ROLES_KEY,
+    SILENT_ENGINE,
     load_voice_mapping,
     parse_voicevox_urls,
     talent_voice,
     variant_voice_entry,
+    voice_statuses,
 )
 from studio.voice_mapping import (
     PREVIEW_TEXT,
+    SCALE_RANGES,
     SpeakerStyle,
     build_entry,
     build_roles,
@@ -38,9 +41,17 @@ from studio.web_ui import list_organizations
 VARIANT_ROWS = 3
 ROLE_ROWS = 4
 INHERIT = ""  # 「人材の既定（基本）と同じ」
+SILENT_CHOICE = SILENT_ENGINE  # 人材の既定の声の選択肢「（音なし）」
 _SAVE_BTN = dict(variant="primary", elem_classes=["studio-save-btn"])
 _ACTION_BTN = dict(variant="primary", size="sm", elem_classes=["studio-action-btn"], scale=0, min_width=80)
 NO_VOICE_NOTE = "声がありません。人材の既定の声か、この組織の上書きで、声（speaker）を選んでください"
+# スピンボタン 1 回で範囲外にならない刻み（既定の 1 だと、高さは一気に範囲外）
+_SCALE_STEPS = {"speed": 0.05, "pitch": 0.01, "intonation": 0.05}
+
+
+def _scale_field(key: str, label: str) -> gr.Number:
+    low, high = SCALE_RANGES[key]
+    return gr.Number(label=label, value=None, minimum=low, maximum=high, step=_SCALE_STEPS[key])
 
 
 def org_talent_ids(root: Path, org_id: str | None) -> list[str]:
@@ -70,6 +81,7 @@ def overview_markdown(root: Path, org_id: str | None) -> str:
         return "組織を選んでください。"
     raw = read_voice_mapping_raw(root, org_id)
     effective = load_voice_mapping(root, org_id)
+    statuses = voice_statuses(root, org_id)
     lines = [
         "| 人材 | 声（キャラ） | speaker | 速さ | 高さ | 抑揚 | 出どころ | 状態 | 特定の発言 |",
         "|---|---|---|---|---|---|---|---|---|",
@@ -78,10 +90,9 @@ def overview_markdown(root: Path, org_id: str | None) -> str:
         name = f"{talent_name(root, talent_id)} (`{talent_id}`)"
         override = raw.get(talent_id) or {}
         entry = effective.get(talent_id)
-        if override.get("read") is False:
-            lines.append(f"| {name} | | | | | | | 読まない（この組織で停止） | |")
-        elif entry is None:
-            lines.append(f"| {name} | | | | | | | 声なし（読まない） | |")
+        status = statuses[talent_id]
+        if status.kind != "voice" or entry is None:
+            lines.append(f"| {name} | | | | | | | {status.text} | |")
         else:
             source = "組織の上書き" if "speaker" in override else "人材の既定"
             variants = len(entry.get("variants") or [])
@@ -108,8 +119,12 @@ def _voice_choices(speakers: list[SpeakerStyle], *, inherit: bool = False) -> li
 
 def base_updates(voice: dict[str, Any] | None, speakers: list[SpeakerStyle]) -> list[Any]:
     voice = voice or {}
+    silent = voice.get("engine") == SILENT_ENGINE
     return [
-        gr.update(choices=_voice_choices(speakers), value=voice.get("speaker")),
+        gr.update(
+            choices=[("（音なし）", SILENT_CHOICE), *_voice_choices(speakers)],
+            value=SILENT_CHOICE if silent else voice.get("speaker"),
+        ),
         voice.get("speed"),
         voice.get("pitch"),
         voice.get("intonation"),
@@ -170,8 +185,10 @@ def _chosen(voice: Any) -> bool:
 def talent_voice_from_fields(
     values: tuple[Any, ...], speakers: list[SpeakerStyle], previous: dict[str, Any] | None
 ) -> dict[str, Any] | None:
-    """人材の既定の編集欄（声, 速さ, 高さ, 抑揚）から voice を作る。声が空なら None（既定の声なし）。"""
+    """人材の既定の編集欄（声, 速さ, 高さ, 抑揚）から voice を作る。声が空なら None（既定の声なし）、「音なし」なら engine: none。"""
     speaker, speed, pitch, intonation = values
+    if speaker == SILENT_CHOICE:
+        return {"engine": SILENT_ENGINE}
     if not _chosen(speaker):
         return None
     return build_talent_voice(
@@ -262,6 +279,8 @@ def preview_entry(
 ) -> dict[str, Any]:
     """試聴する声。target は「人材の既定」「この組織」「特定の発言 n」。声がなければ ValueError。"""
     voice = talent_voice_from_fields(base_values, speakers, previous_voice) or {}
+    if voice.get("engine") == SILENT_ENGINE:
+        voice = {}
     if target == "人材の既定":
         entry = dict(voice)
     else:
@@ -298,9 +317,9 @@ def build_voice_mapping_subtab(root: Path, *, voicevox_url: str | None = None) -
             gr.Markdown("#### 人材の既定の声（全組織で共通。`talents/<id>.json` の voice）")
             base_voice = gr.Dropdown(label="声（キャラ / スタイル）", choices=[], value=None, allow_custom_value=True)
             with gr.Row():
-                base_speed = gr.Number(label="速さ（0.5〜2.0。空欄で標準）", value=None)
-                base_pitch = gr.Number(label="高さ（-0.15〜0.15。空欄で標準）", value=None)
-                base_intonation = gr.Number(label="抑揚（0〜2.0。空欄で標準）", value=None)
+                base_speed = _scale_field("speed", "速さ（0.5〜2.0。空欄で標準）")
+                base_pitch = _scale_field("pitch", "高さ（-0.15〜0.15。空欄で標準）")
+                base_intonation = _scale_field("intonation", "抑揚（0〜2.0。空欄で標準）")
             with gr.Row():
                 base_preview_btn = gr.Button("▶ 人材の既定を試聴", **_SAVE_BTN)
                 base_save_btn = gr.Button("人材の既定を保存", **_SAVE_BTN)
@@ -313,9 +332,9 @@ def build_voice_mapping_subtab(root: Path, *, voicevox_url: str | None = None) -
                 label="声を変える（キャラ / スタイル）", choices=[], value=INHERIT, allow_custom_value=True
             )
             with gr.Row():
-                org_speed = gr.Number(label="速さ", value=None)
-                org_pitch = gr.Number(label="高さ", value=None)
-                org_intonation = gr.Number(label="抑揚", value=None)
+                org_speed = _scale_field("speed", "速さ")
+                org_pitch = _scale_field("pitch", "高さ")
+                org_intonation = _scale_field("intonation", "抑揚")
             org_when = gr.Textbox(label="この文字列を action に含む step だけ読む（空欄なら、すべて読む）", value="")
             variant_fields: list[Any] = []
             with gr.Accordion("特定の発言（action）で声を切り替える", open=False):
@@ -330,9 +349,9 @@ def build_voice_mapping_subtab(root: Path, *, voicevox_url: str | None = None) -
                             label=f"発言{number}: 声", choices=[("（人材の既定と同じ）", INHERIT)], value=INHERIT, allow_custom_value=True
                         )
                     with gr.Row():
-                        v_speed = gr.Number(label=f"発言{number}: 速さ", value=None)
-                        v_pitch = gr.Number(label=f"発言{number}: 高さ", value=None)
-                        v_intonation = gr.Number(label=f"発言{number}: 抑揚", value=None)
+                        v_speed = _scale_field("speed", f"発言{number}: 速さ")
+                        v_pitch = _scale_field("pitch", f"発言{number}: 高さ")
+                        v_intonation = _scale_field("intonation", f"発言{number}: 抑揚")
                     variant_fields += [v_when, v_voice, v_speed, v_pitch, v_intonation]
             preview_target = gr.Radio(
                 label="試聴する声（この組織）",
@@ -353,9 +372,9 @@ def build_voice_mapping_subtab(root: Path, *, voicevox_url: str | None = None) -
             for number in range(1, ROLE_ROWS + 1):
                 with gr.Row():
                     r_name = gr.Dropdown(label=f"役割{number}", choices=[], value=None, allow_custom_value=True)
-                    r_speed = gr.Number(label="速さ", value=None)
-                    r_pitch = gr.Number(label="高さ", value=None)
-                    r_intonation = gr.Number(label="抑揚", value=None)
+                    r_speed = _scale_field("speed", "速さ")
+                    r_pitch = _scale_field("pitch", "高さ")
+                    r_intonation = _scale_field("intonation", "抑揚")
                 role_fields += [r_name, r_speed, r_pitch, r_intonation]
             roles_save_btn = gr.Button("役割の話し方を保存", **_SAVE_BTN)
 
