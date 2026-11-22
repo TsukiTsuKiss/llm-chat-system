@@ -186,7 +186,7 @@ python MultiRoleStudioWeb.py --org broadcast_studio --no-browser --host 0.0.0.0 
 | `--stream off` | ストリーミング OFF（推奨: 速度比較・ログ確認） |
 | `--web-search` | ウェブ検索を有効にする。`model_mapping` で `"web_search": true` の人材のみ。対応: Groq / OpenAI / xAI / Anthropic / Gemini。SakuraAI など非対応のプロバイダはツールを付けず、文脈だけで続ける |
 | `--voice` | VOICEVOX で発言を読み上げ、`sessions/audio/<session_id>/` に wav を保存 |
-| `--voicevox-url` | VOICEVOX の接続先（既定: 環境変数 `VOICEVOX_URL`、なければ `http://127.0.0.1:50021`）。カンマ区切りで複数指定すると並列合成 |
+| `--voicevox-url` | VOICEVOX の接続先（URL または `voicevox_engines.json` の登録名）。未指定なら `voicevox_engines.json` の有効な ENGINE、なければ環境変数 `VOICEVOX_URL`、それも無ければ `http://127.0.0.1:50021`。カンマ区切りで複数指定すると並列合成 |
 | `--benchmark` | 問題セット（JSON / JSONL）を組織の全モデルに流し、自動採点・集計する（下の「クイズ・ベンチマーク」） |
 
 各 step 終了時に `[assistant/model] | 秒 | in=… out=… (api/estimate) | tok/s | $…` を表示する。
@@ -319,6 +319,7 @@ curl http://<VOICEVOX の PC>:50021/version
 - **VOICEVOX / Web UI とも認証がない。** 信頼できる LAN 内でのみ使い、インターネットには公開しない（`--share` も使わない）。
 - 合成は Studio サーバーが VOICEVOX に依頼し、できた音声をブラウザへ渡す。ブラウザから VOICEVOX へは直接つながない。
 - `--voicevox-url` にカンマ区切りで複数の ENGINE を指定すると、発言内の文を空いている ENGINE に振り分けて並列合成する（例: `--voicevox-url http://pc1:50021,http://pc2:50021`）。接続できない ENGINE は外して続行する。全 ENGINE を同じ VOICEVOX バージョンに揃えること（speaker ID が違うと声が変わる）。
+- ENGINE に名前を付けて管理するには、ルートに `voicevox_engines.json`（個人設定のため git 管理外。書き方は `voicevox_engines.example.json`）を置く。`name`・`url` が必須で、`device`（cpu/gpu）、`parallel`、`enabled`、`note` は任意。`--voicevox-url` を省くと有効な ENGINE を全部使い、`--voicevox-url pc1,pc2` のように名前でも指定できる。タイミング再生用の記録（`timeline.jsonl`）の合成記録に `engine_name` が入るので、IP が替わっても同じ ENGINE として集計できる。URL にホスト名（`pc.local` など）を使うと、IPv4 に引いてから接続する（IPv6 を先に試す数秒の遅れを避ける）。
 
 | Web 起動オプション | 説明 |
 |---|---|
@@ -379,6 +380,7 @@ python MultiRoleStudioWeb.py --org broadcast_studio --workflow broadcast_topic_s
 | `studio/sessions_ui.py` | セッションタブ UI |
 | `studio/web_ui.py` | エンジンイベント → Gradio 表示、組織別 workflow 選択肢 |
 | `studio/voice.py` | VOICEVOX 読み上げ（合成・保存・ブラウザ再生キュー・読み辞書） |
+| `studio/voice_engines.py` | VOICEVOX ENGINE の登録名（`voicevox_engines.json`）と、ホスト名の IPv4 解決 |
 | `studio/benchmark.py` | クイズ・ベンチマーク（問題セット・並列実行・自動採点・集計） |
 | `studio/benchmark_ui.py` | ベンチマークタブ UI（問題セット選択・実行・結果表示） |
 | `studio/config_store.py` | 設定の保存・削除・バリデーション |
