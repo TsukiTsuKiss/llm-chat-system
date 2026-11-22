@@ -33,7 +33,7 @@ from studio.voice import (
 from studio.voice_engines import EngineConfigError, engine_names_by_url, expand_engine_spec
 from studio.workflow_validate import workflow_has_interrupt_on, workflow_has_user_exit
 
-VERSION = "0.7.8"
+VERSION = "0.7.9"
 
 
 def print_event(event: EngineEvent, *, use_stream: bool) -> None:

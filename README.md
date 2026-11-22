@@ -243,6 +243,8 @@ python MultiRoleStudio.py --org quiz_evaluation --benchmark samples/benchmark/qu
 - `speed` / `pitch` / `intonation` は任意（話速・高さ・抑揚）。`label` は人間用のメモで、読み込みには使わない。
 - マッピングのない人材は読み上げない。
 - `when_action` は任意。指定すると、その文字列を `action` に含む step だけを読み上げる。ディレクターは進行表（放送前）と点検（放送後）の 2 回発言するため、`"when_action": "放送後"` で点検だけを読ませる（`.example` の設定）。この step は「ディレクター点検」以降も含めて全文を読む。
+- `variants` は任意。`[{"when_action": "判定", "speed": 1.3, "speaker": 13}]` のように、`action` に文字列を含む step でだけ、基本の声に重ねて `speaker` / `speed` / `pitch` / `intonation` / `label` を切り替える（上から順に、最初に合うもの）。記録（`timeline.jsonl`）には合った `variant` を残すので、「音声を作り直して再生」でも同じ声になる。クレジットには基本と variants のキャラ名がすべて入る。
+- Web UI の「⚙️ 設定編集」→「🔊 声」で、組織ごとの `voice_mapping.json` を人材 1 人ずつ編集できる。声は ENGINE の `/speakers` から選び（キャラ・スタイル）、速さ・高さ・抑揚、役割（variants）を設定し、試聴してから保存する。組織内で同じ声の人材がいると警告する。
 - 人材名と声のキャラ名は合わせる必要がない。声は組織ごとのファイルで紐づける（`talents/*.json` には書かない）。
 - `voice_mapping.json` は環境依存のため `.gitignore` 対象。コミットするのは `.example`。
 - 読みを直したい語は `voice_dictionary.json` に `"表記": "カタカナの読み"` で追加する（例: `"株探": "カブタン"`）。読み上げの直前に置換するだけで、画面とログの本文は変わらない。
@@ -386,6 +388,8 @@ python MultiRoleStudioWeb.py --org broadcast_studio --workflow broadcast_topic_s
 | `studio/voice_bench.py` | VOICEVOX ENGINE の速さの測定（`util/voicevox_bench.py` から使う） |
 | `studio/voice_stats.py` | 過去セッションの合成記録（`timeline.jsonl`）から、ENGINE ごとの速さを集計 |
 | `studio/voice_ui.py` | VOICEVOX タブ UI（ENGINE 一覧・有効/無効・ベンチマーク・速さの集計） |
+| `studio/voice_mapping.py` | 声のマッピング（`voice_mapping.json`）の読み書き・検証・話者一覧・試聴 |
+| `studio/voice_mapping_ui.py` | 設定編集の「🔊 声」サブタブ UI |
 | `studio/benchmark.py` | クイズ・ベンチマーク（問題セット・並列実行・自動採点・集計） |
 | `studio/benchmark_ui.py` | ベンチマークタブ UI（問題セット選択・実行・結果表示） |
 | `studio/config_store.py` | 設定の保存・削除・バリデーション |
@@ -602,6 +606,10 @@ python MultiRoleStudio.py --org nokuru --workflow camp_planning --topic "春休�
 ## 🔄 更新履歴
 
 ## 📈 バージョン履歴
+
+### MultiRoleStudioWeb v0.14.0 / MultiRoleStudio v0.7.9 (2026-11-23)
+- 🎙️ **「🔊 声」サブタブ（設定編集）を追加** - 組織ごとの `voice_mapping.json` を、人材 1 人ずつ編集・試聴・保存。声は ENGINE の一覧から選び、速さ・高さ・抑揚を設定。同じ声の人材を警告
+- 🎭 **役割（action）で声を切り替える `variants`** - step の action に含まれる文字列で、声・速さ・高さ・抑揚・キャラ名を切り替える。合った variant を `timeline.jsonl` に記録し、再生成でも同じ声にする。クレジットは variants のキャラも含める
 
 ### MultiRoleStudioWeb v0.13.0 / MultiRoleStudio v0.7.8 (2026-11-23)
 - 🔊 **VOICEVOX タブを追加** - ENGINE の一覧（状態・version・デバイス）、有効/無効の切り替え（`voicevox_engines.json` を書き換え、次回起動から反映）、速さのベンチマーク（進捗タイムライン・中断付き、読み上げ中は実行不可）、過去セッションからの速さの集計
