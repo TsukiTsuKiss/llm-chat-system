@@ -250,7 +250,7 @@ def build_benchmark_tab(root: Path, _demo: gr.Blocks) -> None:
     org0 = DEFAULT_ORG if DEFAULT_ORG in orgs else (orgs[0] if orgs else None)
     choices0, error0 = target_choices(root, org0)
 
-    with gr.Tab("🎯 ベンチマーク") as benchmark_tab:
+    with gr.Tab("🎯 LLMベンチマーク") as benchmark_tab:
         job_state = gr.State(BenchmarkJob())
         gr.Markdown(
             "問題セット（JSON / JSONL）を、組織の各モデルに同じ条件で流し、正解率・速度・コストを自動で集計します。"

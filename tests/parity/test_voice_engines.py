@@ -190,3 +190,24 @@ def test_resolve_ipv4_failure_returns_none(monkeypatch):
 
     monkeypatch.setattr(voice_engines.socket, "getaddrinfo", fail)
     assert voice_engines._resolve_ipv4("nohost") is None
+
+
+def test_former_urls_map_to_current_name_and_current_url_wins(tmp_path, monkeypatch):
+    monkeypatch.setattr(voice_engines, "_resolve_ipv4", lambda host: None)
+    write_engines(
+        tmp_path,
+        [
+            {"name": "new", "url": "http://10.0.0.2:1", "former_urls": ["http://10.0.0.1:1/", "http://10.0.0.9:1"]},
+            {"name": "other", "url": "http://10.0.0.9:1"},
+        ],
+    )
+    assert load_engines(tmp_path)[0].former_urls == ("http://10.0.0.1:1", "http://10.0.0.9:1")
+    names = engine_names_by_url(tmp_path)
+    assert names["http://10.0.0.1:1"] == "new"
+    assert names["http://10.0.0.9:1"] == "other"
+
+
+def test_load_engines_rejects_bad_former_url(tmp_path):
+    write_engines(tmp_path, [{"name": "a", "url": "http://a:1", "former_urls": ["a:1"]}])
+    with pytest.raises(EngineConfigError):
+        load_engines(tmp_path)

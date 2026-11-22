@@ -14,7 +14,8 @@
       "device": "gpu",
       "parallel": 2,
       "enabled": true,
-      "note": "ホスト名でも書ける（IP が替わっても追従する）"
+      "note": "ホスト名でも書ける（IP が替わっても追従する）",
+      "former_urls": ["http://192.168.1.50:50021"]
     }
   ]
 }

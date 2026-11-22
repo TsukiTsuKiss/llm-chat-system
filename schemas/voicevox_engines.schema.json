@@ -18,7 +18,8 @@
           "device": { "enum": ["cpu", "gpu"] },
           "parallel": { "type": "integer", "minimum": 1 },
           "enabled": { "type": "boolean" },
-          "note": { "type": "string" }
+          "note": { "type": "string" },
+          "former_urls": { "type": "array", "items": { "type": "string", "pattern": "^https?://[^\\s,]+$" } }
         }
       }
     }

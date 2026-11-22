@@ -6,6 +6,7 @@ import csv
 import io
 import json
 import statistics
+import threading
 import time
 import urllib.request
 import wave
@@ -45,6 +46,7 @@ class Sample:
     audio_sec: float | None
     ok: bool
     error: str = ""
+    start: float = 0.0  # ベンチマーク開始からの秒（タイムライン表示用）
 
 
 @dataclass
@@ -100,16 +102,19 @@ def _wav_seconds(wav: bytes) -> float | None:
         return None
 
 
-def _timed(name: str, url: str, entry: dict[str, Any], *, mode: str, phase: str, size: str, trial: int) -> Sample:
+def _timed(
+    name: str, url: str, entry: dict[str, Any], *, mode: str, phase: str, size: str, trial: int, t0: float
+) -> Sample:
     text = SENTENCES[size]
     began = time.perf_counter()
+    start = round(began - t0, 3)
     try:
         wav = synthesize(text, entry, url)
     except (OSError, ValueError) as exc:
         seconds = round(time.perf_counter() - began, 3)
-        return Sample(name, url, mode, phase, size, len(text), trial, seconds, None, False, str(exc))
+        return Sample(name, url, mode, phase, size, len(text), trial, seconds, None, False, str(exc), start)
     seconds = round(time.perf_counter() - began, 3)
-    return Sample(name, url, mode, phase, size, len(text), trial, seconds, _wav_seconds(wav), True)
+    return Sample(name, url, mode, phase, size, len(text), trial, seconds, _wav_seconds(wav), True, "", start)
 
 
 def measure_engine(
@@ -120,12 +125,25 @@ def measure_engine(
     trials: int,
     levels: Sequence[int],
     progress: Callable[[str], None] = lambda message: None,
+    cancel: threading.Event | None = None,
+    on_sample: Callable[[Sample], None] = lambda sample: None,
+    t0: float | None = None,
 ) -> EngineResult:
+    def cancelled() -> bool:
+        return cancel is not None and cancel.is_set()
+
+    started = time.perf_counter() if t0 is None else t0
     result = EngineResult(name, url)
+
+    def record(*samples: Sample) -> None:
+        result.samples.extend(samples)
+        for sample in samples:
+            on_sample(sample)
+
     result.version, result.devices = fetch_info(url)
     progress(f"{name}: 初回の合成")
-    first = _timed(name, url, entry, mode="sequential", phase="first", size=FIRST_SIZE, trial=0)
-    result.samples.append(first)
+    first = _timed(name, url, entry, mode="sequential", phase="first", size=FIRST_SIZE, trial=0, t0=started)
+    record(first)
     if not first.ok:
         progress(f"{name}: 失敗したため測定を中止: {first.error}")
         return result
@@ -133,7 +151,9 @@ def measure_engine(
     progress(f"{name}: 逐次（短・中・長 各 {trials} 回）")
     for size in SIZES:
         for trial in range(1, trials + 1):
-            result.samples.append(_timed(name, url, entry, mode="sequential", phase="warm", size=size, trial=trial))
+            if cancelled():
+                return result
+            record(_timed(name, url, entry, mode="sequential", phase="warm", size=size, trial=trial, t0=started))
 
     warm_medium = [s for s in result.samples if s.phase == "warm" and s.size == FIRST_SIZE and s.ok]
     if warm_medium:
@@ -148,17 +168,27 @@ def measure_engine(
         ok_chars = 0
         calls = 0
         for trial in range(1, trials + 1):
+            if cancelled():
+                return result
             began = time.perf_counter()
             with ThreadPoolExecutor(max_workers=level) as pool:
                 futures = [
                     pool.submit(
-                        _timed, name, url, entry, mode=f"concurrent-{level}", phase="warm", size=FIRST_SIZE, trial=trial
+                        _timed,
+                        name,
+                        url,
+                        entry,
+                        mode=f"concurrent-{level}",
+                        phase="warm",
+                        size=FIRST_SIZE,
+                        trial=trial,
+                        t0=started,
                     )
                     for _ in range(level)
                 ]
                 samples = [future.result() for future in futures]
             wall += time.perf_counter() - began
-            result.samples.extend(samples)
+            record(*samples)
             ok_samples = [s for s in samples if s.ok]
             calls += len(ok_samples)
             ok_chars += sum(s.chars for s in ok_samples)
@@ -174,12 +204,26 @@ def run_benchmark(
     trials: int,
     levels: Sequence[int],
     progress: Callable[[str], None] = lambda message: None,
+    cancel: threading.Event | None = None,
+    on_sample: Callable[[Sample], None] = lambda sample: None,
 ) -> list[EngineResult]:
     """ENGINE は別の PC なので、ENGINE どうしは並行して測り、ENGINE 内は順に測る。"""
     entry = {"speaker": speaker}
+    t0 = time.perf_counter()
     with ThreadPoolExecutor(max_workers=max(1, len(targets))) as pool:
         futures = [
-            pool.submit(measure_engine, name, url, entry, trials=trials, levels=levels, progress=progress)
+            pool.submit(
+                measure_engine,
+                name,
+                url,
+                entry,
+                trials=trials,
+                levels=levels,
+                progress=progress,
+                cancel=cancel,
+                on_sample=on_sample,
+                t0=t0,
+            )
             for name, url in targets
         ]
         return [future.result() for future in futures]

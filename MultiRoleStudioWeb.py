@@ -16,6 +16,7 @@ from studio.validation import StudioValidationError
 from studio.settings_ui import SettingsHandles, build_settings_tab
 from studio.sessions_ui import SessionsHandles, build_sessions_tab
 from studio.benchmark_ui import build_benchmark_tab
+from studio.voice_ui import build_voice_tab
 from studio.rag_ui import (
     CORPUS_PREVIEW_PLACEHOLDER,
     RAG_DISABLED_HINT,
@@ -524,6 +525,7 @@ def build_ui(
             )
 
             build_benchmark_tab(root, demo)
+            build_voice_tab(root, led_monitor.states, demo)
 
         def on_org_change(org_id: str, workflow_value: str) -> tuple[dict, str, str, str, str]:
             choices, value = workflow_dropdown_for_org(root, org_id or "", workflow_value)

@@ -7,6 +7,7 @@ import json
 import socket
 import time
 import urllib.parse
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -30,6 +31,7 @@ class Engine:
     parallel: int = 1
     enabled: bool = True
     note: str = ""
+    former_urls: tuple[str, ...] = ()  # 過去の URL（DHCP で IP が替わる前）。過去の記録をこの ENGINE に合算する
 
 
 def load_engines(root: Path) -> list[Engine]:
@@ -60,9 +62,25 @@ def load_engines(root: Path) -> list[Engine]:
                 parallel=item.get("parallel", 1),
                 enabled=item.get("enabled", True),
                 note=item.get("note", ""),
+                former_urls=tuple(url.rstrip("/") for url in item.get("former_urls", [])),
             )
         )
     return engines
+
+
+def set_enabled(root: Path, enabled_names: Iterable[str]) -> None:
+    """enabled_names の ENGINE だけを有効にして書き戻す（ほかの項目はそのまま）。"""
+    load_engines(root)
+    path = Path(root) / ENGINES_FILE
+    if not path.is_file():
+        raise EngineConfigError(f"{ENGINES_FILE} がありません")
+    data = json.loads(path.read_text(encoding="utf-8"))
+    wanted = {name.lower() for name in enabled_names}
+    for item in data["engines"]:
+        item["enabled"] = item["name"].lower() in wanted
+    temp = path.with_name(path.name + ".tmp")
+    temp.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    temp.replace(path)
 
 
 def expand_engine_spec(value: str | None, root: Path | None, fallback: str) -> str:
@@ -102,6 +120,9 @@ def engine_names_by_url(root: Path | None) -> dict[str, str]:
         return {}
     names: dict[str, str] = {}
     for engine in engines:
+        for former in engine.former_urls:
+            names[former] = engine.name
+    for engine in engines:  # 現在の URL を優先する
         names[engine.url] = engine.name
         names[prefer_ipv4(engine.url).rstrip("/")] = engine.name
     return names
