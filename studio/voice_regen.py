@@ -64,6 +64,8 @@ def regenerate_audio(root: Path, session_id: str, *, urls: list[str], force: boo
                 entry = voice.user_voice_entry(mapping)
             else:
                 entry = mapping.get(event["talent_id"])
+                if entry is not None:
+                    entry = voice.variant_voice_entry(entry, event.get("variant"))
             if entry is None:
                 result.failed.append(event["file"])
                 continue

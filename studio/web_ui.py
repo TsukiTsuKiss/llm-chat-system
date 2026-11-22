@@ -27,6 +27,7 @@ from studio.voice import (
     VoiceReader,
     engine_available,
     engine_monitor,
+    entry_labels,
     load_voice_dictionary,
     load_voice_mapping,
     load_wav_array,
@@ -289,7 +290,7 @@ def _voice_labels(ctx: SessionContext) -> dict[str, str]:
         mapping = load_voice_mapping(ctx.root, ctx.org_id)
     except (OSError, ValueError):
         return {}
-    return {tid: str(entry["label"]) for tid, entry in mapping.items() if entry.get("label")}
+    return {tid: " / ".join(labels) for tid, entry in mapping.items() if (labels := entry_labels(entry))}
 
 
 def talents_markdown(ctx: SessionContext) -> str:

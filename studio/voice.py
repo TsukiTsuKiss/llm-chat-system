@@ -156,6 +156,43 @@ def user_voice_entry(mapping: dict[str, dict[str, Any]] | None = None) -> dict[s
     return {"label": USER_VOICE_LABEL, "speaker": DEFAULT_USER_SPEAKER}
 
 
+VARIANT_OVERRIDE_KEYS = ("label", "speaker", "speed", "pitch", "intonation")
+
+
+def _with_variant(entry: dict[str, Any], variant: dict[str, Any] | None) -> dict[str, Any]:
+    merged = {key: value for key, value in entry.items() if key != "variants"}
+    if variant:
+        merged.update({key: value for key, value in variant.items() if key in VARIANT_OVERRIDE_KEYS})
+    return merged
+
+
+def resolve_voice_entry(entry: dict[str, Any], action: str) -> tuple[dict[str, Any], str | None]:
+    """基本の声に、action に含まれる文字列で最初に合う variant を重ねる。(合成用の声, 合った variant の when_action)。"""
+    for variant in entry.get("variants") or []:
+        when = variant.get("when_action") if isinstance(variant, dict) else None
+        if isinstance(when, str) and when and when in action:
+            return _with_variant(entry, variant), when
+    return _with_variant(entry, None), None
+
+
+def variant_voice_entry(entry: dict[str, Any], when_action: str | None) -> dict[str, Any]:
+    """記録した variant（when_action の完全一致）で声を作る。None・見つからないときは基本の声。"""
+    for variant in entry.get("variants") or []:
+        if isinstance(variant, dict) and when_action and variant.get("when_action") == when_action:
+            return _with_variant(entry, variant)
+    return _with_variant(entry, None)
+
+
+def entry_labels(entry: dict[str, Any]) -> list[str]:
+    """クレジット表記用のキャラ名（基本と variants の重複を除く）。"""
+    labels: list[str] = []
+    for item in (entry, *(v for v in entry.get("variants") or [] if isinstance(v, dict))):
+        label = item.get("label")
+        if label and str(label) not in labels:
+            labels.append(str(label))
+    return labels
+
+
 def _normalize_surface(surface: str) -> str:
     # 本文は clean_for_speech で空白・ハイフンを揃えるため、辞書の表記も同じ形にして照合を外さない
     return _ODD_HYPHENS.sub("-", _ODD_SPACES.sub(" ", surface))
@@ -594,9 +631,11 @@ class VoiceReader:
         text = apply_dictionary(shown, self._dictionary)
         if not text:
             return
+        entry, variant = resolve_voice_entry(entry, self._actions.get(talent_id, ""))
         self._count += 1
         path = self._out_dir / f"{self._count:02d}_{talent_id}.wav"
-        self.timeline.add("utterance_text", file=path.name, talent_id=talent_id, text=shown)
+        extra = {"variant": variant} if variant else {}
+        self.timeline.add("utterance_text", file=path.name, talent_id=talent_id, text=shown, **extra)
         if tag is not None:
             self.tags[path] = tag
         self._queue.put((path, text, entry))

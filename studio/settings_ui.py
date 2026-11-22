@@ -41,6 +41,7 @@ from studio.mapping_form import (
     patch_mapping_entry,
 )
 from studio.web_ui import load_org_panel, workflow_dropdown_for_org
+from studio.voice_mapping_ui import build_voice_mapping_subtab
 
 # 削除・新規作成: 入力欄の横に小さく配置（ラベルと高さを揃えない）
 _ACTION_BTN = dict(variant="primary", size="sm", elem_classes=["studio-action-btn"], scale=0, min_width=80)
@@ -103,6 +104,7 @@ def build_settings_tab(
     *,
     chat_org: str = "",
     chat_workflow: str = "",
+    voicevox_url: str | None = None,
 ) -> None:
     talent_ids = list_configs("talent", root)
     org_ids = list_configs("organization", root)
@@ -273,6 +275,9 @@ def build_settings_tab(
                     wf_json = gr.Textbox(label="workflows/<id>.json", lines=24)
                     wf_save_btn = gr.Button("保存", **_SAVE_BTN)
                     wf_msg = gr.Markdown("")
+
+                # --- Voice ---
+                build_voice_mapping_subtab(root, voicevox_url=voicevox_url)
 
     def _talent_pool_ids() -> list[str]:
         return list_configs("talent", root)

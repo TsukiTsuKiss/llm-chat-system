@@ -20,7 +20,7 @@ from studio.quota import checks_for_session
 from studio.user_context import build_generation_options, resolve_session_rag
 from studio.user_context_rag import RagChunk, chunks_to_log
 from studio.validation import StudioError, StudioValidationError
-from studio.voice import load_voice_mapping
+from studio.voice import entry_labels, load_voice_mapping
 
 
 @dataclass(frozen=True)
@@ -294,7 +294,7 @@ class SessionEngine:
             mapping = load_voice_mapping(self.ctx.root, self.ctx.org_id)
         except (OSError, ValueError):
             return {}
-        return {tid: str(entry["label"]) for tid, entry in mapping.items() if entry.get("label")}
+        return {tid: " / ".join(voice_labels) for tid, entry in mapping.items() if (voice_labels := entry_labels(entry))}
 
     def _display_name(self, talent_id: str) -> str:
         # 表示専用。LLM へ渡す発言者ラベル（_speaker_label）には役割を付けない
