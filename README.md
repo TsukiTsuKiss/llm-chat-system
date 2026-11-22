@@ -320,6 +320,7 @@ curl http://<VOICEVOX の PC>:50021/version
 - 合成は Studio サーバーが VOICEVOX に依頼し、できた音声をブラウザへ渡す。ブラウザから VOICEVOX へは直接つながない。
 - `--voicevox-url` にカンマ区切りで複数の ENGINE を指定すると、発言内の文を空いている ENGINE に振り分けて並列合成する（例: `--voicevox-url http://pc1:50021,http://pc2:50021`）。接続できない ENGINE は外して続行する。全 ENGINE を同じ VOICEVOX バージョンに揃えること（speaker ID が違うと声が変わる）。
 - ENGINE に名前を付けて管理するには、ルートに `voicevox_engines.json`（個人設定のため git 管理外。書き方は `voicevox_engines.example.json`）を置く。`name`・`url` が必須で、`device`（cpu/gpu）、`parallel`、`enabled`、`note` は任意。`--voicevox-url` を省くと有効な ENGINE を全部使い、`--voicevox-url pc1,pc2` のように名前でも指定できる。タイミング再生用の記録（`timeline.jsonl`）の合成記録に `engine_name` が入るので、IP が替わっても同じ ENGINE として集計できる。URL にホスト名（`pc.local` など）を使うと、IPv4 に引いてから接続する（IPv6 を先に試す数秒の遅れを避ける）。
+- ENGINE の速さは `python util/voicevox_bench.py`（`--engine` で絞り込み、`--trials` で回数）で測れる。短・中・長の文を逐次と同時 2〜3 並列で合成し、初回と 2 回目以降、ENGINE の version とデバイスを `benchmark_results/voice_<日時>/` の `samples.csv` と `report.md` に出力する。
 
 | Web 起動オプション | 説明 |
 |---|---|
@@ -381,6 +382,7 @@ python MultiRoleStudioWeb.py --org broadcast_studio --workflow broadcast_topic_s
 | `studio/web_ui.py` | エンジンイベント → Gradio 表示、組織別 workflow 選択肢 |
 | `studio/voice.py` | VOICEVOX 読み上げ（合成・保存・ブラウザ再生キュー・読み辞書） |
 | `studio/voice_engines.py` | VOICEVOX ENGINE の登録名（`voicevox_engines.json`）と、ホスト名の IPv4 解決 |
+| `studio/voice_bench.py` | VOICEVOX ENGINE の速さの測定（`util/voicevox_bench.py` から使う） |
 | `studio/benchmark.py` | クイズ・ベンチマーク（問題セット・並列実行・自動採点・集計） |
 | `studio/benchmark_ui.py` | ベンチマークタブ UI（問題セット選択・実行・結果表示） |
 | `studio/config_store.py` | 設定の保存・削除・バリデーション |
