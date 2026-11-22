@@ -222,7 +222,7 @@ python MultiRoleStudio.py --org quiz_evaluation --benchmark samples/benchmark/qu
 - **temperature**: 既定は 0（正解率と再現性を見るため固定）。`--temperature default` でプロバイダー既定値にできる。温度を受け付けないモデルは自動で既定値になるため、レポートの条件に「既定値で実行したモデル」を記録し、`results.csv` の `temperature` 列に実際の値を残す。
 - **出力**: `benchmark_results/<日時>/` に `summary.md`（実行条件〔問題セットのパスと内容の hash、試行、指示、temperature、同時数、実行コマンド〕・タレントとプロバイダー・モデルの対応表・順位表・問題別の正解数・誤答した問題・使用した問題の一覧。表は「プロバイダー (モデル)」で表示し、タレント名は対応表だけに出す。記事にそのまま貼れる）、`results.csv`（試行ごと、Excel で開ける）、`summary.csv`（モデル別）、`raw.jsonl`（回答全文つき）を保存し、記事に貼れる Markdown の順位表と、誤答のあった問題を画面に表示する。順位は正解率優先、同率は中央値の短い順。
 - 問題集は著作権に注意する（結果フォルダ `benchmark_results/` は `.gitignore`）。
-- **Web UI**: `python MultiRoleStudioWeb.py` の「🎯 ベンチマーク」タブで、同じことができる。組織と対象モデルを選び、問題セット（JSON / JSONL）をアップロード（または `benchmark_questions/` から選択）し、試行回数・指示・temperature・呼び出し上限・同時数を指定して実行する。実行前に API 呼び出し回数の見積もりを表示し、実行中は進捗と「中断」ボタン、終わったら順位表などを画面に出して結果ファイル（`summary.md` あり）をダウンロードできる。過去の結果も一覧から開ける。中断したときは、そこまでの結果を保存する。
+- **Web UI**: `python MultiRoleStudioWeb.py` の「🎯 LLMベンチマーク」タブで、同じことができる。組織と対象モデルを選び、問題セット（JSON / JSONL）をアップロード（または `benchmark_questions/` から選択）し、試行回数・指示・temperature・呼び出し上限・同時数を指定して実行する。実行前に API 呼び出し回数の見積もりを表示し、実行中は進捗と「中断」ボタン、終わったら順位表などを画面に出して結果ファイル（`summary.md` あり）をダウンロードできる。過去の結果も一覧から開ける。中断したときは、そこまでの結果を保存する。
 
 #### ニュース番組と読み上げ（VOICEVOX）
 
@@ -321,6 +321,7 @@ curl http://<VOICEVOX の PC>:50021/version
 - `--voicevox-url` にカンマ区切りで複数の ENGINE を指定すると、発言内の文を空いている ENGINE に振り分けて並列合成する（例: `--voicevox-url http://pc1:50021,http://pc2:50021`）。接続できない ENGINE は外して続行する。全 ENGINE を同じ VOICEVOX バージョンに揃えること（speaker ID が違うと声が変わる）。
 - ENGINE に名前を付けて管理するには、ルートに `voicevox_engines.json`（個人設定のため git 管理外。書き方は `voicevox_engines.example.json`）を置く。`name`・`url` が必須で、`device`（cpu/gpu）、`parallel`、`enabled`、`note` は任意。`--voicevox-url` を省くと有効な ENGINE を全部使い、`--voicevox-url pc1,pc2` のように名前でも指定できる。タイミング再生用の記録（`timeline.jsonl`）の合成記録に `engine_name` が入るので、IP が替わっても同じ ENGINE として集計できる。URL にホスト名（`pc.local` など）を使うと、IPv4 に引いてから接続する（IPv6 を先に試す数秒の遅れを避ける）。
 - ENGINE の速さは `python util/voicevox_bench.py`（`--engine` で絞り込み、`--trials` で回数）で測れる。短・中・長の文を逐次と同時 2〜3 並列で合成し、初回と 2 回目以降、ENGINE の version とデバイスを `benchmark_results/voice_<日時>/` の `samples.csv` と `report.md` に出力する。
+- Web UI の「🔊 VOICEVOX」タブでも、ENGINE の一覧と状態、有効/無効の切り替え（次回起動から反映）、同じベンチマーク（進捗タイムライン・中断付き。読み上げ中は実行不可）、過去セッションからの速さの集計を使える。`former_urls` を書くと、IP が替わった ENGINE の過去の記録を現在の名前に合算する。
 
 | Web 起動オプション | 説明 |
 |---|---|
@@ -383,6 +384,8 @@ python MultiRoleStudioWeb.py --org broadcast_studio --workflow broadcast_topic_s
 | `studio/voice.py` | VOICEVOX 読み上げ（合成・保存・ブラウザ再生キュー・読み辞書） |
 | `studio/voice_engines.py` | VOICEVOX ENGINE の登録名（`voicevox_engines.json`）と、ホスト名の IPv4 解決 |
 | `studio/voice_bench.py` | VOICEVOX ENGINE の速さの測定（`util/voicevox_bench.py` から使う） |
+| `studio/voice_stats.py` | 過去セッションの合成記録（`timeline.jsonl`）から、ENGINE ごとの速さを集計 |
+| `studio/voice_ui.py` | VOICEVOX タブ UI（ENGINE 一覧・有効/無効・ベンチマーク・速さの集計） |
 | `studio/benchmark.py` | クイズ・ベンチマーク（問題セット・並列実行・自動採点・集計） |
 | `studio/benchmark_ui.py` | ベンチマークタブ UI（問題セット選択・実行・結果表示） |
 | `studio/config_store.py` | 設定の保存・削除・バリデーション |
@@ -599,6 +602,13 @@ python MultiRoleStudio.py --org nokuru --workflow camp_planning --topic "春休�
 ## 🔄 更新履歴
 
 ## 📈 バージョン履歴
+
+### MultiRoleStudioWeb v0.13.0 / MultiRoleStudio v0.7.8 (2026-11-23)
+- 🔊 **VOICEVOX タブを追加** - ENGINE の一覧（状態・version・デバイス）、有効/無効の切り替え（`voicevox_engines.json` を書き換え、次回起動から反映）、速さのベンチマーク（進捗タイムライン・中断付き、読み上げ中は実行不可）、過去セッションからの速さの集計
+- 🏷️ **ENGINE に名前を付けて管理（`voicevox_engines.json`）** - `--voicevox-url` は名前でも指定でき、省略すると有効な ENGINE を全部使う。合成の記録に `engine_name` と文字数 `chars` を追加。`former_urls` で、IP が替わった ENGINE の過去の記録を合算。ホスト名の URL は IPv4 に引いて接続（IPv6 を先に試す遅れを避ける）
+- ⏱️ **VOICEVOX ベンチマーク（`util/voicevox_bench.py`）** - 短・中・長の文を、逐次と同時実行で合成し、初回と 2 回目以降を分けて CSV と Markdown に出力
+- 👥 **「参加人材」を表にし、役割と VOICEVOX のクレジットを表示** - `session_meta` に `roles` と `voices` を記録
+- 🏷️ **「ベンチマーク」タブを「LLMベンチマーク」に改名**
 
 ### MultiRoleStudioWeb v0.12.4 (2026-11-16)
 - 🔊 **新規チャット・読み上げ停止の後に音が出ない問題を修正** - 読み上げプレーヤーを隠したまま再表示されなかった。表示の合わせ直しを 1 秒ごとの更新に一本化し、プレーヤーの再表示中は音声を渡さない

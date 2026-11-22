@@ -58,7 +58,7 @@ from web_input_utils import (
     user_context_default_from_config,
 )
 
-VERSION = "0.12.4"
+VERSION = "0.13.0"
 
 DEFAULT_ORG = os.getenv("MULTIROLESTUDIOWEB_ORG", "")
 DEFAULT_PORT = int(os.getenv("MULTIROLESTUDIOWEB_PORT", "7862"))
