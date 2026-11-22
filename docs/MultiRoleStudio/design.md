@@ -1260,10 +1260,13 @@ Web UI: 組織 `nokuru`、ワークフロー `quiz`（`workflow_bindings` 済み
 組織名・ワークフロー名などのメタデータは jsonl 先頭の `session_meta` 行を正本とし、
 ファイル名にはエンコードしない（一覧 UI は `session_meta` を読んで表示する）。
 
+`session_meta` の `roles`（人材 ID → 担当するスロット名の一覧）と `voices`（人材 ID → VOICEVOX のキャラ名。`voice_mapping.json` の `label` が元）は任意項目で、空なら書かない。
+レポートの「参加人材」表（人材・ID・役割・プロバイダ・モデル・音声）はこれを読む。この項目が無い過去のログでは「役割」「音声」を `-` として表示する。
+
 JSONL の行種別（例）：
 
 ```jsonl
-{"type": "session_meta", "organization": "nokuru", "workflow": "meeting", "parent_session_id": null, "talents": {"hinata": "ひなた"}, "models": {"hinata": {"assistant": "Opper", "model": "groq/llama-3.3-70b-versatile"}}, "generation": {"stream": true, "temperature": 0.7}}
+{"type": "session_meta", "organization": "nokuru", "workflow": "meeting", "parent_session_id": null, "talents": {"hinata": "ひなた"}, "models": {"hinata": {"assistant": "Opper", "model": "groq/llama-3.3-70b-versatile"}}, "roles": {"hinata": ["moderator"]}, "voices": {"hinata": "四国めたん"}, "generation": {"stream": true, "temperature": 0.7}}
 {"type": "user_input", "text": "...", "attachments": [...]}
 {"type": "step", "talent_id": "hinata", "assistant": "Opper", "model": "groq/llama-3.3-70b-versatile", "action": "...", "text": "...", "stream": true, "elapsed": 3.2, "tokens": {"in": 512, "out": 320, "source": "api"}, "cost": 0.0012, "metrics": {"tokens_per_sec": 259.4}}
 {"type": "state_snapshot", "state": {"turn": 5, "flags": [...]}}
