@@ -1260,7 +1260,7 @@ Web UI: 組織 `nokuru`、ワークフロー `quiz`（`workflow_bindings` 済み
 組織名・ワークフロー名などのメタデータは jsonl 先頭の `session_meta` 行を正本とし、
 ファイル名にはエンコードしない（一覧 UI は `session_meta` を読んで表示する）。
 
-`session_meta` の `roles`（人材 ID → 担当するスロット名の一覧）と `voices`（人材 ID → VOICEVOX のキャラ名。`voice_mapping.json` の `label` が元）は任意項目で、空なら書かない。
+`session_meta` の `roles`（人材 ID → 担当するスロット名の一覧）と `voices`（人材 ID → 声のキャラ名。`label` が元）と `voice_engines`（人材 ID → エンジン ID。VOICEVOX 以外のときだけ）は任意項目で、空なら書かない。
 レポートの「参加人材」表（人材・ID・役割・プロバイダ・モデル・音声）はこれを読む。この項目が無い過去のログでは「役割」「音声」を `-` として表示する。
 
 JSONL の行種別（例）：
@@ -1579,13 +1579,13 @@ AI の変更が常に1コミット=1セッションの粒度で履歴に残り�
 | 項目 | 内容 |
 |---|---|
 | 合成 | VOICEVOX ENGINE の `/audio_query` → `/synthesis`。既定の接続先は `http://127.0.0.1:50021`（`--voicevox-url` / 環境変数 `VOICEVOX_URL`） |
-| 声の割当 | 声は 4 層で決まる（後ろが優先）: ① **人材の既定の声**（`talents/<id>.json` の `voice`: `engine`（現状 `voicevox` のみ）・`speaker`・任意の `label` / `speed` / `pitch` / `intonation`。現実のタレントのように声を固定する。全組織共通）→ ② **組織の上書き**（`organizations/<org>/voice_mapping.json` の人材 ID ごとの項目。`"read": false` でその組織だけ読まない。実設定は `.gitignore`、`voice_mapping.example.json` をコミット）→ ③ **役割の話し方**（同ファイルの予約キー `_roles`: スロット名 → `speed` / `pitch` / `intonation` のみ。声は変えない。`step_start.slot` で判定し、`_direct` には効かない。合った `slot` を `timeline.jsonl` の `utterance_text.slot` に記録）→ ④ **特定の発言**（`variants`: `when_action` を step の `action` に含むときだけ `speaker` / `speed` / `pitch` / `intonation` / `label` を重ねる。上から最初に合うもの。合った `when_action` を `utterance_text.variant` に記録）。声がどちらにもない人材は読み上げない。声を変えたのに `label` が無いときは、元のキャラ名をクレジットに残さない。編集は設定編集の「🔊 声」サブタブ（人材の既定・この組織での設定・役割の話し方を、人材 1 人ずつ。試聴と、同じ声の警告付き）。当初「`talents/*.json` には声を書かない」としていたが、声を人材に紐づける方針に改めた（2026-11-23） |
+| 声の割当 | 声は 4 層で決まる（後ろが優先）: ① **人材の既定の声**（`talents/<id>.json` の `voice`: `engine`（現状 `voicevox` のみ）・`speaker`・任意の `label` / `speed` / `pitch` / `intonation`。現実のタレントのように声を固定する。全組織共通）→ ② **組織の上書き**（`organizations/<org>/voice_mapping.json` の人材 ID ごとの項目。`"read": false` でその組織だけ読まない。実設定は `.gitignore`、`voice_mapping.example.json` をコミット）→ ③ **役割の話し方**（同ファイルの予約キー `_roles`: スロット名 → `speed` / `pitch` / `intonation` のみ。声は変えない。`step_start.slot` で判定し、`_direct` には効かない。合った `slot` を `timeline.jsonl` の `utterance_text.slot` に記録）→ ④ **特定の発言**（`variants`: `when_action` を step の `action` に含むときだけ `speaker` / `speed` / `pitch` / `intonation` / `label` を重ねる。上から最初に合うもの。合った `when_action` を `utterance_text.variant` に記録）。声がどちらにもない人材は読み上げない。人材の `voice.engine` が `none` なら「常に音なし」（`speaker` 等は付けない）。画面・レポートの表記はエンジン非依存（`credit_text`）: `エンジン名: キャラ名`（エンジン名は `ENGINE_DISPLAY_NAMES` で引く。VOICEVOX 以外は `session_meta.voice_engines` に記録）、`音なし`、`音なし（この組織で停止）`、`声なし（読み上げません）`。読み上げをオンにしたとき、声なしの人材を通知する。声を変えたのに `label` が無いときは、元のキャラ名をクレジットに残さない。編集は設定編集の「🔊 声」サブタブ（人材の既定・この組織での設定・役割の話し方を、人材 1 人ずつ。試聴と、同じ声の警告付き）。当初「`talents/*.json` には声を書かない」としていたが、声を人材に紐づける方針に改めた（2026-11-23） |
 | 読み辞書 | ルート直下 `voice_dictionary.json`（共通）に `organizations/<org>/voice_dictionary.json` を重ね、同じ表記は組織側を優先。表記の空白は有無どちらも一致し、英数字と日本語の境目も空白を問わない（数字どうしの間は厳密）。空白が入りうる語は空白入りで書く（空白なしの表記は、空白入りの本文に一致しない）。`re:` で始めた表記は正規表現として、普通の表記のあとに書かれた順で適用する（置換先は `\1` でグループを参照できる。不正な式・空文字に一致する式は警告して無視）。合成直前に置換するだけで、表示・ログの本文は変えない |
 | 読み上げ前処理 | コードブロック（```）・Markdown 記号・URL・発言末尾の裏方メモ（進行メモ / ディレクター点検）を除去し、文単位で約 60 文字ごとに分割して合成 |
 | 複数 ENGINE | `--voicevox-url` をカンマ区切りで複数指定すると、文を空いている ENGINE へ振り分けて並列合成。接続できない ENGINE は外して続行し、全滅時のみ読み上げを中止。ENGINE の VOICEVOX バージョンは揃える。外した ENGINE（起動時に未応答のものを含む）は、`EngineMonitor` の定期確認（5 秒ごとの `/version`）で応答すれば同じセッションの合成に戻る |
 | ENGINE の LED（Web） | チェックボックスの下に ENGINE ごとの LED を表示（消灯=未検出 / 緑=待機 / 赤=合成中、0.5 秒周期で更新、ホバーで URL）。全 ENGINE が赤なら並列合成が効いている。`EngineMonitor` は URL 構成ごとに全セッションで共有 |
 | CLI | `--voice`。step 終了ごとに合成し、`sessions/audio/<session_id>/NN_<talent_id>.wav` に保存、Windows ではサーバー側スピーカーで再生。接続不可時は警告して読み上げなしで続行 |
-| Web | 「読み上げ（VOICEVOX）」チェック。発言ごとの wav を `AudioRelay` で順番待ちにし、ブラウザの `gr.Audio` で自動再生（再生終了で次発言へ）。タイミング表示の更新はプレーヤーを触らない。チェック切替・新規チャットでは無音に差し替え、残った wav の autoplay を防ぐ |
+| Web | 「読み上げ」チェック。発言ごとの wav を `AudioRelay` で順番待ちにし、ブラウザの `gr.Audio` で自動再生（再生終了で次発言へ）。タイミング表示の更新はプレーヤーを触らない。チェック切替・新規チャットでは無音に差し替え、残った wav の autoplay を防ぐ |
 | 構成 | Studio サーバー / VOICEVOX サーバー / ブラウザの 3 台に分離可能（`MultiRoleStudioWeb.py --no-browser --host`）。ブラウザから VOICEVOX へは直接つながない |
 
 **注意**: VOICEVOX・Web UI とも認証なし。`--host` で外部公開する場合は信頼できる LAN 内に限る。配信・公開時は使うキャラの利用規約とクレジット表記を確認する。
@@ -1954,7 +1954,7 @@ Phase 4 で Gradio Web 版に共通して適用する。
 | **起動時 `--org`** | `MultiRoleStudioWeb.py --org <id>` は `studio_config.default_org` より優先（8.3 節） | 5 |
 | **起動時 `--workflow`** | `MultiRoleStudioWeb.py --workflow <id>` で起動時のワークフローを選ぶ。選択順は `--workflow` → 組織の `default_workflow` → 直接送信。その組織で実行できない（未設定・不明）ときは警告して次の候補へ | 6 |
 | **`--no-browser` / `--host` / `--voicevox-url`** | ブラウザ自動起動の抑止、待ち受けアドレス指定（別 PC から接続）、VOICEVOX 接続先（7.9 節） | 6 |
-| **読み上げ** | 「読み上げ（VOICEVOX）」チェック + 発言ごとの音声を順次自動再生（7.9 節） | 6 |
+| **読み上げ** | 「読み上げ」チェック + 発言ごとの音声を順次自動再生（7.9 節） | 6 |
 
 **補足（Gradio 6 / Soft テーマ）:**
 

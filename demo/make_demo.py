@@ -343,8 +343,8 @@ def scene_chat(d: Demo, args) -> None:
     d.caption(f"組織「{args.org}」とワークフロー「{args.workflow}」が選ばれています", 3.0)
 
     if not args.no_voice:
-        d.caption("読み上げ（VOICEVOX）をオンにすると、各人材が自分の声で話します", 2.5)
-        page.get_by_label("読み上げ（VOICEVOX）").check()
+        d.caption("「読み上げ」をオンにすると、各人材が自分の声で話します（声のない人材は読み上げません）", 2.5)
+        page.get_by_label("読み上げ", exact=True).check()
         d.wait(1.0)
 
     d.caption("ウェブ検索をオンにすると、ニュースを最新の報道から調べて取り上げます", 2.5)
@@ -607,7 +607,7 @@ def open_chat_tab(d: Demo, org: str | None = None, workflow: str | None = None, 
     if workflow:
         pick_option(d, label_field(page, "ワークフロー"), workflow)
         d.wait(1.0)
-    voice = page.get_by_label("読み上げ（VOICEVOX）")
+    voice = page.get_by_label("読み上げ", exact=True)
     if voice.is_checked():
         voice.uncheck()
     if new_chat:

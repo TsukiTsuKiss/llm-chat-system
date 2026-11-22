@@ -58,7 +58,7 @@ from web_input_utils import (
     user_context_default_from_config,
 )
 
-VERSION = "0.15.0"
+VERSION = "0.16.0"
 
 DEFAULT_ORG = os.getenv("MULTIROLESTUDIOWEB_ORG", "")
 DEFAULT_PORT = int(os.getenv("MULTIROLESTUDIOWEB_PORT", "7862"))
@@ -405,7 +405,7 @@ def build_ui(
                             interactive=rag_config_available,
                         )
                         web_search_cb = gr.Checkbox(label="ウェブ検索", value=False)
-                        voice_cb = gr.Checkbox(label="読み上げ（VOICEVOX）", value=False, elem_id="studio-voice-cb")
+                        voice_cb = gr.Checkbox(label="読み上げ", value=False, elem_id="studio-voice-cb")
                         timing_cb = gr.Checkbox(label="タイミング表示", value=True)
                         merge_cb = gr.Checkbox(
                             label="連続メッセージを1つにまとめる",
