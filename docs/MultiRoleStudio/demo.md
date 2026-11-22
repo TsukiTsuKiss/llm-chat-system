@@ -56,6 +56,7 @@ python demo/make_demo.py --wait --size 1920x1300
 | `settings` | 人材・組織・ワークフローの作成、保存、削除 |
 | `benchmark` | 問題セットの選択、実行、結果、過去の結果（「LLMベンチマーク」タブ） |
 | `voicevox` | VOICEVOX タブ（ENGINE 一覧、速さのベンチマークとタイムライン、過去セッションの集計）。`--voicevox-url` の ENGINE を使う（ないとスキップ）。実際に合成を流す |
+| `voicemap` | 設定編集の「🔊 声」サブタブ（人材ごとの声・速さ、役割での切り替え、試聴）。`--voicevox-url` が必要（ないとスキップ）。保存はしない |
 
 ## 仕組みと注意点
 

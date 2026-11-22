@@ -782,6 +782,38 @@ def scene_voicevox(d: Demo, args) -> None:
     d.caption("", 0.1)
 
 
+def scene_voicemap(d: Demo, args) -> None:
+    """設定編集の「🔊 声」サブタブ。声の一覧を ENGINE から取るので --voicevox-url が必要。保存はしない。"""
+    page = d.page
+    if args.no_voice or not args.voicevox_url:
+        print("[demo] voicemap: --no-voice か --voicevox-url なしのためスキップ")
+        return
+    d.caption("声の設定: 組織ごとに、人材の声・速さ・高さ・抝揚を決めます", 3.0)
+    page.get_by_role("tab", name="⚙️ 設定編集").click()
+    d.wait(1.0)
+    page.get_by_role("tab", name="🔊 声").click()
+    page.get_by_text(re.compile("読み上げない|speaker")).first.wait_for(timeout=60_000)
+    d.caption("人材ごとの声の一覧です。同じ声の人材がいると、警告が出ます", 3.5)
+    d.wait(2.5)
+
+    d.caption("人材を選んで、ENGINE から取った声（キャラ / スタイル）を選び直せます", 3.0)
+    vis(page.get_by_label("声（キャラ / スタイル）")).scroll_into_view_if_needed()
+    d.wait(2.0)
+
+    d.caption("「役割」を使うと、action に特定の文字を含むときだけ、速さや声を変えられます", 3.5)
+    page.get_by_text("役割（action）で声を切り替える").click()
+    d.type_text(vis(page.get_by_label("役割1: action に含む文字列")), "放送後")
+    d.type_text(vis(page.get_by_label("役割1: 速さ")), "1.3")
+    d.wait(1.0)
+
+    d.caption("保存する前に、試聴できます", 3.0)
+    page.get_by_role("radio", name="役割1").check()
+    vis(page.get_by_role("button", name="▶ 試聴")).click()
+    page.locator("audio").first.wait_for(state="attached", timeout=60_000)
+    d.wait(4.0)
+    d.caption("", 0.1)
+
+
 SCENES: dict[str, Callable[[Demo, argparse.Namespace], None]] = {
     "chat": scene_chat,
     "session": scene_session,
@@ -791,6 +823,7 @@ SCENES: dict[str, Callable[[Demo, argparse.Namespace], None]] = {
     "settings": scene_settings,
     "benchmark": scene_benchmark,
     "voicevox": scene_voicevox,
+    "voicemap": scene_voicemap,
 }
 
 
