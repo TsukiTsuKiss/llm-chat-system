@@ -668,17 +668,17 @@ class VoiceReader:
                 continue
             self._set_busy(url, True)
             began = self.timeline.now()
-            self.timeline.add("synth_start", t=began, engine=url, file=file)
+            self.timeline.add("synth_start", t=began, engine=url, file=file, chars=len(chunk))
             try:
                 wav = synthesize(chunk, entry, url)
             except urllib.error.HTTPError as exc:
-                self._log_synth(began, url, file, failed=True)
+                self._log_synth(began, url, file, len(chunk), failed=True)
                 self._set_busy(url, False)
                 self._idle_engines.put(url)
                 print(f"[voice] 合成に失敗したため一部を飛ばします: {exc}", file=sys.stderr)
                 return None
             except OSError as exc:
-                self._log_synth(began, url, file, failed=True)
+                self._log_synth(began, url, file, len(chunk), failed=True)
                 self._set_busy(url, False)
                 if self._monitor is not None:
                     self._monitor.mark_off(url)
@@ -692,15 +692,17 @@ class VoiceReader:
                     return None
                 print(f"[voice] {url} に接続できないため、この ENGINE を外して続けます: {exc}", file=sys.stderr)
                 continue
-            self._log_synth(began, url, file)
+            self._log_synth(began, url, file, len(chunk))
             self._set_busy(url, False)
             self._idle_engines.put(url)
             return wav
         return None
 
-    def _log_synth(self, began: float, url: str, file: str, *, failed: bool = False) -> None:
+    def _log_synth(self, began: float, url: str, file: str, chars: int, *, failed: bool = False) -> None:
         extra = {"failed": True} if failed else {}
-        self.timeline.add("synth", t=began, end=round(self.timeline.now(), 3), engine=url, file=file, **extra)
+        self.timeline.add(
+            "synth", t=began, end=round(self.timeline.now(), 3), engine=url, file=file, chars=chars, **extra
+        )
 
     def _set_busy(self, url: str, busy: bool) -> None:
         if self._monitor is not None:
