@@ -36,6 +36,7 @@ util/
 !util/
 util/*
 !util/stream_render.py
+!util/voicevox_bench.py
 
 # 実験フォルダ (著作権のある質問データ含む)
 llm_*/
