@@ -462,10 +462,15 @@ def test_talents_markdown_shows_voicevox_character_when_labeled(tmp_path: Path):
         org={"talent_ids": ["a", "b"]},
         talents={"a": {"name": "みどり"}, "b": {"name": "けんと"}},
         model_mapping={"a": {"assistant": "Gemini", "model": "m1"}, "b": {"assistant": "Groq"}},
+        slot_bindings={"planner": ["a"], "_direct": ["b"]},
     )
 
     text = talents_markdown(ctx)
-    assert '- みどり (`a`) — Gemini / m1<span class="studio-voice-credit"><br>　　VOICEVOX: 四国めたん</span>' in text
+    assert (
+        '- みどり (`a`)<br>　　planner<br>　　Gemini / m1'
+        '<span class="studio-voice-credit"><br>　　VOICEVOX: 四国めたん</span>'
+    ) in text
+    assert "- けんと (`b`)<br>　　Groq" in text
     assert "VOICEVOX" not in text.split("けんと")[1]
 
     ctx.org_id = "none"

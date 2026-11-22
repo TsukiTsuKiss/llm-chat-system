@@ -128,6 +128,8 @@ class SessionLogger:
     steps: list[StepMetrics] = field(default_factory=list)
     total_elapsed: float = 0.0
     parent_session_id: str | None = None
+    roles: dict[str, list[str]] = field(default_factory=dict)
+    voices: dict[str, str] = field(default_factory=dict)
     _started: bool = False
 
     @classmethod
@@ -139,6 +141,8 @@ class SessionLogger:
         talents: dict[str, dict[str, Any]],
         model_mapping: dict[str, dict[str, str]],
         generation: dict[str, Any],
+        roles: dict[str, list[str]] | None = None,
+        voices: dict[str, str] | None = None,
     ) -> SessionLogger:
         base_id = datetime.now().strftime("%Y%m%d_%H%M%S")
         session_id = base_id
@@ -162,6 +166,8 @@ class SessionLogger:
             models=models,
             generation=generation,
             costs=load_model_costs(root),
+            roles=roles or {},
+            voices=voices or {},
         )
 
     @classmethod
@@ -174,6 +180,8 @@ class SessionLogger:
         talents: dict[str, dict[str, Any]],
         model_mapping: dict[str, dict[str, str]],
         generation: dict[str, Any],
+        roles: dict[str, list[str]] | None = None,
+        voices: dict[str, str] | None = None,
     ) -> SessionLogger:
         logger = cls.create(
             root,
@@ -182,6 +190,8 @@ class SessionLogger:
             talents,
             model_mapping,
             generation,
+            roles=roles,
+            voices=voices,
         )
         logger.parent_session_id = parent_session_id
         return logger
@@ -199,17 +209,20 @@ class SessionLogger:
     def start(self) -> None:
         if self._started:
             return
-        self.write_line(
-            {
-                "type": "session_meta",
-                "organization": self.org_id,
-                "workflow": self.workflow,
-                "parent_session_id": self.parent_session_id,
-                "talents": self.talents,
-                "models": self.models,
-                "generation": self.generation,
-            }
-        )
+        record: dict[str, Any] = {
+            "type": "session_meta",
+            "organization": self.org_id,
+            "workflow": self.workflow,
+            "parent_session_id": self.parent_session_id,
+            "talents": self.talents,
+            "models": self.models,
+            "generation": self.generation,
+        }
+        if self.roles:
+            record["roles"] = self.roles
+        if self.voices:
+            record["voices"] = self.voices
+        self.write_line(record)
         self._started = True
 
     def log_user_input(

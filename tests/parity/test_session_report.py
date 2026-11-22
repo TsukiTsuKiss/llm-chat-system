@@ -89,6 +89,25 @@ def test_generate_session_markdown_includes_mermaid_and_table(tmp_path: Path) ->
     assert "hello" in markdown
 
 
+def test_generate_session_markdown_participants_table(tmp_path: Path) -> None:
+    records = [
+        {
+            "type": "session_meta",
+            "organization": "demo",
+            "workflow": "wf",
+            "talents": {"a": "かずま", "b": "みずき"},
+            "models": {"a": {"assistant": "ChatGPT", "model": "gpt-5.4"}, "b": {"assistant": "Groq"}},
+            "roles": {"a": ["planner", "analyst"]},
+            "voices": {"a": "玄野武宏"},
+            "generation": {},
+        },
+    ]
+    markdown = generate_session_markdown(records, session_id="20260719_000000")
+    assert "| 人材 | ID | 役割 | プロバイダ | モデル | 音声 |" in markdown
+    assert "| かずま | `a` | planner, analyst | ChatGPT | gpt-5.4 | VOICEVOX: 玄野武宏 |" in markdown
+    assert "| みずき | `b` | - | Groq | - | - |" in markdown
+
+
 def test_generate_session_markdown_mermaid_parallel_branch(tmp_path: Path) -> None:
     path = tmp_path / "sessions" / "20260713_161936.jsonl"
     records = [

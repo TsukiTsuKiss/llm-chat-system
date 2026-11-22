@@ -15,6 +15,7 @@ from typing import Generator, Iterator
 import gradio as gr
 
 from studio.assistants import MockAssistant
+from studio.bindings import DIRECT_SLOT
 from studio.display import format_session_end_lines, format_step_metrics_line, SPEAKER_EMOJIS
 from studio.engine import EngineEvent, SessionEngine
 from studio.loader import SessionContext, load_session_context, read_attachment_files
@@ -294,6 +295,12 @@ def _voice_labels(ctx: SessionContext) -> dict[str, str]:
 def talents_markdown(ctx: SessionContext) -> str:
     lines = ["**参加人材**", ""]
     voices = _voice_labels(ctx)
+    roles: dict[str, list[str]] = {}
+    for slot, ids in (getattr(ctx, "slot_bindings", None) or {}).items():
+        if slot == DIRECT_SLOT:
+            continue
+        for tid in ids:
+            roles.setdefault(tid, []).append(slot)
     for talent_id in ctx.org.get("talent_ids") or []:
         talent = ctx.talents.get(talent_id, {})
         name = talent.get("name", talent_id)
@@ -301,7 +308,10 @@ def talents_markdown(ctx: SessionContext) -> str:
         assistant = mapping.get("assistant", "?")
         model = mapping.get("model")
         model_part = f" / {model}" if model else ""
-        line = f"- {name} (`{talent_id}`) — {assistant}{model_part}"
+        line = f"- {name} (`{talent_id}`)"
+        if talent_id in roles:
+            line += f"<br>　　{escape(', '.join(roles[talent_id]))}"
+        line += f"<br>　　{escape(assistant)}{escape(model_part)}"
         if talent_id in voices:
             # 読み上げチェックが ON のときだけ CSS（studio-voice-credit）で見せる。改行も span の中に入れて、非表示時に空行を残さない
             line += f'<span class="studio-voice-credit"><br>　　VOICEVOX: {escape(voices[talent_id])}</span>'

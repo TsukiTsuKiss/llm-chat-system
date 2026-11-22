@@ -144,6 +144,8 @@ def test_regenerate_sample_session_matches_committed(
             assert fresh_row["total_cost"] == committed_row["total_cost"]
             continue
         if fresh_row["type"] in ("session_meta", "state_snapshot"):
+            # voices は組織の voice_mapping.json（ローカル設定）に依存するため比較しない
+            fresh_row.pop("voices", None)
             assert fresh_row == committed_row
             continue
         if fresh_row["type"] == "step":

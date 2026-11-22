@@ -307,13 +307,23 @@ def generate_session_markdown(
 
     talents = meta.get("talents") or {}
     if talents:
-        lines.extend(["", "### 参加人材", ""])
+        roles = meta.get("roles") or {}
+        voices = meta.get("voices") or {}
+        lines.extend(
+            [
+                "",
+                "### 参加人材",
+                "",
+                "| 人材 | ID | 役割 | プロバイダ | モデル | 音声 |",
+                "|---|---|---|---|---|---|",
+            ]
+        )
         for talent_id, name in talents.items():
             models = (meta.get("models") or {}).get(talent_id, {})
-            assistant = models.get("assistant", "?")
-            model = models.get("model")
-            model_part = f" / {model}" if model else ""
-            lines.append(f"- {name} (`{talent_id}`) — {assistant}{model_part}")
+            role = ", ".join(roles.get(talent_id) or []) or "-"
+            voice = f"VOICEVOX: {voices[talent_id]}" if voices.get(talent_id) else "-"
+            cells = [name, f"`{talent_id}`", role, models.get("assistant", "?"), models.get("model") or "-", voice]
+            lines.append("| " + " | ".join(str(c).replace("|", "\\|") for c in cells) + " |")
 
     lines.extend(["", "## フロー", "", _build_mermaid_flow(records, flow_theme=flow_theme)])
 

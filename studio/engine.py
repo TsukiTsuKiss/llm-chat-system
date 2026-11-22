@@ -20,6 +20,7 @@ from studio.quota import checks_for_session
 from studio.user_context import build_generation_options, resolve_session_rag
 from studio.user_context_rag import RagChunk, chunks_to_log
 from studio.validation import StudioError, StudioValidationError
+from studio.voice import load_voice_mapping
 
 
 @dataclass(frozen=True)
@@ -149,6 +150,8 @@ class SessionEngine:
                 },
                 model_mapping=self.ctx.model_mapping,
                 generation=generation,
+                roles=self._meta_roles(),
+                voices=self._meta_voices(),
             )
             self.state = EngineState(
                 ctx=self.ctx,
@@ -191,6 +194,8 @@ class SessionEngine:
                         "user_context_rag": state.user_context_rag_enabled,
                         **({"mapping_profile": self.ctx.mapping_profile} if self.ctx.mapping_profile else {}),
                     },
+                    roles=self._meta_roles(),
+                    voices=self._meta_voices(),
                 )
             state.logger.start()
             yield EngineEvent(
@@ -278,6 +283,18 @@ class SessionEngine:
             for slot, talent_ids in (self.ctx.slot_bindings or {}).items()
             if talent_id in talent_ids
         ]
+
+    def _meta_roles(self) -> dict[str, list[str]]:
+        talent_ids = list(self.ctx.org.get("talent_ids") or [])
+        roles = {tid: self._slots_of(tid) for tid in talent_ids}
+        return {tid: slots for tid, slots in roles.items() if slots}
+
+    def _meta_voices(self) -> dict[str, str]:
+        try:
+            mapping = load_voice_mapping(self.ctx.root, self.ctx.org_id)
+        except (OSError, ValueError):
+            return {}
+        return {tid: str(entry["label"]) for tid, entry in mapping.items() if entry.get("label")}
 
     def _display_name(self, talent_id: str) -> str:
         # 表示専用。LLM へ渡す発言者ラベル（_speaker_label）には役割を付けない
