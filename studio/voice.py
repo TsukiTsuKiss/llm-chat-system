@@ -29,6 +29,7 @@ try:
 except ImportError:  # Windows 以外は保存のみ
     winsound = None  # type: ignore[assignment]
 
+from studio.voice_engines import engine_names_by_url, prefer_ipv4
 from studio.voice_timeline import TimelineRecorder
 
 # Windows 以外で wav を再生するコマンド（先に見つかったものを使う）
@@ -266,7 +267,7 @@ def apply_dictionary(text: str, dictionary: dict[str, str]) -> str:
 
 def _post(url: str, data: bytes | None = None, *, timeout: float) -> bytes:
     headers = {"Content-Type": "application/json"} if data else {}
-    request = urllib.request.Request(url, data=data, headers=headers, method="POST")
+    request = urllib.request.Request(prefer_ipv4(url), data=data, headers=headers, method="POST")
     with urllib.request.urlopen(request, timeout=timeout) as response:
         return response.read()
 
@@ -296,7 +297,7 @@ def parse_voicevox_urls(value: str) -> list[str]:
 
 def engine_available(base_url: str = DEFAULT_BASE_URL) -> bool:
     try:
-        with urllib.request.urlopen(f"{base_url}/version", timeout=3):
+        with urllib.request.urlopen(f"{prefer_ipv4(base_url)}/version", timeout=3):
             return True
     except (urllib.error.URLError, OSError):
         return False
@@ -521,6 +522,7 @@ class VoiceReader:
         standby: Sequence[str] = (),
     ) -> None:
         self._root = root
+        self._engine_names = engine_names_by_url(root)
         self._mapping = mapping
         self._dictionary = dictionary or {}
         urls = [base_url] if isinstance(base_url, str) else list(base_url)
@@ -668,7 +670,7 @@ class VoiceReader:
                 continue
             self._set_busy(url, True)
             began = self.timeline.now()
-            self.timeline.add("synth_start", t=began, engine=url, file=file, chars=len(chunk))
+            self.timeline.add("synth_start", t=began, engine=url, file=file, chars=len(chunk), **self._engine_extra(url))
             try:
                 wav = synthesize(chunk, entry, url)
             except urllib.error.HTTPError as exc:
@@ -700,9 +702,14 @@ class VoiceReader:
 
     def _log_synth(self, began: float, url: str, file: str, chars: int, *, failed: bool = False) -> None:
         extra = {"failed": True} if failed else {}
+        extra.update(self._engine_extra(url))
         self.timeline.add(
             "synth", t=began, end=round(self.timeline.now(), 3), engine=url, file=file, chars=chars, **extra
         )
+
+    def _engine_extra(self, url: str) -> dict[str, str]:
+        name = self._engine_names.get(url.rstrip("/"))
+        return {"engine_name": name} if name else {}
 
     def _set_busy(self, url: str, busy: bool) -> None:
         if self._monitor is not None:

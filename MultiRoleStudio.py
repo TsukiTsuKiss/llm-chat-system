@@ -30,6 +30,7 @@ from studio.voice import (
     load_voice_mapping,
     parse_voicevox_urls,
 )
+from studio.voice_engines import EngineConfigError, engine_names_by_url, expand_engine_spec
 from studio.workflow_validate import workflow_has_interrupt_on, workflow_has_user_exit
 
 VERSION = "0.7.7"
@@ -155,7 +156,11 @@ def voice_requested(args: argparse.Namespace) -> bool:
 def create_voice_reader(args: argparse.Namespace, ctx) -> VoiceReader | None:
     if not voice_requested(args):
         return None
-    voicevox_url = args.voicevox_url or DEFAULT_BASE_URL
+    try:
+        voicevox_url = expand_engine_spec(args.voicevox_url, ctx.root, DEFAULT_BASE_URL)
+    except EngineConfigError as exc:
+        print(f"[voice] {exc}", file=sys.stderr)
+        return None
     mapping = load_voice_mapping(ctx.root, ctx.org_id)
     if not mapping:
         print(f"[voice] organizations/{ctx.org_id}/voice_mapping.json がないため読み上げません", file=sys.stderr)
@@ -165,9 +170,11 @@ def create_voice_reader(args: argparse.Namespace, ctx) -> VoiceReader | None:
     if not urls:
         print(f"[voice] VOICEVOX ({voicevox_url}) に接続できないため読み上げません", file=sys.stderr)
         return None
+    names = engine_names_by_url(ctx.root)
     for url in configured:
         if url not in urls:
-            print(f"[voice] 接続できない VOICEVOX を外しました: {url}", file=sys.stderr)
+            label = f"{names[url]} ({url})" if url in names else url
+            print(f"[voice] 接続できない VOICEVOX を外しました: {label}", file=sys.stderr)
     return VoiceReader(
         ctx.root,
         mapping,

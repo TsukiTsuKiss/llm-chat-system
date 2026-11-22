@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://llm-chat-system.local/schemas/voicevox_engines.schema.json",
+  "title": "VOICEVOX Engines",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["engines"],
+  "properties": {
+    "engines": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "url"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "pattern": "^[^,\\s/:]+$" },
+          "url": { "type": "string", "pattern": "^https?://[^\\s,]+$" },
+          "device": { "enum": ["cpu", "gpu"] },
+          "parallel": { "type": "integer", "minimum": 1 },
+          "enabled": { "type": "boolean" },
+          "note": { "type": "string" }
+        }
+      }
+    }
+  }
+}

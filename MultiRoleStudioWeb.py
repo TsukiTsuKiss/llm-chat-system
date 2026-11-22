@@ -50,6 +50,7 @@ from studio.web_ui import (
     workflow_unavailable_note,
 )
 from studio.voice import DEFAULT_BASE_URL, engine_monitor, parse_voicevox_urls
+from studio.voice_engines import EngineConfigError, expand_engine_spec
 from web_input_utils import (
     stream_default_from_config,
     temperature_default_from_config,
@@ -913,13 +914,19 @@ def main() -> None:
     )
     parser.add_argument(
         "--voicevox-url",
-        default=DEFAULT_BASE_URL,
-        help="VOICEVOX の接続先（既定: 環境変数 VOICEVOX_URL または http://127.0.0.1:50021）。カンマ区切りで複数指定すると並列合成",
+        default=None,
+        help="VOICEVOX の接続先（URL または voicevox_engines.json の登録名。カンマ区切りで複数指定すると並列合成）。"
+        f"未指定なら voicevox_engines.json の有効な ENGINE、無ければ環境変数 VOICEVOX_URL または {DEFAULT_BASE_URL}",
     )
     parser.add_argument("--version", action="version", version=f"MultiRoleStudioWeb {VERSION}")
     args = parser.parse_args()
 
     root = Path(args.root).resolve()
+
+    try:
+        voicevox_url = expand_engine_spec(args.voicevox_url, root, DEFAULT_BASE_URL)
+    except EngineConfigError as exc:
+        parser.error(str(exc))
 
     print(f"[INFO] MultiRoleStudioWeb v{VERSION} 起動中 (root={root})")
     use_japanese_html_template()
@@ -928,7 +935,7 @@ def main() -> None:
         root,
         cli_org=args.org,
         cli_workflow=args.workflow,
-        voicevox_url=args.voicevox_url,
+        voicevox_url=voicevox_url,
         mapping_profile=args.mapping,
     )
     if args.host and args.host not in {"127.0.0.1", "localhost"}:

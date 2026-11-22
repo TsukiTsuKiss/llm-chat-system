@@ -1,0 +1,20 @@
+{
+  "engines": [
+    {
+      "name": "main-pc",
+      "url": "http://127.0.0.1:50021",
+      "device": "cpu",
+      "parallel": 1,
+      "enabled": true,
+      "note": "この PC。CPU の型番・メモリ・起動オプションなどを自由に書く"
+    },
+    {
+      "name": "sub-pc",
+      "url": "http://sub-pc.local:50021",
+      "device": "gpu",
+      "parallel": 2,
+      "enabled": true,
+      "note": "ホスト名でも書ける（IP が替わっても追従する）"
+    }
+  ]
+}

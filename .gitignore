@@ -131,6 +131,7 @@ multi_logs/
 
 # MultiRoleStudio ユーザーローカル設定
 studio_config.json
+voicevox_engines.json
 organizations/*/model_mapping.json
 organizations/*/voice_mapping.json
 organizations/*/voice_dictionary.pending.json
