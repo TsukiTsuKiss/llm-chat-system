@@ -7,7 +7,7 @@
 ## 事前準備
 
 ```bash
-pip install playwright
+python -m pip install -r requirements.txt
 python -m playwright install chromium
 ```
 

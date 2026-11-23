@@ -10,7 +10,7 @@ Playwright で画面を操作する。画面下部のキャプションは、ペ
     timeline.jsonl から組み立てて、ffmpeg で 1 本の mp4 にする（表示装置・リモート音声に依存しない）。
 
 事前準備:
-  pip install playwright && python -m playwright install chromium
+  python -m pip install -r requirements.txt && python -m playwright install chromium
   VOICEVOX を起動しておく（読み上げシーン用）。API キーは環境変数で渡す（通常の起動と同じ）。--record には ffmpeg も必要。
 
 使い方:
