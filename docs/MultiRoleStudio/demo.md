@@ -3,6 +3,7 @@
 公開済みのデモ動画: [YouTube](https://youtu.be/D945_WjE9tY)
 
 `demo/make_demo.py` が、MultiRoleStudioWeb の画面を自動で操作し、機能を順に見せる。デモ専用のプロジェクトルートを一時フォルダ（リポジトリの外）に作って、そこで Web UI を起動するため、実データ（`sessions/` や `organizations/` など）には触れない。画面下部のキャプションは、ページに重ねるだけで、アプリ本体は変更しない。
+ユーザーコンテキストと RAG は、実際の設定にかかわらずデモ用ルート内で有効にし、デモ用のファイルを使う。
 
 ## 事前準備
 
@@ -13,6 +14,7 @@ python -m playwright install chromium
 
 - 読み上げのシーンには VOICEVOX が必要（`--voicevox-url` で接続先を指定する。カンマ区切りで複数指定できる）。複数台を指定すると、文単位で並列に合成し、ライブのタイムラインに ENGINE ごとの合成が並んで映る。
 - API キーは、通常の起動と同じく環境変数で渡す。
+- 実 LLM を使う場合は、`organizations/broadcast_studio/model_mapping.example.json` を `model_mapping.json` にコピーし、使用するモデルを設定する。`--mock` ではコピー不要。
 - `--record` には ffmpeg が必要（PATH に通す）。
 
 ## 実行
@@ -54,7 +56,7 @@ python demo/make_demo.py --wait --size 1920x1300
 | `context` | ユーザーコンテキスト、RAG、ウェブ検索、ファイル添付 |
 | `interrupt` | 【ユーザー確認】での割り込み質問と、続行・終了の選択 |
 | `settings` | 人材・組織・ワークフローの作成、保存、削除 |
-| `benchmark` | 問題セットの選択、実行、結果、過去の結果（「LLMベンチマーク」タブ） |
+| `benchmark` | 同梱の問題セットの選択、実行、結果、過去の結果（「LLMベンチマーク」タブ） |
 | `voicevox` | VOICEVOX タブ（ENGINE 一覧、速さのベンチマークとタイムライン、過去セッションの集計）。`--voicevox-url` の ENGINE を使う（ないとスキップ）。実際に合成を流す |
 | `voicemap` | 設定編集の「🔊 声」サブタブ（人材ごとの声・速さ、役割での切り替え、試聴）。`--voicevox-url` が必要（ないとスキップ）。保存はしない |
 

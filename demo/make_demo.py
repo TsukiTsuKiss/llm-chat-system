@@ -179,6 +179,13 @@ def copy_tree(src: Path, dst: Path) -> None:
 
 def build_demo_root(org: str, workflow: str, mock: bool = False, voicevox_url: str | None = None) -> Path:
     """実データから必要分だけをコピーしたデモ用ルートを、リポジトリ外の一時フォルダに作る。"""
+    org_src = REPO / "organizations" / org
+    mapping_src = org_src / "model_mapping.json"
+    if not mock and not mapping_src.is_file():
+        raise FileNotFoundError(
+            f"{mapping_src} がありません。model_mapping.example.json をコピーし、使用するモデルを設定してください。"
+        )
+
     root = Path(tempfile.mkdtemp(prefix="studio_demo_"))
     if REPO in root.resolve().parents:
         raise RuntimeError(f"デモ用ルートがリポジトリ内です: {root}")
@@ -195,13 +202,13 @@ def build_demo_root(org: str, workflow: str, mock: bool = False, voicevox_url: s
     for path in (REPO / "workflows").glob("broadcast_*.json"):
         shutil.copy2(path, root / "workflows" / path.name)
 
-    # 著作権のある問題（jdla_g_sample）は入れず、小さな問題セットだけをコピーする
+    # 個人用の問題ではなく、同梱の問題セットを使う
     (root / "benchmark_questions").mkdir()
-    shutil.copy2(REPO / "benchmark_questions" / "ai_quiz.json", root / "benchmark_questions" / "ai_quiz.json")
+    shutil.copy2(REPO / "samples" / "benchmark" / "questions.example.json", root / "benchmark_questions" / "questions.example.json")
 
     org_dst = root / "organizations" / org
     org_dst.mkdir(parents=True)
-    for path in (REPO / "organizations" / org).iterdir():
+    for path in org_src.iterdir():
         # 未承認の辞書候補は実データなのでコピーしない
         if path.is_file() and ".pending" not in path.name:
             shutil.copy2(path, org_dst / path.name)
@@ -210,12 +217,20 @@ def build_demo_root(org: str, workflow: str, mock: bool = False, voicevox_url: s
 
     if mock:
         mapping_path = org_dst / "model_mapping.json"
-        mapping = json.loads(mapping_path.read_text(encoding="utf-8"))
+        source = mapping_path if mapping_path.exists() else org_dst / "model_mapping.example.json"
+        mapping = json.loads(source.read_text(encoding="utf-8"))
         mock_mapping = {talent: {"assistant": "mock"} for talent in mapping}
         mapping_path.write_text(json.dumps(mock_mapping, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    config = json.loads((REPO / "studio_config.json").read_text(encoding="utf-8"))
+    config_path = REPO / "studio_config.json"
+    if not config_path.exists():
+        config_path = REPO / "studio_config.example.json"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
     config["default_org"] = org
+    user_context = config.setdefault("user_context", {})
+    user_context.update(enabled=True, path="user_context/my_context.md")
+    rag_config = user_context.setdefault("rag", {})
+    rag_config.update(enabled=True, corpus_dir="user_context/corpus", index_dir="user_context/index")
     (root / "studio_config.json").write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")
 
     context_dir = root / "user_context"
@@ -460,6 +475,10 @@ def vis(locator):
     return locator.locator("visible=true")
 
 
+def wait_for_benchmark_completion(page, timeout: int = 600_000) -> None:
+    vis(page.get_by_text("✅ 完了しました")).first.wait_for(timeout=timeout)
+
+
 def pick_option(d: Demo, dropdown, text: str) -> None:
     dropdown.click()
     d.wait(0.6)
@@ -566,7 +585,7 @@ def scene_benchmark(d: Demo, args) -> None:
     d.wait(1.5)
 
     d.caption("問題セット（JSON / JSONL）を選びます", 2.0)
-    pick_option(d, vis(page.get_by_label(re.compile("から選ぶ"))), "ai_quiz.json")
+    pick_option(d, vis(page.get_by_label(re.compile("から選ぶ"))), "questions.example.json")
     d.wait(1.5)
 
     d.caption("対象モデルを絞り込みます（プロバイダーごとに 1 つずつ）。呼び出し回数の見積も表示されます", 3.0)
@@ -577,7 +596,7 @@ def scene_benchmark(d: Demo, args) -> None:
 
     d.caption("実行すると、進捗がリアルタイムに出ます（料金がかかるので、実行前に見積もりを確認）", 3.0)
     vis(page.get_by_role("button", name="実行", exact=True)).click()
-    page.get_by_text("✅ 完了しました").first.wait_for(timeout=600_000)
+    wait_for_benchmark_completion(page)
     d.caption("正解率・速度・コストがモデルごとに集計され、CSV と Markdown で保存されます", 3.0)
     page.get_by_role("heading", name="結果", exact=True).scroll_into_view_if_needed()
     d.wait(5.0)
@@ -770,7 +789,7 @@ def scene_voicevox(d: Demo, args) -> None:
     vis(page.get_by_label("同時実行数（カンマ区切り）")).fill("1,2")
     d.wait(1.0)
     vis(page.get_by_role("button", name="実行", exact=True)).click()
-    page.get_by_text("✅ 完了しました").first.wait_for(timeout=600_000)
+    wait_for_benchmark_completion(page)
     d.caption("ENGINE ごとの速さが表になります。PC によって数倍違うので、将来の割り振りの最適化に使います", 4.0)
     page.get_by_text("速さ（2 回目以降の中央値）").first.scroll_into_view_if_needed()
     d.wait(5.0)
