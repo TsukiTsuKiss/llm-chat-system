@@ -9,6 +9,7 @@ from typing import Any
 from langchain_core.messages import AIMessage, HumanMessage
 
 from studio.history import RoleHistories
+from studio.interrupt import USER_INTERRUPT_DISPLAY
 from studio.prompts import build_user_message
 from studio.session_report import read_jsonl, session_log_path
 from studio.validation import StudioError, StudioValidationError, ValidationReport
@@ -50,14 +51,34 @@ def last_state_snapshot(records: list[dict[str, Any]]) -> dict[str, Any] | None:
     return snapshot
 
 
-def rebuild_histories(records: list[dict[str, Any]]) -> RoleHistories:
+def rebuild_histories(
+    records: list[dict[str, Any]],
+    *,
+    talent_names: dict[str, str] | None = None,
+) -> RoleHistories:
+    """ログから各ロールの履歴を復元する。実行時と同様、同じターンの前の発言も user メッセージへ含める。"""
+    names = talent_names or {}
     histories = RoleHistories()
     pending_user_text = ""
+    turn_prior: list[tuple[str, str]] = []
+    parallel_group: list[tuple[str, str]] = []  # 並列フェーズ内は互いの発言を見ない
+
+    def flush_parallel() -> None:
+        turn_prior.extend(parallel_group)
+        parallel_group.clear()
 
     for record in records:
         record_type = record.get("type")
         if record_type == "user_input":
             pending_user_text = record.get("text") or ""
+            turn_prior.clear()
+            parallel_group.clear()
+            continue
+        if record_type == "user_interrupt":
+            flush_parallel()
+            reply = record.get("text") or ""
+            if reply:
+                turn_prior.append((USER_INTERRUPT_DISPLAY, reply))
             continue
         if record_type != "step" or not pending_user_text:
             continue
@@ -67,10 +88,21 @@ def rebuild_histories(records: list[dict[str, Any]]) -> RoleHistories:
             continue
         action = record.get("action") or ""
         text = record.get("text") or ""
-        user_message = build_user_message(pending_user_text, action=action)
+        is_parallel = record.get("phase_type") == "parallel"
+        if not is_parallel:
+            flush_parallel()
+
+        user_message = build_user_message(
+            pending_user_text,
+            action=action,
+            prior_responses=list(turn_prior) or None,
+        )
         history = histories.for_talent(talent_id)
         history.add_message(HumanMessage(content=user_message))
         history.add_message(AIMessage(content=text))
+
+        speaker = names.get(talent_id, talent_id)
+        (parallel_group if is_parallel else turn_prior).append((speaker, text))
 
     return histories
 
@@ -187,7 +219,7 @@ def load_resumed_session(root: Path, session_id: str) -> ResumedSession:
         tid: str(name)
         for tid, name in (meta.get("talents") or {}).items()
     }
-    histories = rebuild_histories(records)
+    histories = rebuild_histories(records, talent_names=talent_names)
     replay_messages = build_replay_messages(records, talent_names=talent_names)
 
     return ResumedSession(

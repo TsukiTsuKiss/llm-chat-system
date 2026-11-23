@@ -98,3 +98,26 @@ def test_rebuild_histories_has_messages(studio_root: Path) -> None:
     histories = rebuild_histories(records)
     history = histories.for_talent("solo_bot")
     assert len(history.get_messages()) >= 2
+
+
+def test_rebuild_histories_restores_prior_responses() -> None:
+    records = [
+        {"type": "user_input", "text": "議題"},
+        {"type": "step", "talent_id": "a", "action": "意見", "text": "Aの意見", "phase_type": "serial"},
+        {"type": "step", "talent_id": "b", "action": "まとめ", "text": "Bのまとめ", "phase_type": "serial"},
+        {"type": "user_input", "text": "続き"},
+        {"type": "step", "talent_id": "p1", "text": "P1", "phase_type": "parallel"},
+        {"type": "step", "talent_id": "p2", "text": "P2", "phase_type": "parallel"},
+        {"type": "step", "talent_id": "a", "text": "A2", "phase_type": "serial"},
+    ]
+    histories = rebuild_histories(records, talent_names={"a": "アキ", "b": "ボブ"})
+
+    b_first = histories.for_talent("b").get_messages()[0].content
+    assert "アキ: Aの意見" in b_first
+
+    a_second = histories.for_talent("a").get_messages()[2].content
+    assert "p1: P1" in a_second and "p2: P2" in a_second
+    assert "Bのまとめ" not in a_second
+
+    p2 = histories.for_talent("p2").get_messages()[0].content
+    assert "p1: P1" not in p2
