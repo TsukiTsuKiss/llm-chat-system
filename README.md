@@ -11,11 +11,11 @@
 
 あなたが経営者、人事、プロジェクトマネージャー、プロデューサーになったつもりで、AI の組織を組み上げて、動かしてみませんか。人材を選び、役割を決め、進め方（ワークフロー）を書けば、会議や番組、プログラミングの仕事が動き出します。
 
-**デモ動画**（画像をクリックすると YouTube で開きます。ニュース番組の実行・セッションレポート・設定編集・ベンチマークなど。作り方は [デモの実行と録画](docs/MultiRoleStudio/demo.md)）:
+**デモ動画**（画像をクリックすると YouTube で開きます。ニュース番組、セッションレポート、文脈機能、設定編集、LLM / VOICEVOX のベンチマークなどを紹介。作り方は [デモの実行と録画](docs/MultiRoleStudio/demo.md)）:
 
-[![MultiRoleStudio デモ動画](https://img.youtube.com/vi/D945_WjE9tY/hqdefault.jpg)](https://youtu.be/D945_WjE9tY)
+[![MultiRoleStudio デモ動画](https://img.youtube.com/vi/By2xiWEttPQ/hqdefault.jpg)](https://youtu.be/By2xiWEttPQ)
 
-[▶ YouTube で見る](https://youtu.be/D945_WjE9tY)
+[▶ YouTube で見る](https://youtu.be/By2xiWEttPQ)
 
 ### 4 つの部品（すべて JSON）
 
