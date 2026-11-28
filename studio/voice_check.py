@@ -172,6 +172,12 @@ def suggest_model(root: Path, override: str | None) -> tuple[str, str]:
     return cfg.get("assistant", DEFAULT_SUGGEST["assistant"]), cfg.get("model", DEFAULT_SUGGEST["model"])
 
 
+def _suggest_client_kwargs(assistant_cfg: dict[str, Any], model: str) -> dict[str, Any] | None:
+    if assistant_cfg.get("class") == "ChatGroq" and model.startswith("openai/gpt-oss-"):
+        return {"reasoning_effort": "low", "max_tokens": 2048}
+    return None
+
+
 def ask_llm(root: Path, assistant: str, model: str, items: list[str]) -> list[tuple[str, str]]:
     from studio.assistants import invoke_llm_step
     from studio.history import ConversationHistory
@@ -195,6 +201,7 @@ def ask_llm(root: Path, assistant: str, model: str, items: list[str]) -> list[tu
             temperature=0.0,
             stream=False,
             costs=costs,
+            client_kwargs=_suggest_client_kwargs(assistants[assistant], model),
         )
         # 空応答は「候補なし」と区別できないので、分割して再試行し、1件でも駄目なら失敗にする
         if '"suggestions"' in (result.text or ""):

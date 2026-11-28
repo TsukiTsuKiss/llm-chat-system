@@ -1697,7 +1697,7 @@ python -m studio.voice_check <session_id> [--org <org>] [--voicevox-url <url>] [
 | 形式 | `{"pending": {"表記": {"reading", "session", "added", "needs_review"?}}, "rejected": ["表記"]}` |
 | 優先順位 | 未承認 < 共通辞書 < 組織辞書。未承認辞書も読み上げ時に適用する（本文・ログは変えない）。人が決めた読みが常に勝つ。**`needs_review`（英字を含まない表記＝漢字・記号）は、承認するまで適用しない**（境界を判定できず、他の語を壊しうるため） |
 | 本登録 | 人が `pending` の表記と `reading` を正式な辞書へ移す。採用しない表記は `rejected` に書くと再提案されない |
-| 候補モデル | `studio_config.json` の `voice_suggest`（`assistant` / `model`。既定 Groq `openai/gpt-oss-120b`）。`--suggest-model Assistant/モデル名` で上書き |
+| 候補モデル | `studio_config.json` の `voice_suggest`（`assistant` / `model`。既定 Groq `openai/gpt-oss-120b`）。Groq の GPT-OSS では低推論 effort・最大 2048 トークンで呼び出す。`--suggest-model Assistant/モデル名` で上書き |
 | 安全策 | カナだけの表記・表記と読みが同じ・カナでない読み・既存/却下済み・文中に無い表記は捨てる。ENGINE の読みにすでに含まれる候補（長音の書き方を揃えて比較）は誤読ではないので捨てる。英字語は 3 文字未満と、他の語の一部としても出る表記（`Web` と `WebGL` 等）も捨てる。LLM は正しい語も列挙しがちなので、間違った読みを返すこともある（承認時に人が判断） |
 
 **Web UI（セッションタブ）**: 「読みを点検（誤読候補）」で選択中のセッションに `--suggest` 相当を実行し、候補を「未承認辞書の候補」に並べる（要確認は「要確認・承認まで未適用」と表示）。セッションタブを開くたびに一覧を更新する。選んで「辞書へ本登録」（組織の `voice_dictionary.json` へ移す）または「却下」（`rejected` へ）。聴き直しは「音声を作り直して再生」（再生成は辞書を読み直す）。進行中の読み上げセッションは開始時の辞書を使うため、本登録の反映は次のセッションから。

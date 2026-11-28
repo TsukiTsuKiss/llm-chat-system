@@ -117,6 +117,43 @@ def test_suggest_for_session_saves_filtered_entries(tmp_path: Path, monkeypatch)
     assert voice_check.list_pending(tmp_path, "demo") == [("Nvidia", "エヌビディア", False, "ヌビディア")]
 
 
+def test_ask_llm_uses_low_reasoning_for_groq_gpt_oss(tmp_path: Path, monkeypatch):
+    from types import SimpleNamespace
+
+    import studio.assistants as assistants
+    import studio.loader as loader
+    import studio.logging as logging
+
+    captured = {}
+    monkeypatch.setattr(loader, "load_ai_assistants", lambda *_args: {"Groq": {"class": "ChatGroq"}})
+    monkeypatch.setattr(logging, "load_model_costs", lambda _root: {})
+
+    def invoke(**kwargs):
+        captured.update(kwargs)
+        return SimpleNamespace(text='{"suggestions": []}')
+
+    monkeypatch.setattr(assistants, "invoke_llm_step", invoke)
+    assert voice_check.ask_llm(tmp_path, "Groq", "openai/gpt-oss-120b", ["文: Nvidia\n読み: ヌビディア"]) == []
+    assert captured["client_kwargs"] == {
+        "reasoning_effort": "low",
+        "max_tokens": 2048,
+    }
+    assert voice_check._suggest_client_kwargs({"class": "ChatGroq"}, "another-model") is None
+    assert voice_check._suggest_client_kwargs({"class": "ChatOpenAI"}, "openai/gpt-oss-120b") is None
+
+
+def test_groq_gpt_oss_suggestion_client_uses_supported_parameters(monkeypatch):
+    from studio.assistants import build_llm
+
+    monkeypatch.setenv("TEST_GROQ_API_KEY", "test-key")
+    config = {"module": "langchain_groq", "class": "ChatGroq", "api_key_env": "TEST_GROQ_API_KEY"}
+    model = "openai/gpt-oss-120b"
+    client = build_llm(config, model, 0.0, client_kwargs=voice_check._suggest_client_kwargs(config, model))
+    assert client._default_params["reasoning_effort"] == "low"
+    assert client._default_params["max_tokens"] == 2048
+    assert client._default_params["reasoning_format"] is None
+
+
 def test_filter_suggestions_accepts_kanji_and_symbols_but_not_noise():
     texts = ["過半数未達が続き、A+B を足す。"]
     found = [
