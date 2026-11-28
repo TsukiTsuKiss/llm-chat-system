@@ -352,7 +352,11 @@ window.addEventListener('message', (e) => {
   }
   if (e.data.type !== 'studio-playing') return;
   const rows = [...document.querySelectorAll('#studio-chatbot .message-row')];
-  const norm = (s) => (s || '').replace(/\\s+/g, '');
+  const norm = (s) => (s || '')
+    .replace(/[*#`>]+|(^|[^0-9A-Za-z])_+|_+(?![0-9A-Za-z])|^\\s*[-・]\\s+|^\\s*\\d+\\.\\s+/gm, '$1')
+    .replace(/\\[([^\\]]*)\\]\\([^)]*\\)/g, '$1')
+    .replace(/https?:\\/\\/\\S+/g, '')
+    .replace(/\\s+/g, '');
   const snippet = norm(e.data.snippet);
   let idx = -1;
   if (snippet) {

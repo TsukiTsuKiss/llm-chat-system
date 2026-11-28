@@ -689,6 +689,44 @@ def test_studio_head_listens_for_playing_message_from_replay():
     assert web.STUDIO_HEAD.startswith("<script>") and web.STUDIO_HEAD.endswith("</script>")
 
 
+def test_replay_navigation_matches_markdown_heading_inside_utterance():
+    import pytest
+    from playwright.sync_api import sync_playwright
+
+    import MultiRoleStudioWeb as web
+
+    with sync_playwright() as playwright:
+        if not Path(playwright.chromium.executable_path).is_file():
+            pytest.skip("Playwright Chromium がインストールされていません")
+        browser = playwright.chromium.launch(headless=True)
+        try:
+            page = browser.new_page()
+            page.set_content(
+                web.STUDIO_HEAD
+                + '<div id="studio-chatbot"><div id="box" style="height:100px;overflow:auto">'
+                + '<div class="message-row" style="height:500px">前の発言</div>'
+                + '<div class="message-row" style="height:500px">るい: # るい:「題名」です</div>'
+                + '<div class="message-row" style="height:500px">次の発言</div>'
+                + '</div></div>'
+            )
+            for snippet, index in (("次の発言", 2), ('るい:  るい:「題名」です', 1), ("前の発言", 0)):
+                page.evaluate(
+                    """snippet => window.postMessage(
+                        {type: 'studio-playing', snippet, instant: true}, '*'
+                    )""",
+                    snippet,
+                )
+                page.wait_for_function(
+                    "(index) => document.querySelectorAll('.message-row')[index].classList.contains('studio-playing')",
+                    arg=index,
+                    timeout=1000,
+                )
+                if index == 1:
+                    assert page.locator("#box").evaluate("(el) => el.scrollTop") > 0
+        finally:
+            browser.close()
+
+
 def test_replay_marks_button_navigation_for_instant_chat_scroll():
     from pathlib import Path
 
