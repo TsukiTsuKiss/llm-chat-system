@@ -184,7 +184,7 @@ DEFAULT_MSG_PLACEHOLDER = "メッセージを入力（Enter: 送信 / Shift+Ente
 # Gradio の自動スクロールは使わず（autoscroll=False）、再生中の箱へのスクロールと末尾追従をここで行う。
 # playing は「連番:発言番号」。利用者がホイール・タッチ・クリックしてから 8 秒は動かさない。
 SCROLL_TO_PLAYING_JS = """
-(playing) => {
+(playing, instant = false, reset = false) => {
   const w = window;
   w.__studioPlayingVal = playing;
   // 発言欄の再描画でクラスが消えても、描画の前に付け直す（付け直しが遅れると枠が点滅する）
@@ -204,7 +204,11 @@ SCROLL_TO_PLAYING_JS = """
     });
   }
   w.__studioApplyPlaying();
-  if (w.__studioRaf) return;
+  if (w.__studioRaf) {
+    if (!instant) return;
+    cancelAnimationFrame(w.__studioRaf);
+    w.__studioRaf = 0;
+  }
   w.__studioRaf = requestAnimationFrame(() => {
     w.__studioRaf = 0;
     const root = document.querySelector('#studio-chatbot');
@@ -230,10 +234,12 @@ SCROLL_TO_PLAYING_JS = """
     const quiet = Date.now() - box.__studioUserAt > 8000;
     const prev = w.__studioPlayingIdx;
     w.__studioPlayingIdx = idx;
-    if (idx >= 0) {
-      if (idx === prev || !quiet || !rows[idx]) return;
+    if (reset) {
+      w.__studioQueueReadingScroll(box, 0, true);
+    } else if (idx >= 0) {
+      if ((!instant && (idx === prev || !quiet)) || !rows[idx]) return;
       const top = box.scrollTop + rows[idx].getBoundingClientRect().top - box.getBoundingClientRect().top - 40;
-      box.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+      w.__studioQueueReadingScroll(box, Math.max(0, top), true);
     } else if (quiet && box.__studioStick) {
       box.scrollTo({ top: box.scrollHeight });
     }
@@ -244,11 +250,53 @@ SCROLL_TO_PLAYING_JS = """
 # 再生表示（iframe）から再生中の発言の冒頭が届いたら、同じ文面のチャットの箱を強調してスクロールする。
 STUDIO_HEAD = (
     "<script>\n"
+    """
+const MAX_FOLLOW_SCROLL_PX_PER_SECOND = 90;
+window.__studioQueueReadingScroll = (box, target, instant = false) => {
+  box.__studioFollowTarget = Math.min(
+    Math.max(0, target),
+    Math.max(0, box.scrollHeight - box.clientHeight)
+  );
+  if (instant) {
+    if (box.__studioFollowFrame) cancelAnimationFrame(box.__studioFollowFrame);
+    box.__studioFollowFrame = 0;
+    box.__studioFollowTarget = null;
+    box.scrollTop = Math.min(
+      Math.max(0, target),
+      Math.max(0, box.scrollHeight - box.clientHeight)
+    );
+    return;
+  }
+  if (box.__studioFollowFrame) return;
+  box.__studioFollowFrameAt = performance.now();
+  const step = (now) => {
+    box.__studioFollowFrame = 0;
+    if (Date.now() - (box.__studioUserAt || 0) <= 8000) {
+      box.__studioFollowTarget = null;
+      return;
+    }
+    const target = box.__studioFollowTarget;
+    if (target == null) return;
+    const elapsed = Math.min(0.05, Math.max(0, (now - box.__studioFollowFrameAt) / 1000));
+    box.__studioFollowFrameAt = now;
+    const delta = target - box.scrollTop;
+    const maxDelta = MAX_FOLLOW_SCROLL_PX_PER_SECOND * elapsed;
+    if (Math.abs(delta) <= maxDelta || Math.abs(delta) < 0.5) {
+      box.scrollTop = target;
+      box.__studioFollowTarget = null;
+      return;
+    }
+    box.scrollTop += Math.sign(delta) * maxDelta;
+    box.__studioFollowFrame = requestAnimationFrame(step);
+  };
+  box.__studioFollowFrame = requestAnimationFrame(step);
+};
+"""
     f"window.__studioScrollToPlaying = {SCROLL_TO_PLAYING_JS};\n"
     """
 window.__studioLastMatch = 0;
 // 読み上げ中の発言のうち、読んでいる位置（progress: 0〜1）が見えるようにスクロールする。箇所は本文の文字数の割合で推定する
-window.__studioFollowReading = (idx, progress) => {
+window.__studioFollowReading = (idx, progress, instant = false) => {
   const root = document.querySelector('#studio-chatbot');
   const row = root && [...root.querySelectorAll('.message-row')][idx];
   if (!row || !(progress >= 0)) return;
@@ -277,7 +325,7 @@ window.__studioFollowReading = (idx, progress) => {
   if (!rect.height) return;
   const boxRect = box.getBoundingClientRect();
   if (rect.bottom > boxRect.bottom - 80 || rect.top < boxRect.top + 20) {
-    box.scrollTo({ top: box.scrollTop + rect.top - boxRect.top - boxRect.height * 0.3, behavior: 'smooth' });
+    window.__studioQueueReadingScroll(box, box.scrollTop + rect.top - boxRect.top - boxRect.height * 0.3, instant);
   }
 };
 // このページのプレーヤーで再生中の音声の進み具合を、半秒ごとに見て追従する（音声要素は DOM に無いことがあるので play を包んで控える）
@@ -296,7 +344,13 @@ window.setInterval(() => {
   window.__studioFollowReading(idx, a.currentTime / a.duration);
 }, 500);
 window.addEventListener('message', (e) => {
-  if (e.origin !== window.location.origin || !e.data || e.data.type !== 'studio-playing') return;
+  if (e.origin !== window.location.origin || !e.data) return;
+  if (e.data.type === 'studio-restart') {
+    window.__studioLastMatch = 0;
+    window.__studioScrollToPlaying('0:', true, true);
+    return;
+  }
+  if (e.data.type !== 'studio-playing') return;
   const rows = [...document.querySelectorAll('#studio-chatbot .message-row')];
   const norm = (s) => (s || '').replace(/\\s+/g, '');
   const snippet = norm(e.data.snippet);
@@ -306,8 +360,16 @@ window.addEventListener('message', (e) => {
     idx = hits.find((i) => i >= window.__studioLastMatch) ?? (hits.length ? hits[0] : -1);
     if (idx >= 0) window.__studioLastMatch = idx;
   }
-  window.__studioScrollToPlaying('0:' + (idx >= 0 ? idx : ''));
-  if (idx >= 0 && typeof e.data.progress === 'number') window.__studioFollowReading(idx, e.data.progress);
+  if (e.data.restart === true) {
+    if (idx >= 0) {
+      window.__studioPlayingIdx = idx;
+      window.__studioScrollToPlaying('0:' + idx);
+    }
+    return;
+  }
+  const instant = e.data.instant === true;
+  window.__studioScrollToPlaying('0:' + (idx >= 0 ? idx : ''), instant);
+  if (idx >= 0 && typeof e.data.progress === 'number') window.__studioFollowReading(idx, e.data.progress, instant);
 });
 """
     "</script>"

@@ -442,7 +442,7 @@ def test_timeline_utterance_records_chunk_lengths_only_when_split(tmp_path: Path
 def test_replay_page_estimates_reading_progress_from_chunks():
     html = (Path(voice.__file__).with_name("voice_replay.html")).read_text(encoding="utf-8")
 
-    assert "function readingProgress" in html and "progress }, \"*\")" in html
+    assert "function readingProgress" in html and "progress, instant, restart }, \"*\")" in html
     assert "play_start が無い" in html
 
 
@@ -683,7 +683,216 @@ def test_studio_head_listens_for_playing_message_from_replay():
     assert "studio-playing" in web.STUDIO_HEAD
     assert "__studioScrollToPlaying" in web.STUDIO_HEAD
     assert "__studioFollowReading" in web.STUDIO_HEAD
+    assert "__studioQueueReadingScroll" in web.STUDIO_HEAD
+    assert "e.data.instant === true" in web.STUDIO_HEAD
+    assert "box.scrollTop = Math.min(" in web.STUDIO_HEAD
     assert web.STUDIO_HEAD.startswith("<script>") and web.STUDIO_HEAD.endswith("</script>")
+
+
+def test_replay_marks_button_navigation_for_instant_chat_scroll():
+    from pathlib import Path
+
+    replay = (Path(__file__).parents[2] / "studio" / "voice_replay.html").read_text(encoding="utf-8")
+
+    assert "instantParentScrollPending = true" in replay
+    assert "progress, instant" in replay
+
+
+def test_chat_scrolls_immediately_between_utterances_but_slowly_within_one():
+    import pytest
+    from playwright.sync_api import sync_playwright
+
+    import MultiRoleStudioWeb as web
+
+    with sync_playwright() as playwright:
+        if not Path(playwright.chromium.executable_path).is_file():
+            pytest.skip("Playwright Chromium がインストールされていません")
+        browser = playwright.chromium.launch(headless=True)
+        try:
+            page = browser.new_page()
+            page.set_content(
+                web.STUDIO_HEAD
+                + '<div id="studio-chatbot"><div id="box" style="height:200px;width:200px;overflow:auto">'
+                + '<div class="message-row" style="height:1000px"><div class="message">first</div></div>'
+                + '<div class="message-row"><div class="message">'
+                + ("second " * 500)
+                + '</div></div><div class="message-row" style="height:1000px">'
+                + '<div class="message">third</div></div></div></div>'
+            )
+            page.evaluate("window.__studioScrollToPlaying('1:1')")
+            page.wait_for_function("document.querySelector('#box').scrollTop >= 900", timeout=1000)
+            before = page.locator("#box").evaluate("(el) => el.scrollTop")
+            page.evaluate("window.__studioFollowReading(1, 0.9)")
+            page.wait_for_timeout(200)
+            moved = page.locator("#box").evaluate("(el) => el.scrollTop") - before
+            assert 0 < moved < 50
+            page.evaluate("window.__studioScrollToPlaying('2:2')")
+            page.wait_for_function(
+                """() => {
+                  const box = document.querySelector('#box');
+                  const row = document.querySelectorAll('.message-row')[2];
+                  return Math.abs(row.getBoundingClientRect().top - box.getBoundingClientRect().top - 40) < 2;
+                }""",
+                timeout=1000,
+            )
+            page.wait_for_timeout(100)
+            assert page.locator("#box").evaluate("(el) => el.__studioFollowTarget") is None
+            page.evaluate("""() => {
+              document.querySelector('#box').__studioUserAt = Date.now();
+              window.__studioScrollToPlaying('3:0');
+            }""")
+            page.wait_for_timeout(100)
+            assert page.locator("#box").evaluate("(el) => el.scrollTop") > 900
+            page.evaluate("window.__studioScrollToPlaying('4:0', true)")
+            page.wait_for_function("document.querySelector('#box').scrollTop === 0")
+        finally:
+            browser.close()
+
+
+def test_replay_restart_scrolls_chat_to_top_while_paused():
+    import pytest
+    from playwright.sync_api import sync_playwright
+
+    import MultiRoleStudioWeb as web
+    from studio.voice_timeline import _render_page
+
+    replay = _render_page({
+        "embedded": True,
+        "events": [
+            {"kind": "utterance_text", "t": 40, "file": "01_a.wav", "talent_id": "a", "text": "first"},
+            {"kind": "utterance", "t": 45, "file": "01_a.wav", "duration": 10},
+            {"kind": "play_start", "t": 50, "file": "01_a.wav"},
+        ],
+    })
+    with sync_playwright() as playwright:
+        if not Path(playwright.chromium.executable_path).is_file():
+            pytest.skip("Playwright Chromium がインストールされていません")
+        browser = playwright.chromium.launch(headless=True)
+        try:
+            page = browser.new_page()
+            page.set_content(
+                web.STUDIO_HEAD
+                + '<div id="studio-chatbot"><div id="box" style="height:100px;overflow:auto">'
+                + '<div class="message-row" style="height:2000px">first</div></div></div>'
+                + '<iframe id="replay"></iframe>'
+            )
+            page.locator("#replay").evaluate("(el, html) => el.srcdoc = html", replay)
+            page.frame_locator("#replay").locator("#restart").wait_for()
+            page.evaluate("""() => {
+              const box = document.querySelector('#box');
+              box.scrollTop = 1000;
+              window.__studioLastMatch = 7;
+              window.__studioQueueReadingScroll(box, 1800);
+              box.__studioUserAt = Date.now();
+            }""")
+            page.frame_locator("#replay").locator("#restart").click()
+            page.wait_for_function("document.querySelector('#box').scrollTop === 0")
+            page.wait_for_timeout(100)
+            assert page.locator("#box").evaluate("(el) => el.scrollTop") == 0
+            assert page.evaluate("window.__studioLastMatch") == 0
+        finally:
+            browser.close()
+
+
+def test_replay_restart_scrolls_chat_to_top_while_playing():
+    import pytest
+    from playwright.sync_api import sync_playwright
+
+    import MultiRoleStudioWeb as web
+    from studio.voice_timeline import _render_page
+
+    replay = _render_page({
+        "embedded": True,
+        "events": [
+            {"kind": "utterance_text", "t": 0, "file": "u01_user.wav", "talent_id": "user", "text": "first"},
+            {"kind": "utterance", "t": 0, "file": "u01_user.wav", "duration": 30},
+            {"kind": "play_start", "t": 0, "file": "u01_user.wav"},
+            {"kind": "utterance_text", "t": 30, "file": "01_a.wav", "talent_id": "a", "text": "second"},
+            {"kind": "utterance", "t": 30, "file": "01_a.wav", "duration": 30},
+            {"kind": "play_start", "t": 30, "file": "01_a.wav"},
+        ],
+    })
+    with sync_playwright() as playwright:
+        if not Path(playwright.chromium.executable_path).is_file():
+            pytest.skip("Playwright Chromium がインストールされていません")
+        browser = playwright.chromium.launch(headless=True)
+        try:
+            page = browser.new_page()
+            page.set_content(
+                web.STUDIO_HEAD
+                + '<div id="studio-chatbot"><div id="box" style="height:200px;overflow:auto">'
+                + '<div class="message-row" style="height:1000px"><div class="message">system note</div></div>'
+                + '<div class="message-row" style="height:1800px"><div class="message">first</div></div>'
+                + '<div class="message-row" style="height:1000px"><div class="message">second</div></div>'
+                + '</div></div><iframe id="replay"></iframe>'
+            )
+            page.locator("#replay").evaluate("(el, html) => el.srcdoc = html", replay)
+            replay_frame = page.frame_locator("#replay")
+            replay_frame.locator("#sound").uncheck()
+            replay_frame.locator("#play").click()
+            replay_frame.locator("#next").click()
+            page.wait_for_function("document.querySelector('#box').scrollTop > 1000")
+            replay_frame.locator("#restart").click()
+            page.wait_for_timeout(300)
+            assert page.locator("#box").evaluate("(el) => el.scrollTop") == 0
+            replay_frame.locator("#next").click()
+            page.wait_for_function("document.querySelector('#box').scrollTop > 2000", timeout=1000)
+        finally:
+            browser.close()
+
+
+def test_replay_first_play_scrolls_chat_to_top():
+    import pytest
+    from playwright.sync_api import sync_playwright
+
+    import MultiRoleStudioWeb as web
+    from studio.voice_timeline import _render_page
+
+    with sync_playwright() as playwright:
+        if not Path(playwright.chromium.executable_path).is_file():
+            pytest.skip("Playwright Chromium がインストールされていません")
+        browser = playwright.chromium.launch(headless=True)
+        try:
+            for start in (0, 50):
+                replay = _render_page({
+                    "embedded": True,
+                    "events": [
+                        {"kind": "utterance_text", "t": start, "file": "01_a.wav", "talent_id": "a", "text": "first"},
+                        {"kind": "utterance", "t": start, "file": "01_a.wav", "duration": 30},
+                        {"kind": "play_start", "t": start, "file": "01_a.wav"},
+                    ],
+                })
+                page = browser.new_page()
+                try:
+                    page.set_content(
+                        web.STUDIO_HEAD
+                        + '<div id="studio-chatbot"><div id="box" style="height:200px;overflow:auto">'
+                        + '<div class="message-row" style="height:1000px">system note</div>'
+                        + '<div class="message-row" style="height:1800px"><div class="message">first</div></div>'
+                        + '</div></div><iframe id="replay"></iframe>'
+                    )
+                    page.locator("#replay").evaluate("(el, html) => el.srcdoc = html", replay)
+                    replay_frame = page.frame_locator("#replay")
+                    replay_frame.locator("#sound").uncheck()
+                    page.wait_for_timeout(100)
+                    page.locator("#box").evaluate("(el) => el.scrollTop = el.scrollHeight")
+                    replay_frame.locator("#play").click()
+                    page.wait_for_timeout(200)
+                    assert page.locator("#box").evaluate("(el) => el.scrollTop") == 0
+                    if start == 0:
+                        replay_frame.locator("#play").click()
+                        page.evaluate("""() => {
+                          const box = document.querySelector('#box');
+                          box.scrollTop = 500;
+                          box.__studioUserAt = Date.now();
+                        }""")
+                        replay_frame.locator("#play").click()
+                        page.wait_for_timeout(100)
+                        assert page.locator("#box").evaluate("(el) => el.scrollTop") == 500
+                finally:
+                    page.close()
+        finally:
+            browser.close()
 
 
 def test_replay_backfills_utterance_text_from_session_log(tmp_path: Path):

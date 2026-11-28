@@ -357,6 +357,7 @@ function setup(cv, w, h) {
 
 // 発言テキスト: 生成済みの発言を並べ、再生中のものを強調して追従スクロールする
 let scriptShown = -1, scriptCurrent = "", postedFile = "", postedProgress = -1;
+let instantParentScrollPending = false, restartParentScrollPending = false;
 
 // 再生中の発言を何割まで読んだか（0〜1）。区切りごとの [文字数, 秒数] があれば、その単位で文字位置を求める
 function readingProgress(play) {
@@ -382,12 +383,18 @@ function readingProgress(play) {
 function notifyParent(playingFile, progress) {
   // ライブ表示から「このセッションを再生」へ切り替えた場合は DATA.live だけが立っている
   if (!(DATA.embedded || DATA.live) || LIVE || window.parent === window) return;
-  if (playingFile === postedFile && Math.abs(progress - postedProgress) < 0.03) return;
+  const instant = Boolean(playingFile) && instantParentScrollPending;
+  if (!instant && playingFile === postedFile && Math.abs(progress - postedProgress) < 0.03) return;
   postedFile = playingFile;
   postedProgress = progress;
   const entry = model.scripts.find((s) => s.file === playingFile);
   const firstLine = entry ? entry.text.split("\n").find((l) => l.trim()) || "" : "";
-  window.parent.postMessage({ type: "studio-playing", snippet: firstLine.trim().slice(0, 30), progress }, "*");
+  const restart = Boolean(playingFile) && restartParentScrollPending;
+  window.parent.postMessage({ type: "studio-playing", snippet: firstLine.trim().slice(0, 30), progress, instant, restart }, "*");
+  if (playingFile) {
+    instantParentScrollPending = false;
+    restartParentScrollPending = false;
+  }
 }
 function updateScript() {
   const box = $("script");
@@ -606,6 +613,14 @@ async function poll() {
   if (LIVE && !model.ended) setTimeout(poll, 1000);
 }
 
+function scrollParentToStart() {
+  instantParentScrollPending = true;
+  restartParentScrollPending = true;
+  if ((DATA.embedded || DATA.live) && window.parent !== window) {
+    window.parent.postMessage({ type: "studio-restart" }, "*");
+  }
+}
+
 async function toReplay() {
   await refresh();
   LIVE = false;
@@ -616,6 +631,7 @@ async function toReplay() {
   $("scale").value = "fit";
   view.scrollLeft = 0;
   now = 0;
+  scrollParentToStart();
   playing = true;
   $("play").textContent = "⏸ 一時停止";
 }
@@ -623,11 +639,17 @@ async function toReplay() {
 $("play").addEventListener("click", () => {
   if (playing) { pause(); return; }
   if (now >= total) now = 0;
+  if (now === 0) scrollParentToStart();
   playing = true;
   $("play").textContent = "⏸ 一時停止";
 });
 $("toreplay").addEventListener("click", toReplay);
-$("restart").addEventListener("click", () => { resetAudio(); now = 0; view.scrollLeft = 0; });
+$("restart").addEventListener("click", () => {
+  resetAudio();
+  now = 0;
+  view.scrollLeft = 0;
+  scrollParentToStart();
+});
 
 // 前・次の発言へ。「前」は、今の発言を BACK_RESTART 秒以上聞いていればその頭、そうでなければひとつ前の発言の頭へ戻る
 const BACK_RESTART = 2;
@@ -644,10 +666,17 @@ function jumpUtterance(dir) {
   }
   resetAudio();
   now = target;
+  instantParentScrollPending = true;
+  restartParentScrollPending = false;
 }
 $("prev").addEventListener("click", () => jumpUtterance(-1));
 $("next").addEventListener("click", () => jumpUtterance(1));
-$("seek").addEventListener("input", (e) => { resetAudio(); now = (e.target.value / 1000) * total; });
+$("seek").addEventListener("input", (e) => {
+  resetAudio();
+  now = (e.target.value / 1000) * total;
+  instantParentScrollPending = true;
+  restartParentScrollPending = false;
+});
 $("sound").addEventListener("change", () => { if (!$("sound").checked) resetAudio(); });
 
 if (LIVE) poll();

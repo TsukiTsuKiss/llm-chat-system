@@ -377,7 +377,7 @@ def scene_chat(d: Demo, args) -> None:
     d.caption("各人材が順番に回答します（ストリーミング表示・所要時間・トークン・コスト付き）", 4.0)
     wait_chat_idle(d, sent_from)
     if not args.no_voice:
-        d.caption("生成が完了しました。読み上げは再生中です", 1.5)
+        d.caption("発言間は瞬時に移動し、同じ発言内の読み上げ位置はゆっくり追従します", 3.0)
         wait_reading_done(d)
     # 以降のシーンで不要な検索が走らないように戻す
     page.get_by_label("ウェブ検索").uncheck()
