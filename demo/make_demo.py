@@ -435,7 +435,7 @@ def show_flow(d: Demo, caption: str, hold: float = 3.0, max_steps: int = 6) -> N
 
 def scene_session(d: Demo, args) -> None:
     page = d.page
-    d.caption("セッションタブ: 実行した対話は sessions/*.jsonl に記録され、あとから見返せます", 3.0)
+    d.caption("セッションタブ: 対話を記録し、再開時にワークフローや ON/OFF 設定を復元できます", 3.0)
     page.get_by_role("tab", name="📄 セッション").click()
     d.wait(1.0)
     page.get_by_role("button", name="一覧更新").first.click()

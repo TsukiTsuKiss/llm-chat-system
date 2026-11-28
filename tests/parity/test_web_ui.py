@@ -490,6 +490,256 @@ def test_resume_branch_preserves_user_context_rag(studio_root: Path) -> None:
     assert session2.engine.state.user_context_rag_enabled is False
 
 
+def test_ui_settings_are_recorded_and_restored(studio_root: Path, monkeypatch) -> None:
+    from studio.session_resume import load_resumed_session
+    from studio.web_ui import apply_session_resume
+
+    settings = {
+        "stream": False, "user_context": False, "user_context_rag": False,
+        "web_search": False, "voice": False, "timing": True, "merge": False,
+    }
+    session = WebSession(root=studio_root, ui_settings=settings.copy())
+    MockAssistant.reset()
+    list(handle_chat_submit(
+        session, "hello", org_id="solo", workflow_value="", stream=False, temperature=0.7,
+        user_context=False, user_context_rag=False,
+    ))
+    logger = session.engine.state.logger
+    session.ui_settings["web_search"] = True
+    session.ui_settings["merge"] = True
+    session.save_ui_settings()
+    session.save_ui_settings()
+    records = [json.loads(line) for line in logger.log_path.read_text(encoding="utf-8").splitlines()]
+    saved = [record["settings"] for record in records if record["type"] == "ui_settings"]
+    assert saved == [settings, session.ui_settings]
+    assert load_resumed_session(studio_root, logger.session_id).ui_settings == session.ui_settings
+
+    monkeypatch.setattr("studio.web_ui.missing_audio_files", lambda *_args: [])
+    restored = WebSession(root=studio_root)
+    result = apply_session_resume(
+        restored, logger.session_id, stream=True, temperature=0.7,
+        ui_settings={key: not value for key, value in session.ui_settings.items()},
+    )
+    assert restored.ui_settings == session.ui_settings
+    assert restored.stream is False
+    assert restored.user_context is False
+    assert "保存されていない設定" not in result[2]
+
+
+def test_settings_changed_at_session_start_are_recorded(studio_root: Path) -> None:
+    settings = {"stream": False, "voice": False}
+    session = WebSession(root=studio_root, ui_settings=settings.copy())
+    MockAssistant.reset()
+    updates = handle_chat_submit(
+        session, "hello", org_id="solo", workflow_value="", stream=False, temperature=0.7,
+    )
+    next(updates)
+    next(updates)
+    assert session.engine is not None and session.engine.state is not None
+    assert not session.engine.state.started
+    session.ui_settings["voice"] = True
+    list(updates)
+    assert session.engine.state.logger is not None
+    records = [
+        json.loads(line)
+        for line in session.engine.state.logger.log_path.read_text(encoding="utf-8").splitlines()
+    ]
+    assert [record["settings"] for record in records if record["type"] == "ui_settings"] == [
+        settings, {"stream": False, "voice": True},
+    ]
+
+
+def test_resume_preserves_and_reports_unrecorded_settings(studio_root: Path, monkeypatch) -> None:
+    from studio.web_ui import apply_session_resume
+
+    MockAssistant.reset()
+    engine = SessionEngine(load_session_context("solo", studio_root))
+    collect_events(engine, "hello", stream=False)
+    monkeypatch.setattr("studio.web_ui.missing_audio_files", lambda *_args: [])
+    current = {
+        "stream": True, "user_context": True, "user_context_rag": True,
+        "web_search": True, "voice": True, "timing": False, "merge": True,
+    }
+    restored = WebSession(root=studio_root)
+    result = apply_session_resume(
+        restored, engine.state.logger.session_id, stream=True, temperature=0.7, ui_settings=current,
+    )
+    assert restored.ui_settings["stream"] is False
+    assert restored.ui_settings["web_search"] is True
+    assert restored.ui_settings["voice"] is True
+    assert restored.ui_settings["timing"] is False
+    assert "ウェブ検索" in result[2] and "読み上げ" in result[2]
+
+
+def test_resume_infers_voice_only_when_not_saved(studio_root: Path, monkeypatch) -> None:
+    from studio.web_ui import apply_session_resume
+
+    MockAssistant.reset()
+    engine = SessionEngine(load_session_context("solo", studio_root))
+    collect_events(engine, "hello", stream=False)
+    logger = engine.state.logger
+    audio_dir = studio_root / "sessions" / "audio" / logger.session_id
+    audio_dir.mkdir(parents=True)
+    timeline = audio_dir / "timeline.jsonl"
+    monkeypatch.setattr("studio.web_ui.missing_audio_files", lambda *_args: [])
+    current = {
+        "stream": True, "user_context": True, "user_context_rag": True,
+        "web_search": False, "voice": False, "timing": True, "merge": False,
+    }
+
+    restored = WebSession(root=studio_root)
+    timeline.write_text('{"kind":"utterance","file":"01.wav"}\n', encoding="utf-8")
+    result = apply_session_resume(restored, logger.session_id, stream=True, temperature=0.7, ui_settings=current)
+    assert restored.ui_settings["voice"] is False
+    assert "音声記録から ON と推定" not in result[2]
+    timeline.unlink()
+    (audio_dir / "01.wav").write_bytes(b"audio")
+    result = apply_session_resume(restored, logger.session_id, stream=True, temperature=0.7, ui_settings=current)
+    assert restored.ui_settings["voice"] is False
+
+    timeline.write_text('{"kind":"utterance","file":"01.wav"}\n', encoding="utf-8")
+    result = apply_session_resume(restored, logger.session_id, stream=True, temperature=0.7, ui_settings=current)
+    assert restored.ui_settings["voice"] is True
+    assert "音声記録から ON と推定" in result[2]
+    assert "最後の設定は不明" in result[2]
+    assert "音声記録から ON と推定" in result[-1]
+
+    logger.log_ui_settings({"voice": False})
+    current["voice"] = True
+    result = apply_session_resume(restored, logger.session_id, stream=True, temperature=0.7, ui_settings=current)
+    assert restored.ui_settings["voice"] is False
+    assert "音声記録から ON と推定" not in result[2]
+
+
+def test_resume_restores_workflow_and_toggles_in_browser(studio_root: Path, monkeypatch) -> None:
+    import socket
+    import time
+
+    from playwright.sync_api import sync_playwright
+    import MultiRoleStudioWeb as web
+
+    _copy_nokuru_tree(studio_root)
+    (studio_root / "studio_config.json").write_text(
+        json.dumps({"user_context": {"enabled": True, "rag": {"enabled": True}}}), encoding="utf-8"
+    )
+    saved = {
+        "stream": False, "user_context": False, "user_context_rag": False,
+        "web_search": True, "voice": True, "timing": False, "merge": True,
+    }
+    session_dir = studio_root / "sessions"
+    session_dir.mkdir()
+    session_id = "20261124_030249"
+    records = [
+        {"type": "session_meta", "organization": "nokuru", "workflow": "meeting", "talents": {},
+         "generation": {"stream": True}},
+        {"type": "ui_settings", "settings": {key: value for key, value in saved.items() if key != "voice"}},
+        {"type": "user_input", "text": "first"},
+    ]
+    (session_dir / f"{session_id}.jsonl").write_text(
+        "".join(json.dumps(record) + "\n" for record in records), encoding="utf-8"
+    )
+    audio_dir = session_dir / "audio" / session_id
+    audio_dir.mkdir(parents=True)
+    (audio_dir / "timeline.jsonl").write_text('{"kind":"utterance","file":"01.wav"}\n', encoding="utf-8")
+    (audio_dir / "01.wav").write_bytes(b"audio")
+
+    class Monitor:
+        def start(self):
+            pass
+
+        def states(self):
+            return []
+
+    monkeypatch.setattr(web, "engine_monitor", lambda _urls: Monitor())
+    monkeypatch.setattr("studio.web_ui.missing_audio_files", lambda *_args: [])
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    demo = web.build_ui(studio_root, cli_org="solo")
+    try:
+        demo.launch(server_name="127.0.0.1", server_port=port, prevent_thread_lock=True, quiet=True)
+        with sync_playwright() as playwright:
+            if not Path(playwright.chromium.executable_path).is_file():
+                pytest.skip("Playwright Chromium がインストールされていません")
+            browser = playwright.chromium.launch(headless=True)
+            try:
+                page = browser.new_page()
+                page.goto(f"http://127.0.0.1:{port}/", wait_until="domcontentloaded")
+                page.get_by_role("tab", name="📄 セッション").click()
+                page.get_by_role("button", name="再開", exact=True).click()
+                page.get_by_label("ワークフロー", exact=True).wait_for(state="visible")
+                page.wait_for_function(
+                    "() => document.querySelectorAll('[role=tab]')[0].getAttribute('aria-selected') === 'true'"
+                )
+                page.wait_for_timeout(1200)
+                assert page.get_by_label("組織", exact=True).input_value() == "nokuru"
+                assert page.get_by_label("ワークフロー", exact=True).input_value() == "meeting"
+                labels = {
+                    "stream": "ストリーミング", "user_context": "ユーザーコンテキスト",
+                    "user_context_rag": "コンテキスト RAG", "web_search": "ウェブ検索",
+                    "voice": "読み上げ", "timing": "タイミング表示", "merge": "連続メッセージを1つにまとめる",
+                }
+                assert {key: page.get_by_label(label, exact=True).is_checked() for key, label in labels.items()} == saved
+                assert "音声記録から ON と推定" in page.get_by_label("状態", exact=True).input_value()
+
+                page.get_by_label("読み上げ", exact=True).uncheck()
+                page.get_by_label("メッセージ", exact=True).fill("続き")
+                page.get_by_role("button", name="送信", exact=True).click()
+                deadline = time.monotonic() + 15
+                branch_records = []
+                branch_path = None
+                while time.monotonic() < deadline:
+                    for path in session_dir.glob("*.jsonl"):
+                        if path.stem != session_id:
+                            branch_path = path
+                            branch_records = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+                    if any(record.get("type") == "ui_settings" for record in branch_records):
+                        break
+                    page.wait_for_timeout(100)
+                branch_settings = next(record["settings"] for record in branch_records if record["type"] == "ui_settings")
+                assert branch_records[0]["workflow"] == "meeting"
+                assert branch_records[0]["parent_session_id"] == session_id
+                assert branch_settings == {**saved, "voice": False}
+                assert branch_path is not None
+                from playwright.sync_api import expect
+
+                expect(page.get_by_label("状態", exact=True)).to_have_value(IDLE_STATUS, timeout=15000)
+                page.get_by_label("タイミング表示", exact=True).check()
+                deadline = time.monotonic() + 10
+                while time.monotonic() < deadline:
+                    branch_records = [json.loads(line) for line in branch_path.read_text(encoding="utf-8").splitlines()]
+                    recorded = [record["settings"] for record in branch_records if record["type"] == "ui_settings"]
+                    if recorded[-1]["timing"]:
+                        break
+                    page.wait_for_timeout(100)
+                assert recorded[-1] == {**saved, "voice": False, "timing": True}
+
+                page.get_by_role("tab", name="⚙️ 設定編集").click()
+                page.get_by_role("tab", name="🏢 組織").click()
+                page.get_by_label("組織 ID", exact=True).click()
+                page.get_by_role("option", name="solo", exact=True).click()
+                solo = json.loads((studio_root / "organizations" / "solo" / "config.json").read_text(encoding="utf-8"))
+                expect(page.get_by_role("textbox", name="name", exact=True)).to_have_value(solo["name"], timeout=15000)
+                page.get_by_role("button", name="組織 config を保存", exact=True).click()
+                page.get_by_role("tab", name="💬 チャット").click()
+                expect(page.get_by_label("組織", exact=True)).to_have_value("solo", timeout=15000)
+                expected_workflow = resolve_workflow_value_for_org(studio_root, "solo", "meeting")
+                expected_label = next(
+                    label for label, value in workflow_dropdown_choices_for_org(studio_root, "solo")
+                    if value == expected_workflow
+                )
+                expect(page.get_by_label("ワークフロー", exact=True)).to_have_value(expected_label)
+                talent_id = solo["talent_ids"][0]
+                talent_name = json.loads(
+                    (studio_root / "talents" / f"{talent_id}.json").read_text(encoding="utf-8")
+                )["name"]
+                expect(page.get_by_text(talent_name, exact=False).first).to_be_visible(timeout=15000)
+            finally:
+                browser.close()
+    finally:
+        demo.close()
+
+
 def test_workflow_availability_cache_follows_config_edits(studio_root: Path) -> None:
     _copy_nokuru_tree(studio_root)
     assert workflow_available_for_org(studio_root, "nokuru", "quiz") is True

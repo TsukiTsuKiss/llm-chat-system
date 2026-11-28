@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +14,16 @@ from studio.prompts import build_user_message
 from studio.session_report import read_jsonl, session_log_path
 from studio.validation import StudioError, StudioValidationError, ValidationReport
 
+UI_SETTINGS_LABELS = {
+    "stream": "ストリーミング",
+    "user_context": "ユーザーコンテキスト",
+    "user_context_rag": "コンテキスト RAG",
+    "web_search": "ウェブ検索",
+    "voice": "読み上げ",
+    "timing": "タイミング表示",
+    "merge": "連続メッセージを1つにまとめる",
+}
+
 
 @dataclass(frozen=True)
 class ResumedSession:
@@ -23,6 +33,7 @@ class ResumedSession:
     step_number: int
     histories: RoleHistories
     replay_messages: list[dict[str, str]]
+    ui_settings: dict[str, bool] = field(default_factory=dict)
 
 
 def load_effective_records(root: Path, session_id: str) -> list[dict[str, Any]]:
@@ -193,8 +204,9 @@ def load_resumed_session(root: Path, session_id: str) -> ResumedSession:
         )
         raise StudioValidationError(report.errors)
 
+    selected_records = read_jsonl(path)
     records = load_effective_records(root, session_id)
-    meta = next((r for r in records if r.get("type") == "session_meta"), None)
+    meta = next((r for r in selected_records if r.get("type") == "session_meta"), None)
     if meta is None:
         report.add(
             StudioError(
@@ -220,7 +232,20 @@ def load_resumed_session(root: Path, session_id: str) -> ResumedSession:
         for tid, name in (meta.get("talents") or {}).items()
     }
     histories = rebuild_histories(records, talent_names=talent_names)
-    replay_messages = build_replay_messages(records, talent_names=talent_names)
+    display_records = [meta, *(r for r in records if r.get("type") != "session_meta")]
+    replay_messages = build_replay_messages(display_records, talent_names=talent_names)
+    generation = meta.get("generation")
+    saved_settings = {
+        key: value for key, value in (generation.items() if isinstance(generation, dict) else ())
+        if key in UI_SETTINGS_LABELS and isinstance(value, bool)
+    }
+    for record in selected_records:
+        settings = record.get("settings")
+        if record.get("type") == "ui_settings" and isinstance(settings, dict):
+            saved_settings.update({
+                key: value for key, value in settings.items()
+                if key in UI_SETTINGS_LABELS and isinstance(value, bool)
+            })
 
     return ResumedSession(
         parent_session_id=session_id,
@@ -229,4 +254,5 @@ def load_resumed_session(root: Path, session_id: str) -> ResumedSession:
         step_number=step_number,
         histories=histories,
         replay_messages=replay_messages,
+        ui_settings=saved_settings,
     )

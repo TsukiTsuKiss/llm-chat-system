@@ -501,6 +501,8 @@ class WebSession:
     temperature: float = 0.7
     user_context: bool = True
     user_context_rag: bool = True
+    ui_settings: dict[str, bool] = field(default_factory=dict)
+    logged_ui_settings: dict[str, bool] = field(default_factory=dict)
     engine: SessionEngine | None = None
     pending: PendingInteraction | None = None
     renderer: ChatEventRenderer = field(default_factory=ChatEventRenderer)
@@ -652,7 +654,14 @@ class WebSession:
         self.engine = None
         self.pending = None
         self.renderer = ChatEventRenderer()
+        self.logged_ui_settings = {}
         return summary
+
+    def save_ui_settings(self) -> None:
+        state = self.engine.state if self.engine is not None else None
+        if state is not None and state.logger is not None and self.ui_settings != self.logged_ui_settings:
+            state.logger.log_ui_settings(self.ui_settings)
+            self.logged_ui_settings = dict(self.ui_settings)
 
     def load_context(self, org_id: str, workflow_value: str) -> SessionContext:
         workflow_id = workflow_value or None
@@ -713,6 +722,7 @@ class WebSession:
             no_user_context_rag=not user_context_rag,
         )
         self.user_context_rag = user_context_rag
+        self.user_context = user_context
         self.reset_chat()
         self.org_id = resumed.org_id
         self.workflow_id = resumed.workflow_id
@@ -766,6 +776,7 @@ def apply_session_resume(
     temperature: float,
     user_context: bool = True,
     user_context_rag: bool = True,
+    ui_settings: dict[str, bool] | None = None,
 ) -> tuple[
     WebSession,
     list[dict[str, str]],
@@ -778,9 +789,19 @@ def apply_session_resume(
     str,
     str,
 ]:
-    from studio.session_resume import load_resumed_session
+    from studio.session_resume import UI_SETTINGS_LABELS, load_resumed_session
 
     resumed = load_resumed_session(web.root, session_id)
+    settings = dict(ui_settings or {})
+    settings.update(resumed.ui_settings)
+    audio_dir = web.root / "sessions" / "audio" / session_id
+    voice_inferred = (
+        "voice" not in resumed.ui_settings
+        and (audio_dir / "timeline.jsonl").is_file()
+        and any(audio_dir.glob("*.wav"))
+    )
+    if voice_inferred:
+        settings["voice"] = True
     workflow_value = resumed.workflow_id or ""
     ctx = load_session_context(
         resumed.org_id, web.root, workflow_id=resumed.workflow_id, mapping_profile=web.mapping_profile
@@ -789,11 +810,12 @@ def apply_session_resume(
     web.resume_branch(
         resumed,
         ctx,
-        stream=stream,
+        stream=settings.get("stream", stream),
         temperature=temperature,
-        user_context=user_context,
-        user_context_rag=user_context_rag,
+        user_context=settings.get("user_context", user_context),
+        user_context_rag=settings.get("user_context_rag", user_context_rag),
     )
+    web.ui_settings = settings
     web.replay_session_id = session_id
     missing = missing_audio_files(web.root, session_id)
     web.replay_audio_ready = not missing
@@ -815,6 +837,18 @@ def apply_session_resume(
     )
     if missing:
         msg += f" 音声が無い発言 {len(missing)} 件を、バックグラウンドで再生成します。"
+    if voice_inferred:
+        notice = "読み上げは保存されていないため、音声記録から ON と推定しました（最後の設定は不明）"
+        status += f"\n{notice}"
+        msg += f" {notice}。"
+    missing_settings = [
+        label for key, label in UI_SETTINGS_LABELS.items()
+        if key not in resumed.ui_settings and not (key == "voice" and voice_inferred)
+    ]
+    if missing_settings:
+        notice = "保存されていない設定は現在値を維持: " + "、".join(missing_settings)
+        status += f"\n{notice}"
+        msg += f" {notice}。"
     return (
         web,
         web.renderer.copy_messages(),
@@ -901,6 +935,8 @@ def process_events(
         if session.epoch != epoch:
             generator.close()
             return
+        if session.ui_settings:
+            session.save_ui_settings()
         pending_kind = session.renderer.apply(event)
         session.feed_voice(event)
         if pending_kind:

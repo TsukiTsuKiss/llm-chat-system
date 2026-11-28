@@ -274,6 +274,9 @@ class SessionLogger:
     def log_state_snapshot(self, state: dict[str, Any]) -> None:
         self.write_line({"type": "state_snapshot", "state": state})
 
+    def log_ui_settings(self, settings: dict[str, bool]) -> None:
+        self.write_line({"type": "ui_settings", "settings": settings})
+
     def build_by_model(self) -> dict[str, dict[str, Any]]:
         rollup: dict[str, dict[str, Any]] = {}
         for step in self.steps:

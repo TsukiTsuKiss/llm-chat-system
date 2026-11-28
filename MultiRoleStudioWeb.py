@@ -582,6 +582,11 @@ def build_ui(
                     pending_wf_hint_state=pending_wf_hint_state,
                     stream_cb=stream_cb,
                     user_context_cb=user_context_cb,
+                    user_context_rag_cb=user_context_rag_cb,
+                    web_search_cb=web_search_cb,
+                    voice_cb=voice_cb,
+                    timing_cb=timing_cb,
+                    merge_cb=merge_cb,
                     temp_sl=temp_sl,
                 ),
                 demo,
@@ -641,8 +646,19 @@ def build_ui(
             files,
             web_search: bool,
             voice: bool,
+            timing: bool,
+            merge: bool,
         ):
             try:
+                session.ui_settings = {
+                    "stream": stream,
+                    "user_context": user_context,
+                    "user_context_rag": user_context_rag,
+                    "web_search": web_search,
+                    "voice": voice,
+                    "timing": timing,
+                    "merge": merge,
+                }
                 first = True
                 for messages, status, show_choice, placeholder, clear_upload in handle_chat_submit(
                     session,
@@ -719,6 +735,29 @@ def build_ui(
             session.temperature = 0.7 if temperature is None else temperature
             return session
 
+        def save_chat_settings(
+            session: WebSession,
+            stream: bool,
+            user_context: bool,
+            user_context_rag: bool,
+            web_search: bool,
+            voice: bool,
+            timing: bool,
+            merge: bool,
+        ):
+            session.ui_settings = {
+                "stream": stream,
+                "user_context": user_context,
+                "user_context_rag": user_context_rag,
+                "web_search": web_search,
+                "voice": voice,
+                "timing": timing,
+                "merge": merge,
+            }
+            if session.engine is not None and session.engine.state is not None and session.engine.state.started:
+                session.save_ui_settings()
+            return session
+
         def on_corpus_select(filename: str | None):
             config = load_studio_config_for_ui(root)
             return read_corpus_file(root, config, filename)
@@ -791,6 +830,17 @@ def build_ui(
             inputs=[session_state, stream_cb, user_context_cb, user_context_rag_cb, temp_sl],
             outputs=[session_state],
         )
+        setting_controls = [
+            stream_cb, user_context_cb, user_context_rag_cb, web_search_cb, voice_cb, timing_cb, merge_cb,
+        ]
+        for control in setting_controls:
+            control.input(
+                save_chat_settings,
+                inputs=[session_state, *setting_controls],
+                outputs=[session_state],
+                queue=False,
+                show_progress="hidden",
+            )
         corpus_dd.change(on_corpus_select, inputs=[corpus_dd], outputs=[corpus_tb], queue=False)
         refresh_rag_btn.click(
             on_refresh_rag_clicked,
@@ -825,7 +875,7 @@ def build_ui(
             queue=False,
         )
 
-        org_dd.change(
+        org_dd.input(
             on_org_change,
             inputs=[org_dd, wf_dd],
             outputs=[wf_dd, talents_md, valid_wf_state, pending_wf_hint_state, wf_note_md],
@@ -875,6 +925,8 @@ def build_ui(
             upload_files,
             web_search_cb,
             voice_cb,
+            timing_cb,
+            merge_cb,
         ]
         submit_outputs = [
             chatbot,

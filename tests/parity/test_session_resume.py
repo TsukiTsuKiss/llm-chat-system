@@ -88,6 +88,37 @@ def test_effective_records_merge_parent_chain(studio_root: Path) -> None:
     assert user_texts == ["turn one", "turn two"]
 
 
+def test_resume_uses_selected_branch_workflow_and_latest_settings(tmp_path: Path) -> None:
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+    parent = [
+        {"type": "session_meta", "organization": "solo", "workflow": "original", "talents": {},
+         "generation": {"stream": True, "user_context": True}},
+        {"type": "ui_settings", "settings": {"web_search": True}},
+        {"type": "user_input", "text": "parent"},
+    ]
+    child = [
+        {"type": "session_meta", "organization": "solo", "workflow": "changed", "talents": {},
+         "parent_session_id": "parent", "generation": {"stream": False, "user_context": True}},
+        {"type": "ui_settings", "settings": {"web_search": False, "voice": True}},
+        {"type": "ui_settings", "settings": {"voice": False}},
+        {"type": "user_input", "text": "child"},
+    ]
+    for session_id, records in (("parent", parent), ("child", child)):
+        (sessions / f"{session_id}.jsonl").write_text(
+            "".join(json.dumps(record) + "\n" for record in records), encoding="utf-8"
+        )
+
+    resumed = load_resumed_session(tmp_path, "child")
+    assert resumed.workflow_id == "changed"
+    assert resumed.ui_settings == {
+        "stream": False, "user_context": True, "web_search": False, "voice": False,
+    }
+    assert [r["text"] for r in load_effective_records(tmp_path, "child") if r.get("type") == "user_input"] == [
+        "parent", "child",
+    ]
+
+
 def test_rebuild_histories_has_messages(studio_root: Path) -> None:
     MockAssistant.reset()
     ctx = load_session_context("solo", studio_root)

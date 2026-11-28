@@ -80,6 +80,11 @@ class SessionsHandles:
     pending_wf_hint_state: Any
     stream_cb: gr.Checkbox
     user_context_cb: gr.Checkbox
+    user_context_rag_cb: gr.Checkbox
+    web_search_cb: gr.Checkbox
+    voice_cb: gr.Checkbox
+    timing_cb: gr.Checkbox
+    merge_cb: gr.Checkbox
     temp_sl: gr.Slider
 
 
@@ -213,7 +218,18 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
     def on_resume(
         session_id: str | None,
         web_session,
+        stream: bool,
+        user_context: bool,
+        user_context_rag: bool,
+        web_search: bool,
+        voice: bool,
+        timing: bool,
+        merge: bool,
     ):
+        current_settings = dict(zip(
+            ("stream", "user_context", "user_context_rag", "web_search", "voice", "timing", "merge"),
+            (stream, user_context, user_context_rag, web_search, voice, timing, merge),
+        ))
         if not session_id:
             return (
                 web_session,
@@ -227,6 +243,7 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
                 gr.update(),
                 gr.update(visible=False),
                 "セッションを選択してください",
+                *[gr.update()] * 7,
             )
         try:
             (
@@ -243,10 +260,11 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
             ) = apply_session_resume(
                 web_session,
                 session_id,
-                stream=web_session.stream,
+                stream=stream,
                 temperature=web_session.temperature,
-                user_context=web_session.user_context,
-                user_context_rag=web_session.user_context_rag,
+                user_context=user_context,
+                user_context_rag=user_context_rag,
+                ui_settings=current_settings,
             )
         except StudioValidationError as exc:
             return (
@@ -261,6 +279,7 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
                 gr.update(),
                 gr.update(visible=False),
                 exc.format_all(),
+                *[gr.update()] * 7,
             )
         return (
             web_session,
@@ -274,6 +293,7 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
             gr.update(value=""),
             gr.update(visible=False),
             msg,
+            *(gr.update(value=web_session.ui_settings[key]) for key in current_settings),
         )
 
     def on_minutes(session_id: str | None):
@@ -423,6 +443,13 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
         inputs=[
             session_dd,
             handles.session_state,
+            handles.stream_cb,
+            handles.user_context_cb,
+            handles.user_context_rag_cb,
+            handles.web_search_cb,
+            handles.voice_cb,
+            handles.timing_cb,
+            handles.merge_cb,
         ],
         outputs=[
             handles.session_state,
@@ -436,6 +463,13 @@ def build_sessions_tab(root: Path, handles: SessionsHandles, _demo: gr.Blocks) -
             handles.wf_note_md,
             handles.choice_row,
             session_msg,
+            handles.stream_cb,
+            handles.user_context_cb,
+            handles.user_context_rag_cb,
+            handles.web_search_cb,
+            handles.voice_cb,
+            handles.timing_cb,
+            handles.merge_cb,
         ],
     ).then(
         fn=None,
