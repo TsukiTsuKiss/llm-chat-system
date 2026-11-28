@@ -206,6 +206,19 @@ def test_dictionary_regex_entries_need_prefix_and_bad_ones_are_ignored(capsys):
     assert "re:(" in err and "re:x*" in err
 
 
+def test_solo_dictionary_respects_numeric_boundaries():
+    root = Path(__file__).resolve().parents[2]
+    dictionary = voice.load_voice_dictionary(root, "solo")
+    assert voice.apply_dictionary("5人と50歳以上と60歳層と70歳層と2 ～ 3人", dictionary) == (
+        "ゴニンとゴジュウサイイジョウとロクジュッサイソウとナナジュッサイソウとニカラサン人"
+    )
+    assert voice.apply_dictionary("15人と150歳以上と160歳層と170歳層と12 ～ 3人", dictionary) == (
+        "15人と150サイイジョウと160歳層と170歳層と12 ～ 3人"
+    )
+    assert voice.apply_dictionary("1.5人と2 ～ 30人", dictionary) == "1.5人と2 ～ 30人"
+    assert voice.apply_dictionary("就職氷河期支援金", dictionary) == "シュウショクヒョウガキシエンキン"
+
+
 def test_voice_reader_applies_dictionary(tmp_path: Path, monkeypatch):
     spoken: list[str] = []
     monkeypatch.setattr(voice, "synthesize", lambda text, entry, base_url=voice.DEFAULT_BASE_URL: spoken.append(text) or b"RIFF")
