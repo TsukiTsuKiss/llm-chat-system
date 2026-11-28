@@ -419,6 +419,7 @@ date_updated,provider,model,input_cost_per_1k_tokens,output_cost_per_1k_tokens,c
 2026-11-14,Opper,azure/claude-opus-5,0.005,0.025,USD,"Opper (Azure) - Claude Opus 5 - 1M ctx。リージョン Multi。キャッシュ読み取り $0.50"
 2026-11-14,Opper,xai/grok-4.6,0.002,0.006,USD,"Opper (xAI) - Grok 4.6 - 500K ctx。リージョン Multi（US は $2.20 / $6.60）。キャッシュ読み取り $0.50"
 2026-11-14,Opper,xai/grok-build-0.1,0.001,0.002,USD,"Opper (xAI) - Grok Build 0.1 - 256K ctx。リージョン Multi。キャッシュ読み取り $0.20"
+2026-11-29,Opper,meta/muse-spark-1.3,0.00125,0.00425,USD,"Opper (Meta) - Muse Spark 1.3 - 1M ctx。リージョン Multi。学習利用なし（abuse monitoring あり）。キャッシュ読み取り $0.15"
 2026-11-12,Sakura,gpt-oss-120b,0.015,0.075,JPY,"さくらのAI Engine (税込・円。無償枠: Chat 全体で月3,000リクエスト、超過後は従量課金)"
 2026-11-12,Sakura,llm-jp-3.1-8x13b-instruct4,0.015,0.075,JPY,"さくらのAI Engine (税込・円。無償枠: Chat 全体で月3,000リクエスト、超過後は従量課金)"
 2026-11-12,Sakura,preview/Qwen3.6-35B-A3B,0.03,0.15,JPY,"さくらのAI Engine (税込・円。無償枠: Chat 全体で月3,000リクエスト、超過後は従量課金)"

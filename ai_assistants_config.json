@@ -133,7 +133,8 @@
       "xai/grok-4.6",
       "xai/grok-build-0.1",
       "mistral/mistral-large-2512",
-      "mistral/mistral-small-2603"
+      "mistral/mistral-small-2603",
+      "meta/muse-spark-1.3"
     ]
   },
   "SakuraAI": {
